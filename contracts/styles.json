@@ -1,0 +1,98 @@
+{
+  "contract_version": "0.1.0",
+  "extent_class": {
+    "high": {
+      "fill": "#d7263d",
+      "opacity": 0.65,
+      "label_key": "legend_high"
+    },
+    "possible": {
+      "fill": "#f4a259",
+      "opacity": 0.35,
+      "pattern": "hatch",
+      "label_key": "legend_possible"
+    }
+  },
+  "p_inundation": {
+    "type": "continuous",
+    "stops": [
+      [
+        0.1,
+        "#fff3b0"
+      ],
+      [
+        0.5,
+        "#f4a259"
+      ],
+      [
+        0.9,
+        "#d7263d"
+      ]
+    ]
+  },
+  "depth_p50": {
+    "type": "classes",
+    "breaks_m": [
+      0.3,
+      0.5,
+      2.0,
+      5.0
+    ],
+    "colors": [
+      "#eaf4fc",
+      "#a9d6e5",
+      "#61a5c2",
+      "#2c7da0",
+      "#01497c"
+    ]
+  },
+  "arrival_p50": {
+    "type": "classes",
+    "breaks_s": [
+      900,
+      1800,
+      3600,
+      7200
+    ],
+    "colors": [
+      "#d7263d",
+      "#f4a259",
+      "#f9dc5c",
+      "#8ac926",
+      "#1982c4"
+    ]
+  },
+  "velocity_p50": {
+    "type": "classes",
+    "breaks_ms": [
+      0.5,
+      1.0,
+      2.0,
+      5.0
+    ],
+    "colors": [
+      "#eaf4fc",
+      "#a9d6e5",
+      "#61a5c2",
+      "#2c7da0",
+      "#01497c"
+    ]
+  },
+  "depth_diff": {
+    "type": "diverging",
+    "range_m": [
+      -2.0,
+      2.0
+    ],
+    "colors": [
+      "#2166ac",
+      "#ffffff",
+      "#b2182b"
+    ]
+  },
+  "isochrones": {
+    "stroke": "#212529",
+    "width": 1.5,
+    "interval_s": 900
+  }
+}

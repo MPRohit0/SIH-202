@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "site_detail.schema.json",
+  "title": "SiteDetail (contract \u00a75.1)",
+  "allOf": [
+    {
+      "$ref": "site_summary.schema.json"
+    },
+    {
+      "type": "object",
+      "required": [
+        "dams",
+        "emulator_inputs",
+        "domain",
+        "centreline",
+        "pois",
+        "validation_summary",
+        "caveats"
+      ],
+      "properties": {
+        "dams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "dam_id",
+              "name",
+              "kind",
+              "order",
+              "key_specs"
+            ],
+            "properties": {
+              "dam_id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "order": {
+                "type": "integer"
+              },
+              "key_specs": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "common.schema.json#/$defs/SourcedValue"
+                }
+              }
+            }
+          }
+        },
+        "emulator_inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "dam_id",
+              "label_key",
+              "unit",
+              "low",
+              "high",
+              "slider"
+            ],
+            "properties": {
+              "name": {
+                "enum": [
+                  "water_volume_m3",
+                  "initial_water_level_m",
+                  "breach_width_m",
+                  "failure_time_s",
+                  "manning_multiplier"
+                ]
+              },
+              "dam_id": {
+                "type": "string"
+              },
+              "label_key": {
+                "type": "string"
+              },
+              "unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "low": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "high": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "slider": {
+                "type": "object",
+                "required": [
+                  "positions",
+                  "mapping"
+                ],
+                "properties": {
+                  "positions": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "mapping": {
+                    "enum": [
+                      "linear",
+                      "log"
+                    ]
+                  }
+                }
+              },
+              "default": {}
+            }
+          }
+        },
+        "domain": {
+          "$ref": "geojson_feature_collection.schema.json"
+        },
+        "centreline": {
+          "$ref": "geojson_feature_collection.schema.json"
+        },
+        "pois": {
+          "$ref": "geojson_feature_collection.schema.json"
+        },
+        "validation_summary": {
+          "type": "object",
+          "properties": {
+            "extent": {},
+            "depth": {},
+            "arrival": {},
+            "velocity": {}
+          }
+        },
+        "caveats": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/Caveat"
+          }
+        }
+      }
+    }
+  ]
+}

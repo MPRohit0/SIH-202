@@ -1,0 +1,39 @@
+{
+  "query_id": "q_20260924T101500Z_3fa9c1",
+  "frame": {
+    "crs_epsg": 32645,
+    "origin_x": 0.0,
+    "origin_y": 0.0,
+    "vertical_exaggeration": 1.5
+  },
+  "terrain": {
+    "url": "/api/v1/files/teesta/queries/q_20260924T101500Z_3fa9c1/scene3d/terrain.bin",
+    "encoding": "float32_le_row_major",
+    "width": 500,
+    "height": 375,
+    "cell_size_m": 120.0,
+    "min_elev_m": 0.0,
+    "max_elev_m": 0.0
+  },
+  "flood_surface": {
+    "url": "/api/v1/files/teesta/queries/q_20260924T101500Z_3fa9c1/scene3d/flood_surface.bin",
+    "encoding": "float32_le_row_major",
+    "nodata": -9999.0,
+    "basis": "terrain + depth_p50"
+  },
+  "comparison": {
+    "nearfield_bounds_local": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ],
+    "delft3d_surface_url": null,
+    "sph_surfaces": []
+  },
+  "max_payload_mb": 20
+}

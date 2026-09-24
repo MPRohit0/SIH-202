@@ -1,0 +1,7 @@
+{
+  "site_config": {
+    "site_id": "new_site",
+    "note": "abbreviated for the mock \u2014 full shape is sites/*.yaml"
+  },
+  "demo_mode": true
+}

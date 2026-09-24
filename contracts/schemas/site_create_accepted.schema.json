@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "site_create_accepted.schema.json",
+  "title": "POST /sites 202 response (contract \u00a75.2)",
+  "type": "object",
+  "required": [
+    "job_id",
+    "site_id"
+  ],
+  "properties": {
+    "job_id": {
+      "type": "string"
+    },
+    "site_id": {
+      "type": "string"
+    }
+  }
+}

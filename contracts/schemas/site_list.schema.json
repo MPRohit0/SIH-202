@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "site_list.schema.json",
+  "title": "GET /sites (contract \u00a75 #3)",
+  "type": "array",
+  "items": {
+    "$ref": "site_summary.schema.json"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "historical_validation.schema.json",
+  "title": "HistoricalValidation (contract \u00a75.7)",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "site_id",
+    "event_id",
+    "observed",
+    "predicted",
+    "metrics",
+    "comparison_domain",
+    "caveats",
+    "provenance"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string"
+    },
+    "site_id": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "observed": {
+      "type": "object"
+    },
+    "predicted": {
+      "type": "object"
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "comparison_domain": {
+      "type": "string"
+    },
+    "caveats": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Caveat"
+      }
+    },
+    "provenance": {
+      "type": "object"
+    }
+  }
+}

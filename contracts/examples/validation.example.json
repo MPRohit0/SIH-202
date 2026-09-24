@@ -1,0 +1,58 @@
+{
+  "contract_version": "0.1.0",
+  "site_id": "teesta",
+  "model": "delft3d",
+  "n_runs": 30,
+  "per_run": [
+    {
+      "run_id": "teesta__s001__delft3d",
+      "iou": 0.0,
+      "f1": {
+        "0.05": 0.0,
+        "0.1": 0.0,
+        "0.3": 0.0
+      },
+      "depth_rmse_wet_m": 0.0,
+      "arrival_mae_s": 0.0,
+      "velocity_mae_ms": 0.0,
+      "area_error_pct": 0.0,
+      "coverage_90": 0.0
+    }
+  ],
+  "summary": {
+    "extent": {
+      "iou_median": 0.0,
+      "f1_0_3_median": 0.0,
+      "area_error_pct_median": 0.0,
+      "grade": "UNKNOWN"
+    },
+    "depth": {
+      "rmse_wet_m_median": 0.0,
+      "grade": "UNKNOWN"
+    },
+    "arrival": {
+      "mae_s_median": 0.0,
+      "grade": "UNKNOWN"
+    },
+    "velocity": {
+      "mae_ms_median": 0.0,
+      "grade": "UNKNOWN"
+    },
+    "coverage_90": 0.0
+  },
+  "baseline_linear": {
+    "extent": {
+      "iou_median": 0.0
+    },
+    "depth": {
+      "rmse_wet_m_median": 0.0
+    },
+    "arrival": {
+      "mae_s_median": 0.0
+    }
+  },
+  "grade_thresholds_ref": "docs/m5_spec.md",
+  "events": [
+    "teesta_2023"
+  ]
+}

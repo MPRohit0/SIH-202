@@ -1,0 +1,53 @@
+{
+  "query_id": "q_20260924T101500Z_3fa9c1",
+  "interval_s": 300,
+  "frames": [
+    {
+      "t_s": 300,
+      "median_url": "/api/v1/files/teesta/queries/q_20260924T101500Z_3fa9c1/timeline/median_t300.png",
+      "high_url": "/api/v1/files/teesta/queries/q_20260924T101500Z_3fa9c1/timeline/high_t300.png",
+      "possible_url": "/api/v1/files/teesta/queries/q_20260924T101500Z_3fa9c1/timeline/possible_t300.png",
+      "bounds_latlng": [
+        [
+          27.6,
+          88.3
+        ],
+        [
+          28.0,
+          88.8
+        ]
+      ]
+    }
+  ],
+  "hydrographs": [
+    {
+      "dam_id": "teesta__south_lhonak",
+      "t_offset_s": 0,
+      "points": [
+        {
+          "t_s": 0,
+          "q_m3s": 0.0
+        },
+        {
+          "t_s": 300,
+          "q_m3s": 0.0
+        }
+      ]
+    }
+  ],
+  "arrival_profile": [
+    {
+      "chainage_m": 0.0,
+      "arrival_p10_s": 0,
+      "arrival_p50_s": 0,
+      "arrival_p90_s": 0
+    }
+  ],
+  "pois_on_profile": [
+    {
+      "poi_id": "teesta__poi__chungthang",
+      "name": "Chungthang",
+      "chainage_m": 12000.0
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "validation.schema.json",
+  "title": "GET /validation/{site_id} \u2014 LOOCV (contract \u00a74.6, \u00a75.7)",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "site_id",
+    "model",
+    "n_runs",
+    "per_run",
+    "summary",
+    "baseline_linear",
+    "grade_thresholds_ref",
+    "events"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string"
+    },
+    "site_id": {
+      "type": "string"
+    },
+    "model": {
+      "enum": [
+        "delft3d",
+        "sph"
+      ]
+    },
+    "n_runs": {
+      "type": "integer"
+    },
+    "per_run": {
+      "type": "array"
+    },
+    "summary": {
+      "type": "object"
+    },
+    "baseline_linear": {
+      "type": "object"
+    },
+    "grade_thresholds_ref": {
+      "type": "string"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "site_create_request.schema.json",
+  "title": "POST /sites request body (contract \u00a75.2)",
+  "type": "object",
+  "required": [
+    "site_config"
+  ],
+  "properties": {
+    "site_config": {
+      "type": "object"
+    },
+    "demo_mode": {
+      "type": "boolean"
+    }
+  }
+}

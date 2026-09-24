@@ -1,0 +1,27 @@
+{
+  "site_id": "teesta",
+  "name": "Teesta \u2014 South Lhonak GLOF to Teesta III",
+  "status": "ready",
+  "status_reason_key": null,
+  "emulator_ready": true,
+  "models_available": [
+    "delft3d",
+    "sph"
+  ],
+  "last_trained_at": "2026-09-24T10:15:00Z",
+  "recheck": {
+    "frequency_days": 90,
+    "last_checked_at": "2026-09-24T10:15:00Z",
+    "next_check_at": "2026-12-23T10:15:00Z"
+  },
+  "bbox_lonlat": [
+    88.0,
+    27.5,
+    89.0,
+    28.2
+  ],
+  "events": [
+    "teesta_2023"
+  ],
+  "has_placeholders": true
+}

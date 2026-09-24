@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "job_status.schema.json",
+  "title": "JobStatus (contract \u00a75.3)",
+  "type": "object",
+  "required": [
+    "job_id",
+    "kind",
+    "site_id",
+    "stage",
+    "stage_label_key",
+    "progress",
+    "started_at",
+    "updated_at",
+    "error"
+  ],
+  "properties": {
+    "job_id": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "onboarding",
+        "campaign",
+        "recheck",
+        "rerun"
+      ]
+    },
+    "site_id": {
+      "type": "string"
+    },
+    "stage": {
+      "type": "string"
+    },
+    "stage_label_key": {
+      "type": "string"
+    },
+    "progress": {
+      "type": "object",
+      "required": [
+        "current",
+        "total",
+        "unit"
+      ],
+      "properties": {
+        "current": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "total": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "eta_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "demo_mode": {
+      "type": "boolean"
+    },
+    "started_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "log_tail": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  }
+}

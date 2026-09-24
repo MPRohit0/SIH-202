@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          88.63,
+          27.83
+        ]
+      },
+      "properties": {
+        "poi_id": "teesta__poi__chungthang",
+        "name": "Chungthang",
+        "kind": "town"
+      }
+    }
+  ]
+}

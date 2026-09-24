@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "site_not_found",
+    "message": "No site 'nosuchsite' is configured.",
+    "details": {}
+  }
+}

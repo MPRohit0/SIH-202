@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "timeline.schema.json",
+  "title": "Timeline (contract \u00a75.5)",
+  "type": "object",
+  "required": [
+    "query_id",
+    "interval_s",
+    "frames",
+    "hydrographs",
+    "arrival_profile",
+    "pois_on_profile"
+  ],
+  "properties": {
+    "query_id": {
+      "type": "string"
+    },
+    "interval_s": {
+      "type": "number"
+    },
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "t_s",
+          "median_url",
+          "high_url",
+          "possible_url",
+          "bounds_latlng"
+        ],
+        "properties": {
+          "t_s": {
+            "type": "number"
+          },
+          "median_url": {
+            "type": "string"
+          },
+          "high_url": {
+            "type": "string"
+          },
+          "possible_url": {
+            "type": "string"
+          },
+          "bounds_latlng": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    "hydrographs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "dam_id",
+          "t_offset_s",
+          "points"
+        ],
+        "properties": {
+          "dam_id": {
+            "type": "string"
+          },
+          "t_offset_s": {
+            "type": "number"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "t_s",
+                "q_m3s"
+              ],
+              "properties": {
+                "t_s": {
+                  "type": "number"
+                },
+                "q_m3s": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "arrival_profile": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "chainage_m",
+          "arrival_p10_s",
+          "arrival_p50_s",
+          "arrival_p90_s"
+        ],
+        "properties": {
+          "chainage_m": {
+            "type": "number"
+          },
+          "arrival_p10_s": {
+            "type": "number"
+          },
+          "arrival_p50_s": {
+            "type": "number"
+          },
+          "arrival_p90_s": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "pois_on_profile": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "poi_id",
+          "name",
+          "chainage_m"
+        ],
+        "properties": {
+          "poi_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "chainage_m": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}

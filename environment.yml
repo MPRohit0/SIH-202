@@ -23,6 +23,8 @@ dependencies:
   - richdem
   - simplekml
   - joblib
+  - jsonschema
+  - httpx
   - pytest
   - pip
   - pip:

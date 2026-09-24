@@ -1,0 +1,19 @@
+{
+  "site_id": "teesta",
+  "model": "delft3d",
+  "mode": "unknown_breach",
+  "inputs": {
+    "breach_width_m": {
+      "type": "exact",
+      "value": 72.0
+    },
+    "failure_time_s": {
+      "type": "slider",
+      "position": 3
+    }
+  },
+  "options": {
+    "n_samples": 500,
+    "seed": null
+  }
+}

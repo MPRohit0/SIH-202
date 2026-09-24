@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "impact.schema.json",
+  "title": "impact.json (contract \u00a74.7)",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "query_id",
+    "site_id",
+    "population_persons",
+    "assets",
+    "loss_inr",
+    "warning_table",
+    "not_affected_poi_count",
+    "data_coverage_notes",
+    "has_placeholders",
+    "placeholder_fields",
+    "caveats",
+    "provenance"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string"
+    },
+    "query_id": {
+      "type": "string"
+    },
+    "site_id": {
+      "type": "string"
+    },
+    "population_persons": {
+      "$ref": "common.schema.json#/$defs/Estimate"
+    },
+    "assets": {
+      "type": "object",
+      "required": [
+        "buildings",
+        "roads_m",
+        "bridges",
+        "hospitals",
+        "schools",
+        "cropland_m2",
+        "hydropower"
+      ],
+      "properties": {
+        "buildings": {
+          "type": "object",
+          "required": [
+            "high",
+            "possible"
+          ],
+          "properties": {
+            "high": {
+              "type": "number"
+            },
+            "possible": {
+              "type": "number"
+            }
+          }
+        },
+        "roads_m": {
+          "type": "object",
+          "required": [
+            "high",
+            "possible"
+          ],
+          "properties": {
+            "high": {
+              "type": "number"
+            },
+            "possible": {
+              "type": "number"
+            }
+          }
+        },
+        "bridges": {
+          "type": "object",
+          "required": [
+            "high",
+            "possible"
+          ],
+          "properties": {
+            "high": {
+              "type": "number"
+            },
+            "possible": {
+              "type": "number"
+            }
+          }
+        },
+        "hospitals": {
+          "type": "object",
+          "required": [
+            "high",
+            "possible"
+          ],
+          "properties": {
+            "high": {
+              "type": "number"
+            },
+            "possible": {
+              "type": "number"
+            }
+          }
+        },
+        "schools": {
+          "type": "object",
+          "required": [
+            "high",
+            "possible"
+          ],
+          "properties": {
+            "high": {
+              "type": "number"
+            },
+            "possible": {
+              "type": "number"
+            }
+          }
+        },
+        "cropland_m2": {
+          "type": "object",
+          "required": [
+            "high",
+            "possible"
+          ],
+          "properties": {
+            "high": {
+              "type": "number"
+            },
+            "possible": {
+              "type": "number"
+            }
+          }
+        },
+        "hydropower": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "zone",
+              "depth_m"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "zone": {
+                "enum": [
+                  "high",
+                  "possible"
+                ]
+              },
+              "depth_m": {
+                "$ref": "common.schema.json#/$defs/Estimate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "loss_inr": {
+      "$ref": "common.schema.json#/$defs/Estimate"
+    },
+    "warning_table": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "poi_id",
+          "name",
+          "kind",
+          "chainage_m",
+          "zone",
+          "p_inundation",
+          "arrival_s",
+          "depth_m",
+          "velocity_ms"
+        ],
+        "properties": {
+          "poi_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "chainage_m": {
+            "type": "number"
+          },
+          "zone": {
+            "enum": [
+              "high",
+              "possible"
+            ]
+          },
+          "p_inundation": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "arrival_s": {
+            "$ref": "common.schema.json#/$defs/Estimate"
+          },
+          "depth_m": {
+            "$ref": "common.schema.json#/$defs/Estimate"
+          },
+          "velocity_ms": {
+            "$ref": "common.schema.json#/$defs/Estimate"
+          }
+        }
+      }
+    },
+    "not_affected_poi_count": {
+      "type": "integer"
+    },
+    "data_coverage_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "has_placeholders": {
+      "type": "boolean"
+    },
+    "placeholder_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "caveats": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Caveat"
+      }
+    },
+    "provenance": {
+      "$ref": "common.schema.json#/$defs/Provenance"
+    }
+  }
+}

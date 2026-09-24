@@ -1,0 +1,20 @@
+{
+  "job_id": "job_20260924T101500Z_b17e02",
+  "kind": "onboarding",
+  "site_id": "new_site",
+  "stage": "simulating",
+  "stage_label_key": "job_stage_simulating",
+  "progress": {
+    "current": 3,
+    "total": 6,
+    "unit": "runs"
+  },
+  "eta_s": 1800,
+  "demo_mode": true,
+  "started_at": "2026-09-24T10:15:00Z",
+  "updated_at": "2026-09-24T10:45:00Z",
+  "log_tail": [
+    "run new_site_demo_s003__delft3d started"
+  ],
+  "error": null
+}

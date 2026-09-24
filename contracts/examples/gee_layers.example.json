@@ -1,0 +1,90 @@
+{
+  "site_id": "teesta",
+  "source": "cache",
+  "fetched_at": "2026-09-24T10:15:00Z",
+  "lake_area_series": [
+    {
+      "date": "2026-08-01",
+      "area_m2": 0.0,
+      "method": "s1_threshold",
+      "cloud_pct": null
+    }
+  ],
+  "lake_latest": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                88.2,
+                27.9
+              ],
+              [
+                88.22,
+                27.9
+              ],
+              [
+                88.22,
+                27.92
+              ],
+              [
+                88.2,
+                27.92
+              ],
+              [
+                88.2,
+                27.9
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "date": "2026-08-01",
+          "area_m2": 0.0,
+          "method": "s1_threshold"
+        }
+      }
+    ]
+  },
+  "rainfall": [
+    {
+      "date": "2026-09-20",
+      "precip_mm": 0.0,
+      "dataset": "gpm_imerg"
+    }
+  ],
+  "imagery": [
+    {
+      "event_id": "teesta_2023",
+      "phase": "post",
+      "date": "2023-10-10",
+      "url": "/api/v1/files/teesta/gee/imagery/teesta_2023_post_20231010.png",
+      "bounds_latlng": [
+        [
+          27.6,
+          88.3
+        ],
+        [
+          28.0,
+          88.8
+        ]
+      ]
+    }
+  ],
+  "observed_extents": [
+    {
+      "event_id": "teesta_2023",
+      "url": "/api/v1/files/teesta/gee/observed/teesta_2023_observed.geojson",
+      "method": "manual_digitized"
+    }
+  ],
+  "recheck": {
+    "outdated": false,
+    "change_pct": 0.0,
+    "threshold_pct": 10
+  }
+}

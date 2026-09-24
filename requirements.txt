@@ -7,3 +7,9 @@ rasterio>=1.3.9
 pyproj>=3.6
 affine>=2.4
 pytest>=8.0
+
+# backend/m0_api (FastAPI mock server) and its contract-validation tests
+fastapi>=0.110
+uvicorn>=0.27
+jsonschema>=4.10
+httpx>=0.27

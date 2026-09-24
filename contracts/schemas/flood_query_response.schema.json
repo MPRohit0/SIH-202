@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "flood_query_response.schema.json",
+  "title": "FloodQueryResponse (contract \u00a75.4)",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "query_id",
+    "site_id",
+    "status",
+    "method",
+    "mode",
+    "resolved_inputs",
+    "summary",
+    "confidence",
+    "layers",
+    "vectors",
+    "flags",
+    "placeholder_fields",
+    "caveats",
+    "provenance",
+    "timing_ms"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string"
+    },
+    "query_id": {
+      "type": "string"
+    },
+    "site_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "partial",
+        "complete",
+        "failed"
+      ]
+    },
+    "method": {
+      "enum": [
+        "gp_emulator",
+        "empirical_fallback"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "scenario",
+        "unknown_breach"
+      ]
+    },
+    "resolved_inputs": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "common.schema.json#/$defs/Estimate"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "inundated_area_m2",
+        "max_depth_m",
+        "max_velocity_ms",
+        "peak_discharge_m3s",
+        "first_arrival"
+      ],
+      "properties": {
+        "inundated_area_m2": {
+          "$ref": "common.schema.json#/$defs/Estimate"
+        },
+        "max_depth_m": {
+          "$ref": "common.schema.json#/$defs/Estimate"
+        },
+        "max_velocity_ms": {
+          "$ref": "common.schema.json#/$defs/Estimate"
+        },
+        "peak_discharge_m3s": {
+          "$ref": "common.schema.json#/$defs/Estimate"
+        },
+        "first_arrival": {
+          "type": "object",
+          "required": [
+            "poi_id",
+            "name",
+            "arrival_s"
+          ],
+          "properties": {
+            "poi_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "arrival_s": {
+              "$ref": "common.schema.json#/$defs/Estimate"
+            }
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": [
+        "overall",
+        "extent",
+        "depth",
+        "arrival",
+        "velocity"
+      ],
+      "properties": {
+        "overall": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        },
+        "extent": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        },
+        "depth": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        },
+        "arrival": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        },
+        "velocity": {
+          "$ref": "common.schema.json#/$defs/Confidence"
+        }
+      }
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/LayerRef"
+      }
+    },
+    "vectors": {
+      "type": "object",
+      "required": [
+        "extent_url"
+      ],
+      "properties": {
+        "extent_url": {
+          "type": "string"
+        }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "required": [
+        "outside_trained_range",
+        "demo_mode",
+        "library_outdated",
+        "has_placeholders"
+      ],
+      "properties": {
+        "outside_trained_range": {
+          "type": "boolean"
+        },
+        "demo_mode": {
+          "type": "boolean"
+        },
+        "library_outdated": {
+          "type": "boolean"
+        },
+        "has_placeholders": {
+          "type": "boolean"
+        }
+      }
+    },
+    "placeholder_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "caveats": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Caveat"
+      }
+    },
+    "provenance": {
+      "$ref": "common.schema.json#/$defs/Provenance"
+    },
+    "timing_ms": {
+      "type": "object",
+      "required": [
+        "median_phase",
+        "full_phase"
+      ],
+      "properties": {
+        "median_phase": {
+          "type": "number"
+        },
+        "full_phase": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

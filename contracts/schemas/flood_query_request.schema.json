@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "flood_query_request.schema.json",
+  "title": "POST /flood/query request body (contract \u00a75.4)",
+  "type": "object",
+  "required": [
+    "site_id",
+    "model",
+    "mode",
+    "inputs"
+  ],
+  "properties": {
+    "site_id": {
+      "type": "string"
+    },
+    "model": {
+      "enum": [
+        "delft3d",
+        "sph"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "scenario",
+        "unknown_breach"
+      ]
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "const": "exact"
+              },
+              "value": {
+                "type": "number"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "position"
+            ],
+            "properties": {
+              "type": {
+                "const": "slider"
+              },
+              "position": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+              }
+            }
+          }
+        ]
+      }
+    },
+    "options": {
+      "type": "object",
+      "properties": {
+        "n_samples": {
+          "type": "integer"
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

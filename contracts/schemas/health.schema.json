@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "health.schema.json",
+  "title": "Health (contract \u00a75 #1)",
+  "type": "object",
+  "required": [
+    "status",
+    "contract_version",
+    "code_version"
+  ],
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "contract_version": {
+      "type": "string"
+    },
+    "code_version": {
+      "type": "string"
+    }
+  }
+}

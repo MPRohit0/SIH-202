@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gee_layers.schema.json",
+  "title": "GeeLayers (contract \u00a75.8)",
+  "type": "object",
+  "required": [
+    "site_id",
+    "source",
+    "fetched_at",
+    "lake_area_series",
+    "lake_latest",
+    "rainfall",
+    "imagery",
+    "observed_extents",
+    "recheck"
+  ],
+  "properties": {
+    "site_id": {
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "live",
+        "cache",
+        "screenshot_fallback"
+      ]
+    },
+    "fetched_at": {
+      "type": "string"
+    },
+    "lake_area_series": {
+      "type": "array"
+    },
+    "lake_latest": {
+      "$ref": "geojson_feature_collection.schema.json"
+    },
+    "rainfall": {
+      "type": "array"
+    },
+    "imagery": {
+      "type": "array"
+    },
+    "observed_extents": {
+      "type": "array"
+    },
+    "recheck": {
+      "type": "object",
+      "required": [
+        "outdated",
+        "change_pct",
+        "threshold_pct"
+      ],
+      "properties": {
+        "outdated": {
+          "type": "boolean"
+        },
+        "change_pct": {
+          "type": "number"
+        },
+        "threshold_pct": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "common.schema.json",
+  "title": "Shared JSON building blocks (contract \u00a72)",
+  "$defs": {
+    "SourcedValue": {
+      "type": "object",
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "properties": {
+        "value": {},
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder",
+            "assumed"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "Estimate": {
+      "type": "object",
+      "required": [
+        "value",
+        "low",
+        "high",
+        "unit",
+        "interval",
+        "kind"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "low": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "high": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "interval": {
+          "enum": [
+            "P10-P90",
+            "method_range",
+            "zone_range",
+            "none"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "predicted",
+            "observed",
+            "input"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "HIGH",
+            "MODERATE",
+            "LOW",
+            null
+          ]
+        },
+        "basis": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "Confidence": {
+      "type": "object",
+      "required": [
+        "level",
+        "components"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "HIGH",
+            "MODERATE",
+            "LOW"
+          ]
+        },
+        "components": {
+          "type": "object",
+          "properties": {
+            "validation_skill": {
+              "enum": [
+                "GOOD",
+                "FAIR",
+                "POOR",
+                "UNKNOWN"
+              ]
+            },
+            "query_coverage": {
+              "enum": [
+                "INSIDE",
+                "EDGE",
+                "OUTSIDE"
+              ]
+            },
+            "spread": {
+              "enum": [
+                "NARROW",
+                "MEDIUM",
+                "WIDE"
+              ]
+            }
+          },
+          "additionalProperties": true
+        },
+        "reason_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Caveat": {
+      "type": "object",
+      "required": [
+        "id",
+        "severity",
+        "text_key"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "critical"
+          ]
+        },
+        "text_key": {
+          "type": "string"
+        }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "required": [
+        "method",
+        "contract_version"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "gp_emulator",
+            "empirical_fallback",
+            "delft3d_direct",
+            "sph_direct",
+            "observed"
+          ]
+        },
+        "contract_version": {
+          "type": "string"
+        },
+        "code_version": {
+          "type": "string"
+        },
+        "solver_versions": {
+          "type": "object"
+        },
+        "run_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "emulator_manifest": {
+          "type": "string"
+        },
+        "data_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "LayerRef": {
+      "type": "object",
+      "required": [
+        "layer_id",
+        "type",
+        "url",
+        "bounds_latlng",
+        "available"
+      ],
+      "properties": {
+        "layer_id": {
+          "type": "string"
+        },
+        "label_key": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "raster_png",
+            "geojson"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "bounds_latlng": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "style_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "available": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Error": {
+      "type": "object",
+      "required": [
+        "error"
+      ],
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  }
+}

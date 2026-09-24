@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "site_summary.schema.json",
+  "title": "SiteSummary (contract \u00a75.1)",
+  "type": "object",
+  "required": [
+    "site_id",
+    "name",
+    "status",
+    "emulator_ready",
+    "models_available",
+    "bbox_lonlat",
+    "events",
+    "has_placeholders"
+  ],
+  "properties": {
+    "site_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,31}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "onboarding",
+        "demo_mode",
+        "ready",
+        "outdated",
+        "failed"
+      ]
+    },
+    "status_reason_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "emulator_ready": {
+      "type": "boolean"
+    },
+    "models_available": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "delft3d",
+          "sph"
+        ]
+      }
+    },
+    "last_trained_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recheck": {
+      "type": "object",
+      "properties": {
+        "frequency_days": {
+          "type": "integer"
+        },
+        "last_checked_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next_check_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "bbox_lonlat": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "number"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "has_placeholders": {
+      "type": "boolean"
+    }
+  }
+}

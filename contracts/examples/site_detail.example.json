@@ -1,0 +1,166 @@
+{
+  "site_id": "teesta",
+  "name": "Teesta \u2014 South Lhonak GLOF to Teesta III",
+  "status": "ready",
+  "status_reason_key": null,
+  "emulator_ready": true,
+  "models_available": [
+    "delft3d",
+    "sph"
+  ],
+  "last_trained_at": "2026-09-24T10:15:00Z",
+  "recheck": {
+    "frequency_days": 90,
+    "last_checked_at": "2026-09-24T10:15:00Z",
+    "next_check_at": "2026-12-23T10:15:00Z"
+  },
+  "bbox_lonlat": [
+    88.0,
+    27.5,
+    89.0,
+    28.2
+  ],
+  "events": [
+    "teesta_2023"
+  ],
+  "has_placeholders": true,
+  "dams": [
+    {
+      "dam_id": "teesta__south_lhonak",
+      "name": "South Lhonak moraine dam",
+      "kind": "natural_moraine",
+      "order": 1,
+      "key_specs": {
+        "dam_height_m": {
+          "value": 0.0,
+          "unit": "m",
+          "source": null,
+          "status": "placeholder"
+        }
+      }
+    },
+    {
+      "dam_id": "teesta__teesta3",
+      "name": "Teesta III (Chungthang)",
+      "kind": null,
+      "order": 2,
+      "key_specs": {}
+    }
+  ],
+  "emulator_inputs": [
+    {
+      "name": "breach_width_m",
+      "dam_id": "teesta__south_lhonak",
+      "label_key": "input_breach_width_m",
+      "unit": "m",
+      "low": 0.0,
+      "high": 0.0,
+      "slider": {
+        "positions": [
+          0,
+          10
+        ],
+        "mapping": "linear"
+      },
+      "default": null
+    }
+  ],
+  "domain": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                88.3,
+                27.6
+              ],
+              [
+                88.8,
+                27.6
+              ],
+              [
+                88.8,
+                28.0
+              ],
+              [
+                88.3,
+                28.0
+              ],
+              [
+                88.3,
+                27.6
+              ]
+            ]
+          ]
+        },
+        "properties": {}
+      }
+    ]
+  },
+  "centreline": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              88.35,
+              27.95
+            ],
+            [
+              88.63,
+              27.83
+            ]
+          ]
+        },
+        "properties": {}
+      }
+    ]
+  },
+  "pois": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            88.63,
+            27.83
+          ]
+        },
+        "properties": {
+          "poi_id": "teesta__poi__chungthang",
+          "name": "Chungthang",
+          "kind": "town",
+          "chainage_m": 12000.0,
+          "dist_to_channel_m": 80.0
+        }
+      }
+    ]
+  },
+  "validation_summary": {
+    "extent": "GOOD",
+    "depth": "GOOD",
+    "arrival": "FAIR",
+    "velocity": "GOOD"
+  },
+  "caveats": [
+    {
+      "id": "moraine_extrapolation",
+      "severity": "warning",
+      "text_key": "caveat_moraine_extrapolation"
+    },
+    {
+      "id": "clear_water",
+      "severity": "warning",
+      "text_key": "caveat_clear_water"
+    }
+  ]
+}

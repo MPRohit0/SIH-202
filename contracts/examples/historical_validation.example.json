@@ -1,0 +1,118 @@
+{
+  "contract_version": "0.1.0",
+  "site_id": "teesta",
+  "event_id": "teesta_2023",
+  "observed": {
+    "extent_url": "/api/v1/files/teesta/gee/observed/teesta_2023_observed.geojson",
+    "area_m2": {
+      "value": 0.0,
+      "unit": "m2",
+      "kind": "observed",
+      "source": "src_040"
+    },
+    "arrival_reports": [
+      {
+        "place": "Chungthang",
+        "arrival_s": 0,
+        "source": "src_041",
+        "note": "reported time"
+      }
+    ],
+    "peak_discharge_estimates": [
+      {
+        "location": "Chungthang",
+        "value_m3s": 0.0,
+        "source": "src_042"
+      }
+    ]
+  },
+  "predicted": {
+    "emulator": {
+      "query_id": "q_20260924T101500Z_3fa9c1",
+      "area_m2": {
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "unit": "m2",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": "MODERATE"
+      }
+    },
+    "delft3d_direct": {
+      "run_id": "teesta__hist_teesta_2023__delft3d",
+      "area_m2": {
+        "value": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "unit": "m2",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": "MODERATE"
+      }
+    }
+  },
+  "metrics": {
+    "emulator": {
+      "iou": 0.0,
+      "f1_dice": 0.0,
+      "area_error_pct": 0.0,
+      "arrival_errors": [
+        {
+          "place": "Chungthang",
+          "error_s": 0,
+          "low_s": 0,
+          "high_s": 0
+        }
+      ],
+      "peak_errors": [
+        {
+          "source": "src_042",
+          "error_pct": 0.0
+        }
+      ]
+    },
+    "delft3d_direct": {
+      "iou": 0.0,
+      "f1_dice": 0.0,
+      "area_error_pct": 0.0,
+      "arrival_errors": [],
+      "peak_errors": []
+    }
+  },
+  "comparison_domain": "valley corridor only",
+  "caveats": [
+    {
+      "id": "clear_water",
+      "severity": "warning",
+      "text_key": "caveat_clear_water"
+    },
+    {
+      "id": "mass_flow_approximation",
+      "severity": "critical",
+      "text_key": "caveat_mass_flow_approximation"
+    }
+  ],
+  "provenance": {
+    "method": "gp_emulator",
+    "contract_version": "0.1.0",
+    "code_version": "mock-0.0.0",
+    "solver_versions": {
+      "delft3d": "mock-0.0.0",
+      "dualsphysics": "mock-0.0.0"
+    },
+    "run_ids": [
+      "teesta__s001__delft3d"
+    ],
+    "emulator_manifest": "data/teesta/emulator/delft3d/manifest.json",
+    "data_sources": [
+      "src_003",
+      "src_014"
+    ],
+    "parameters": {
+      "n_samples": 500,
+      "seed": 42
+    },
+    "created_at": "2026-09-24T10:15:00Z"
+  }
+}

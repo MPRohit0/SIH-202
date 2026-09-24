@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compare.schema.json",
+  "title": "Compare (contract \u00a75.6)",
+  "type": "object",
+  "required": [
+    "site_id",
+    "scenario_id",
+    "sph_vs_delft3d",
+    "emulator_vs_physics",
+    "gp_vs_linear",
+    "when_to_use_key",
+    "caveats"
+  ],
+  "properties": {
+    "site_id": {
+      "type": "string"
+    },
+    "scenario_id": {
+      "type": "string"
+    },
+    "sph_vs_delft3d": {
+      "type": "object",
+      "required": [
+        "available",
+        "domain",
+        "time_window_s",
+        "metrics",
+        "probes",
+        "layers",
+        "run_ids"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "time_window_s": {
+          "type": "number"
+        },
+        "metrics": {
+          "type": "object"
+        },
+        "probes": {
+          "type": "array"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/LayerRef"
+          }
+        },
+        "run_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "emulator_vs_physics": {
+      "type": "object",
+      "required": [
+        "available",
+        "held_out_run_id",
+        "metrics",
+        "layers"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "held_out_run_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metrics": {
+          "type": "object"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/LayerRef"
+          }
+        }
+      }
+    },
+    "gp_vs_linear": {
+      "type": "object"
+    },
+    "when_to_use_key": {
+      "type": "string"
+    },
+    "caveats": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Caveat"
+      }
+    }
+  }
+}

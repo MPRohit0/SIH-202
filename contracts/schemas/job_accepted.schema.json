@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "job_accepted.schema.json",
+  "title": "POST /sites/{id}/rerun 202 response (contract \u00a75 #8)",
+  "type": "object",
+  "required": [
+    "job_id"
+  ],
+  "properties": {
+    "job_id": {
+      "type": "string"
+    }
+  }
+}

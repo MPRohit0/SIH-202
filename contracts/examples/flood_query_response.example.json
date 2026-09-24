@@ -1,0 +1,207 @@
+{
+  "contract_version": "0.1.0",
+  "query_id": "q_20260924T101500Z_3fa9c1",
+  "site_id": "teesta",
+  "status": "complete",
+  "method": "gp_emulator",
+  "mode": "unknown_breach",
+  "resolved_inputs": {
+    "breach_width_m": {
+      "value": 72.0,
+      "low": 72.0,
+      "high": 72.0,
+      "unit": "m",
+      "interval": "none",
+      "kind": "input",
+      "confidence": null
+    },
+    "failure_time_s": {
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.0,
+      "unit": "s",
+      "interval": "none",
+      "kind": "input",
+      "confidence": null,
+      "basis": "slider position 3, log mapping"
+    },
+    "water_volume_m3": {
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.0,
+      "unit": "m3",
+      "interval": "method_range",
+      "kind": "input",
+      "confidence": null,
+      "basis": "sampled over range"
+    }
+  },
+  "summary": {
+    "inundated_area_m2": {
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.0,
+      "unit": "m2",
+      "interval": "P10-P90",
+      "kind": "predicted",
+      "confidence": "HIGH"
+    },
+    "max_depth_m": {
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.0,
+      "unit": "m",
+      "interval": "P10-P90",
+      "kind": "predicted",
+      "confidence": "HIGH"
+    },
+    "max_velocity_ms": {
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.0,
+      "unit": "ms",
+      "interval": "P10-P90",
+      "kind": "predicted",
+      "confidence": "HIGH"
+    },
+    "peak_discharge_m3s": {
+      "value": 0.0,
+      "low": 0.0,
+      "high": 0.0,
+      "unit": "m3s",
+      "interval": "method_range",
+      "kind": "predicted",
+      "confidence": null,
+      "basis": "breach outflow at teesta__south_lhonak (M2)"
+    },
+    "first_arrival": {
+      "poi_id": "teesta__poi__chungthang",
+      "name": "Chungthang",
+      "arrival_s": {
+        "value": 0,
+        "low": 0,
+        "high": 0,
+        "unit": "s",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": "MODERATE"
+      }
+    }
+  },
+  "confidence": {
+    "overall": {
+      "level": "MODERATE",
+      "components": {
+        "validation_skill": "GOOD",
+        "query_coverage": "EDGE",
+        "spread": "MEDIUM"
+      },
+      "reason_key": "conf_edge_of_training_range"
+    },
+    "extent": {
+      "level": "HIGH",
+      "components": {
+        "validation_skill": "GOOD",
+        "query_coverage": "EDGE",
+        "spread": "MEDIUM"
+      },
+      "reason_key": null
+    },
+    "depth": {
+      "level": "HIGH",
+      "components": {
+        "validation_skill": "GOOD",
+        "query_coverage": "EDGE",
+        "spread": "MEDIUM"
+      },
+      "reason_key": null
+    },
+    "arrival": {
+      "level": "MODERATE",
+      "components": {
+        "validation_skill": "GOOD",
+        "query_coverage": "EDGE",
+        "spread": "MEDIUM"
+      },
+      "reason_key": "conf_edge_of_training_range"
+    },
+    "velocity": {
+      "level": "HIGH",
+      "components": {
+        "validation_skill": "GOOD",
+        "query_coverage": "EDGE",
+        "spread": "MEDIUM"
+      },
+      "reason_key": null
+    }
+  },
+  "layers": [
+    {
+      "layer_id": "p_inundation",
+      "label_key": "layer_p_inundation",
+      "type": "raster_png",
+      "url": "/api/v1/flood/q_20260924T101500Z_3fa9c1/layers/p_inundation.png",
+      "bounds_latlng": [
+        [
+          27.6,
+          88.3
+        ],
+        [
+          28.0,
+          88.8
+        ]
+      ],
+      "style_id": "p_inundation",
+      "unit": null,
+      "available": true
+    }
+  ],
+  "vectors": {
+    "extent_url": "/api/v1/flood/q_20260924T101500Z_3fa9c1/extent.geojson"
+  },
+  "flags": {
+    "outside_trained_range": false,
+    "demo_mode": false,
+    "library_outdated": false,
+    "has_placeholders": true
+  },
+  "placeholder_fields": [],
+  "caveats": [
+    {
+      "id": "clear_water",
+      "severity": "warning",
+      "text_key": "caveat_clear_water"
+    },
+    {
+      "id": "moraine_extrapolation",
+      "severity": "warning",
+      "text_key": "caveat_moraine_extrapolation"
+    }
+  ],
+  "provenance": {
+    "method": "gp_emulator",
+    "contract_version": "0.1.0",
+    "code_version": "mock-0.0.0",
+    "solver_versions": {
+      "delft3d": "mock-0.0.0",
+      "dualsphysics": "mock-0.0.0"
+    },
+    "run_ids": [
+      "teesta__s001__delft3d"
+    ],
+    "emulator_manifest": "data/teesta/emulator/delft3d/manifest.json",
+    "data_sources": [
+      "src_003",
+      "src_014"
+    ],
+    "parameters": {
+      "n_samples": 500,
+      "seed": 42
+    },
+    "created_at": "2026-09-24T10:15:00Z"
+  },
+  "timing_ms": {
+    "median_phase": 420,
+    "full_phase": 3800
+  }
+}

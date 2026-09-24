@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "error.schema.json",
+  "title": "Error (contract \u00a72.7)",
+  "$ref": "common.schema.json#/$defs/Error"
+}

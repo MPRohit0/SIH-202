@@ -82,3 +82,25 @@ defined but not called from anywhere — the impact and compare views still comp
 been rewired. Connecting the real backend should mean filling in `source.ts`'s function bodies with `fetch()`
 calls and, for the disabled upload buttons (§3 of `frontend/API_USAGE.md`), deciding where each one's parsed
 result should live now that there's no local solver or cache to hand it to.
+
+## 2026-09-24 — contracts/ generated; M0 mock API serving every endpoint
+
+Generated `contracts/` (JSON Schemas + one example per payload, plus `styles.json`)
+from `docs/handoff_contract.md` §2, §4-§6 — this didn't exist before this session.
+Built `backend/m0_api` (FastAPI) serving all 22 endpoints from contract §5 as mocks
+backed by those examples; every response is validated against its schema before
+being sent (and again independently in tests). Raster layers serve as PNG, vectors
+as GeoJSON, exports as real zip/KML/PDF bytes with correct media types.
+
+No job queue or `data/registry.sqlite` behind this yet — every well-formed ID
+returns the same mock payload; only `site_id` is checked against a short known-sites
+list (`teesta`, `rishiganga`) so 404 handling has a real path to test. Wiring real
+M1-M7 outputs, the registry and job queue is future work.
+
+`environment.yml` / `requirements.txt` gained `jsonschema`, `httpx`, `fastapi`,
+`uvicorn`. `pytest -q`: 131 passed (64 new in `tests/m0_api/`).
+
+Known gaps carried over from the earlier contract-conflicts review, still pending
+the user's decisions: the site-config YAML-vs-§3.1 mismatch, and the frontend
+`API_USAGE.md` conflicts list. Neither blocks this mock API, which only implements
+what §5 already specifies.

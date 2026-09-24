@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "styles.schema.json",
+  "title": "Shared styles (contract \u00a76)",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "extent_class",
+    "p_inundation",
+    "depth_p50",
+    "arrival_p50",
+    "velocity_p50",
+    "depth_diff",
+    "isochrones"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string"
+    },
+    "extent_class": {
+      "type": "object"
+    },
+    "p_inundation": {
+      "type": "object"
+    },
+    "depth_p50": {
+      "type": "object"
+    },
+    "arrival_p50": {
+      "type": "object"
+    },
+    "velocity_p50": {
+      "type": "object"
+    },
+    "depth_diff": {
+      "type": "object"
+    },
+    "isochrones": {
+      "type": "object"
+    }
+  }
+}
