@@ -1,0 +1,210 @@
+# =============================================================================
+# sites/<site_id>.yaml  —  GLOF / dam-break site configuration  (schema v1)
+# Copy to sites/<site_id>.yaml and fill every field.
+# =============================================================================
+#
+# FIELD OBJECT — every data value is written like this:
+#
+#   some_key:
+#     value:  number | [number, ...] | string | null
+#     unit:   string
+#     source: string
+#     status: sourced | placeholder
+#     note:   string                  # optional
+#
+#   value   A number, or a fixed-length numeric array whose parts share one source:
+#             point -> [lon, lat]
+#             bbox  -> [min_lon, min_lat, max_lon, max_lat]
+#           Coordinates: WGS 84 (EPSG:4326), decimal degrees, GeoJSON order
+#           (longitude first). Enums and datetimes are strings.
+#           null is allowed only while status is placeholder.
+#   unit    m | m^3 | deg | epsg | enum (categorical) | iso8601 (date/datetime)
+#   source  sourced     -> full citation: document or dataset, version,
+#                          page/table, DOI or URL.
+#           placeholder -> where the real value is expected to come from.
+#   status  sourced | placeholder (nothing else).
+#
+# Keys that are NOT wrapped are identifiers and labels only:
+#   id, name, region, river, kind, category, description, from, triggered_by.
+# =============================================================================
+
+schema_version: 1
+
+site:
+  id: <site_id>                    # lowercase snake_case; must equal the file name
+  name: <Site name>
+  region: <State, district(s)>
+  river: <River system>
+
+crs:
+  utm_epsg:                        # projected CRS for all model grids (WGS 84 / UTM zone nnN -> 326nn)
+    value: null
+    unit: epsg
+    source: ""
+    status: placeholder
+
+# -----------------------------------------------------------------------------
+# Model domains
+#   far_field  - coarse grid, from the most upstream breach to the downstream limit
+#   near_field - fine grid around the assets that need detailed inundation
+# -----------------------------------------------------------------------------
+domains:
+  far_field:
+    description: <extent and purpose>
+    bbox:
+      value: null                  # [min_lon, min_lat, max_lon, max_lat]
+      unit: deg
+      source: ""
+      status: placeholder
+    grid_resolution:
+      value: null
+      unit: m
+      source: ""
+      status: placeholder
+    inflow:                        # where the upstream hydrograph enters this domain
+      from: <dam_id>               # a dam id (its breach hydrograph) or far_field (routed output)
+      location:
+        value: null                # [lon, lat], on the channel centreline
+        unit: deg
+        source: ""
+        status: placeholder
+
+  near_field:
+    description: <extent and purpose>
+    bbox:
+      value: null                  # [min_lon, min_lat, max_lon, max_lat]; must sit inside far_field
+      unit: deg
+      source: ""
+      status: placeholder
+    grid_resolution:
+      value: null
+      unit: m
+      source: ""
+      status: placeholder
+    inflow:
+      from: far_field              # a dam id or far_field
+      location:
+        value: null                # [lon, lat], on the near-field boundary
+        unit: deg
+        source: ""
+        status: placeholder
+
+# -----------------------------------------------------------------------------
+# Dams / lakes - one entry per structure that can breach, upstream -> downstream.
+# triggered_by: id of the upstream dam whose flood causes this breach (cascade), else null.
+#
+# breach_inputs feed the empirical breach relations (e.g. Froehlich 2008/2016,
+# Xu & Zhang 2009). Confirm the enum codes against your breach module's
+# coefficient tables. Expect breach_height <= dam_height.
+# -----------------------------------------------------------------------------
+dams:
+  - id: <dam_id>
+    name: <Dam or lake name>
+    kind: <moraine_dammed_lake | embankment_dam | concrete_dam | landslide_dam>
+    triggered_by: null
+    location:                      # dam crest centre
+      value: null                  # [lon, lat]
+      unit: deg
+      source: ""
+      status: placeholder
+    breach_location:               # breach centreline; breach hydrograph is applied here
+      value: null                  # [lon, lat]
+      unit: deg
+      source: ""
+      status: placeholder
+    breach_inputs:
+      water_volume_above_invert:   # V_w - stored volume above the breach invert at failure
+        value: null
+        unit: m^3
+        source: ""
+        status: placeholder
+      water_height_above_invert:   # h_w - water surface at failure minus breach invert
+        value: null
+        unit: m
+        source: ""
+        status: placeholder
+      breach_height:               # h_b - dam crest minus breach invert
+        value: null
+        unit: m
+        source: ""
+        status: placeholder
+      dam_height:                  # h_d - crest above downstream toe / streambed
+        value: null
+        unit: m
+        source: ""
+        status: placeholder
+      average_embankment_width:    # W_avg - (crest width + base width) / 2
+        value: null
+        unit: m
+        source: ""
+        status: placeholder
+      dam_type:                    # HD homogeneous | CD core-wall | FD concrete-faced | ZD zoned-fill
+        value: null
+        unit: enum
+        source: ""
+        status: placeholder
+      failure_mode:                # O overtopping | P piping
+        value: null
+        unit: enum
+        source: ""
+        status: placeholder
+      erodibility:                 # H high | M medium | L low
+        value: null
+        unit: enum
+        source: ""
+        status: placeholder
+
+# -----------------------------------------------------------------------------
+# Points of interest - reported on in outputs (arrival time, peak depth, ...)
+# category: village | dam | bridge | hospital
+# -----------------------------------------------------------------------------
+points_of_interest:
+  - id: <poi_id>
+    name: <Name>
+    category: <village | dam | bridge | hospital>
+    location:
+      value: null                  # [lon, lat]
+      unit: deg
+      source: ""
+      status: placeholder
+
+# -----------------------------------------------------------------------------
+# Events - historical (for validation) or hypothetical (scenarios).
+# Datetimes are ISO 8601 with UTC offset, e.g. "2023-10-03T23:00:00+05:30".
+# Imagery fields are plain dates, e.g. "2023-09-28".
+# -----------------------------------------------------------------------------
+events:
+  - id: <event_id>
+    name: <Event name>
+    kind: <historical | hypothetical>
+    onset:                         # first release (outburst / first breach)
+      value: null
+      unit: iso8601
+      source: ""
+      status: placeholder
+    breach_times:                  # one key per dam id that fails in this event
+      <dam_id>:
+        value: null
+        unit: iso8601
+        source: ""
+        status: placeholder
+    simulation_start:
+      value: null
+      unit: iso8601
+      source: ""
+      status: placeholder
+    simulation_end:
+      value: null
+      unit: iso8601
+      source: ""
+      status: placeholder
+    imagery_pre_event:             # satellite scene date used for validation
+      value: null
+      unit: iso8601
+      source: ""
+      status: placeholder
+    imagery_post_event:
+      value: null
+      unit: iso8601
+      source: ""
+      status: placeholder

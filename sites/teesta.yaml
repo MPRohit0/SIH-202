@@ -1,0 +1,341 @@
+# =============================================================================
+# sites/teesta.yaml  —  Teesta cascade: South Lhonak GLOF -> Teesta III (schema v1)
+#
+# EVERY VALUE BELOW IS A PLACEHOLDER.
+# Numbers and coordinates are rough, unchecked guesses so the pipeline can run
+# end-to-end. None of them may be used for a real result. Each `source` says
+# where the real value should come from; set status: sourced only after
+# replacing the value and writing the full citation.
+# Field-object rules: see sites/_template.yaml.
+# =============================================================================
+
+schema_version: 1
+
+site:
+  id: teesta
+  name: Teesta basin - South Lhonak Lake and Teesta III (Chungthang)
+  region: Sikkim (Mangan, Gangtok, Pakyong districts); West Bengal (Kalimpong, Jalpaiguri)
+  river: Teesta
+
+crs:
+  utm_epsg:
+    value: 32645                   # WGS 84 / UTM zone 45N
+    unit: epsg
+    source: "Placeholder: zone 45N spans 84E-90E, which contains the far-field bbox. Confirm against the DEM projection."
+    status: placeholder
+
+domains:
+  far_field:
+    description: South Lhonak Lake to Teesta Barrage (Gajoldoba)
+    bbox:
+      value: [88.10, 26.65, 88.85, 28.00]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: flood-path envelope digitised on the DEM, lake outlet to downstream limit plus buffer."
+      status: placeholder
+    grid_resolution:
+      value: 30
+      unit: m
+      source: "Placeholder: typical for Copernicus GLO-30 / SRTM. Replace with the resolution of the DEM actually used."
+      status: placeholder
+    inflow:
+      from: south_lhonak
+      location:
+        value: [88.200, 27.905]
+        unit: deg
+        source: "UNVERIFIED guess. Replace from: South Lhonak outlet channel snapped to the DEM stream network."
+        status: placeholder
+
+  near_field:
+    description: Lachen Chu approach, Teesta III dam and Chungthang town
+    bbox:
+      value: [88.60, 27.56, 88.69, 27.65]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: box around Teesta III dam and Chungthang drawn on high-resolution imagery."
+      status: placeholder
+    grid_resolution:
+      value: 10
+      unit: m
+      source: "Placeholder. Replace with the resolution of the finest DEM available here (CartoDEM, ALOS, drone or LiDAR)."
+      status: placeholder
+    inflow:
+      from: far_field
+      location:
+        value: [88.625, 27.635]
+        unit: deg
+        source: "UNVERIFIED guess. Replace from: Lachen Chu centreline where it crosses the near-field upstream boundary."
+        status: placeholder
+
+dams:
+  - id: south_lhonak
+    name: South Lhonak Lake (moraine dam)
+    kind: moraine_dammed_lake
+    triggered_by: null
+    location:
+      value: [88.200, 27.910]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: moraine crest centre digitised on pre-event imagery."
+      status: placeholder
+    breach_location:
+      value: [88.200, 27.905]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: breach channel mapped on post-event imagery."
+      status: placeholder
+    breach_inputs:
+      water_volume_above_invert:
+        value: 50000000            # 50 Mm^3
+        unit: m^3
+        source: "UNVERIFIED order-of-magnitude guess. Replace from: post-event drained-volume estimates (NRSC/ISRO, CWC, peer-reviewed studies) or pre-event bathymetry."
+        status: placeholder
+      water_height_above_invert:
+        value: 20
+        unit: m
+        source: "UNVERIFIED guess. Replace from: pre-event lake level minus post-event breach invert (DEM differencing)."
+        status: placeholder
+      breach_height:
+        value: 20
+        unit: m
+        source: "UNVERIFIED guess. Replace from: pre- vs post-event DEM across the breach."
+        status: placeholder
+      dam_height:
+        value: 30
+        unit: m
+        source: "UNVERIFIED guess. Replace from: moraine crest minus downstream toe on the pre-event DEM."
+        status: placeholder
+      average_embankment_width:
+        value: 300
+        unit: m
+        source: "UNVERIFIED guess. Replace from: (crest width + base width) / 2 measured on pre-event DEM cross-section."
+        status: placeholder
+      dam_type:
+        value: HD
+        unit: enum
+        source: "Placeholder: no moraine class in the equations; HD used as the nearest analogue. Confirm the choice with your guide."
+        status: placeholder
+      failure_mode:
+        value: O
+        unit: enum
+        source: "Placeholder. Replace from: post-event studies of the 2023 failure mechanism."
+        status: placeholder
+      erodibility:
+        value: H
+        unit: enum
+        source: "Placeholder: loose moraine assumed highly erodible. Replace from: field/geotechnical description in post-event studies."
+        status: placeholder
+
+  - id: teesta_iii
+    name: Teesta III dam (Chungthang)
+    kind: embankment_dam
+    triggered_by: south_lhonak
+    location:
+      value: [88.640, 27.600]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: CWC National Register of Large Dams or project layout drawings."
+      status: placeholder
+    breach_location:
+      value: [88.640, 27.600]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: breach location mapped on post-event imagery."
+      status: placeholder
+    breach_inputs:
+      water_volume_above_invert:
+        value: 5000000             # 5 Mm^3
+        unit: m^3
+        source: "UNVERIFIED guess. Replace from: reservoir elevation-storage curve (project DPR / Teesta Urja Ltd) at the failure water level."
+        status: placeholder
+      water_height_above_invert:
+        value: 62
+        unit: m
+        source: "UNVERIFIED guess (crest height plus overtopping head). Replace from: peak water level at failure minus breach invert."
+        status: placeholder
+      breach_height:
+        value: 60
+        unit: m
+        source: "UNVERIFIED guess (full-height breach assumed). Replace from: post-event survey or DEM differencing."
+        status: placeholder
+      dam_height:
+        value: 60
+        unit: m
+        source: "UNVERIFIED guess. Replace from: CWC National Register of Large Dams or project DPR."
+        status: placeholder
+      average_embankment_width:
+        value: 95
+        unit: m
+        source: "UNVERIFIED guess. Replace from: typical cross-section in project drawings, (crest width + base width) / 2."
+        status: placeholder
+      dam_type:
+        value: FD
+        unit: enum
+        source: "UNVERIFIED guess (believed concrete-faced rockfill). Replace from: CWC National Register of Large Dams or project DPR."
+        status: placeholder
+      failure_mode:
+        value: O
+        unit: enum
+        source: "Placeholder. Replace from: official post-event failure reports."
+        status: placeholder
+      erodibility:
+        value: M
+        unit: enum
+        source: "Placeholder: rockfill assumed medium. Replace from: embankment material description in project documents."
+        status: placeholder
+
+points_of_interest:
+  # --- villages / towns ---
+  - id: lachen
+    name: Lachen
+    category: village
+    location:
+      value: [88.555, 27.717]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: Census of India village point or Survey of India / OSM settlement centroid."
+      status: placeholder
+  - id: chungthang
+    name: Chungthang
+    category: village
+    location:
+      value: [88.646, 27.603]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: Census of India village point or Survey of India / OSM settlement centroid."
+      status: placeholder
+  - id: dikchu
+    name: Dikchu
+    category: village
+    location:
+      value: [88.520, 27.400]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: Census of India village point or Survey of India / OSM settlement centroid."
+      status: placeholder
+  - id: singtam
+    name: Singtam
+    category: village
+    location:
+      value: [88.500, 27.232]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: Census of India town point or Survey of India / OSM settlement centroid."
+      status: placeholder
+  - id: rangpo
+    name: Rangpo
+    category: village
+    location:
+      value: [88.530, 27.175]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: Census of India town point or Survey of India / OSM settlement centroid."
+      status: placeholder
+  - id: teesta_bazaar
+    name: Teesta Bazaar
+    category: village
+    location:
+      value: [88.430, 27.060]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: Census of India village point or Survey of India / OSM settlement centroid."
+      status: placeholder
+
+  # --- dams / barrages downstream (not modelled as breaching) ---
+  - id: teesta_v
+    name: Teesta V dam (Dikchu)
+    category: dam
+    location:
+      value: [88.515, 27.415]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: CWC National Register of Large Dams."
+      status: placeholder
+  - id: teesta_low_dam_iv
+    name: Teesta Low Dam IV (Kalijhora)
+    category: dam
+    location:
+      value: [88.450, 26.930]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: CWC National Register of Large Dams."
+      status: placeholder
+  - id: teesta_barrage
+    name: Teesta Barrage (Gajoldoba)
+    category: dam
+    location:
+      value: [88.600, 26.750]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: CWC / WB Irrigation Dept records."
+      status: placeholder
+
+  # --- bridges ---
+  - id: sangkalang_bridge
+    name: Sangkalang bridge (Mangan - Dzongu)
+    category: bridge
+    location:
+      value: [88.530, 27.520]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: bridge located on high-resolution imagery or PWD / BRO records."
+      status: placeholder
+  - id: singtam_bridge
+    name: Singtam road bridge
+    category: bridge
+    location:
+      value: [88.500, 27.234]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: bridge located on high-resolution imagery or PWD records."
+      status: placeholder
+  - id: coronation_bridge
+    name: Coronation Bridge (Sevoke)
+    category: bridge
+    location:
+      value: [88.474, 26.899]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: bridge located on high-resolution imagery or NHAI / PWD records."
+      status: placeholder
+
+  # --- hospitals ---
+  - id: mangan_district_hospital
+    name: District Hospital, Mangan
+    category: hospital
+    location:
+      value: [88.530, 27.510]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: Sikkim Health Dept facility list or geotagged facility registry."
+      status: placeholder
+  - id: singtam_district_hospital
+    name: District Hospital, Singtam
+    category: hospital
+    location:
+      value: [88.498, 27.236]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: Sikkim Health Dept facility list or geotagged facility registry."
+      status: placeholder
+
+events:
+  - id: sikkim_glof_2023
+    name: South Lhonak GLOF and Teesta III breach, October 2023
+    kind: historical
+    onset:
+      value: "2023-10-03T23:00:00+05:30"
+      unit: iso8601
+      source: "Placeholder: outburst was on the night of 3-4 Oct 2023 IST; exact time unconfirmed. Replace from: CWC / NRSC event reports or peer-reviewed reconstructions."
+      status: placeholder
+    breach_times:
+      south_lhonak:
+        value: "2023-10-03T23:00:00+05:30"
+        unit: iso8601
+        source: "Placeholder, same as onset. Replace from: CWC / NRSC event reports or peer-reviewed reconstructions."
+        status: placeholder
+      teesta_iii:
+        value: "2023-10-04T01:00:00+05:30"
+        unit: iso8601
+        source: "Placeholder. Replace from: Teesta Urja Ltd / CWC reports or peer-reviewed reconstructions."
+        status: placeholder
+    simulation_start:
+      value: "2023-10-03T21:00:00+05:30"
+      unit: iso8601
+      source: "Placeholder: 2 h before assumed onset for model warm-up. Adjust once onset is sourced."
+      status: placeholder
+    simulation_end:
+      value: "2023-10-05T00:00:00+05:30"
+      unit: iso8601
+      source: "Placeholder: long enough for the flood wave to pass the downstream limit. Adjust after a first run."
+      status: placeholder
+    imagery_pre_event:
+      value: "2023-09-28"
+      unit: iso8601
+      source: "Placeholder. Replace with the date of the cloud-free Sentinel-1/2 scene actually used."
+      status: placeholder
+    imagery_post_event:
+      value: "2023-10-06"
+      unit: iso8601
+      source: "Placeholder. Replace with the date of the cloud-free Sentinel-1/2 scene actually used."
+      status: placeholder

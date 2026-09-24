@@ -1,0 +1,10 @@
+[project]
+name = "sih26-glof"
+version = "0.1.0"
+description = "GLOF / dam-break decision-support tool (SIH26 PS-26161)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"

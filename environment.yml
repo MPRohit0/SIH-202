@@ -1,0 +1,31 @@
+# Canonical project environment (CLAUDE.md "Stack").
+#   conda env create -f environment.yml && conda activate sih26
+# requirements.txt is a pip-only subset for backend/shared when conda is unavailable.
+name: sih26
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - fastapi
+  - uvicorn
+  - pydantic>=2.6
+  - pyyaml
+  - numpy
+  - scipy
+  - scikit-learn
+  - gdal
+  - rasterio
+  - rioxarray
+  - pyproj
+  - affine
+  - geopandas
+  - shapely
+  - richdem
+  - simplekml
+  - joblib
+  - pytest
+  - pip
+  - pip:
+      - hydrolib-core
+      - meshkernel
+      - dfm_tools

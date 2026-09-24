@@ -1,0 +1,9 @@
+# Minimal pip requirements for backend/shared and its tests.
+# The canonical full environment is environment.yml (conda-forge).
+pydantic>=2.6
+pyyaml>=6.0
+numpy>=1.26
+rasterio>=1.3.9
+pyproj>=3.6
+affine>=2.4
+pytest>=8.0
