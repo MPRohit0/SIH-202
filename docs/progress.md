@@ -104,3 +104,80 @@ Known gaps carried over from the earlier contract-conflicts review, still pendin
 the user's decisions: the site-config YAML-vs-§3.1 mismatch, and the frontend
 `API_USAGE.md` conflicts list. Neither blocks this mock API, which only implements
 what §5 already specifies.
+
+## 2026-09-24 — M0 job system: registry, worker, detached runs, restart recovery
+
+Replaced the mock `POST /sites` and `GET /jobs/{job_id}` with a real job system. All other
+endpoints are still mocks.
+
+- `backend/m0_api/registry.py`: `data/registry.sqlite` with the four §4.5 tables, using exactly the
+  contract columns. WAL mode, so the API and the worker can share it. `SIH26_DATA_DIR` overrides
+  `data/`.
+- `backend/m0_api/jobs.py`: the state machine, using the **contract §5.3 stages as frozen**, not the
+  pending decisions.md Part 2 proposal (user's choice this session). The worker bookkeeping §4.5 has
+  no column for (`started_at`, `demo_mode`, `run_ids`, recent events) lives in `payload_json`, so
+  the contract is unchanged. Writes check the expected current stage, so a stale writer is
+  rejected.
+- `backend/m0_api/worker.py` (`python -m backend.m0_api.worker`) is a separate process holding a
+  single-worker lock.
+  - In-process stages are FAKE (they sleep).
+  - `simulating` launches runs one at a time as detached processes (`backend/m0_api/fake_solver.py`)
+    and reads progress from each run's `log.txt`.
+  - `recover()` at start-up re-attaches to live runs, records runs that finished while it was down,
+    and fails the job with `worker_lost_run` if a run died unobserved.
+- `eta_s` stays null until one run has finished; after that it is the mean wall time × runs
+  remaining.
+
+`pytest -q`: 174 passed (43 new). Also checked by hand with real uvicorn and worker processes:
+killing and restarting the API mid-`simulating` loses nothing; killing the worker leaves the solver
+running, and the restarted worker re-attaches and finishes the job.
+
+Open gaps, all needing a team or contract decision:
+- `POST /sites/{id}/rerun` is still a mock: contract §5.3 lists no stages for `rerun`.
+- No retries and no minimum-run rule: `max_run_retries` / `min_runs_for_training` ⚙️ are unset.
+  One failed run fails the job (`run_failed`).
+- Contract §1.8 has no location for a job-level log; `log_tail` is built from `payload_json`
+  events plus the tail of the active run's log.
+- `POST /sites` now rejects a missing or invalid `site_config.site_id` (422) and a site that
+  already has an active job (409 `site_onboarding_in_progress`); there is no uniqueness check
+  against configured sites yet.
+- `runner.is_alive` reads `/proc`, so it works on Linux/WSL only.
+
+## 2026-09-24 — M0-5: render raster layers to PNG overlays (`rendering.py`)
+
+`backend/m0_api/rendering.py`: colours a single-band raster (a canonical-grid array, e.g.
+from a `queries/<query_id>/layers/*.tif`) into an RGBA PNG, driven entirely by
+`contracts/styles.json` (§6) — no colour is hardcoded, so the frontend legend, this
+renderer and M6's future KML export (M6-6) all read the same file. Handles every
+`styles.json` shape: `continuous` (linear stops), `classes` (breaks + colour bands),
+`diverging` (signed range about zero) and `extent_class` (HIGH/POSSIBLE fill + opacity).
+Nodata and non-positive cells (dry ground / zero probability) are fully transparent.
+PNG encoding uses GDAL's PNG driver via `rasterio.io.MemoryFile` (no Pillow — it isn't
+in the project's stack). `render_and_cache` writes the PNG next to its source `.tif`
+and reuses it on repeat requests, matching the §1.8 `queries/<query_id>/layers/` layout.
+
+Bounds come from `CanonicalGrid.bounds_latlng` (`backend/shared/grid.py`, unchanged) —
+the PNG's pixel grid stays in the site's UTM canonical grid and is stretched onto those
+EPSG:4326 bounds by the Leaflet image overlay, rather than reprojected pixel-by-pixel;
+noted as a simplifying assumption in the module docstring.
+
+Wired into endpoint 11 (`GET /flood/{query_id}/layers/{layer_id}.png`, `main.py`): if a
+real `.tif` exists on disk at the contract path it's rendered for real; otherwise the
+endpoint keeps returning the 1x1 mock PNG, since M5 doesn't write real layer GeoTIFFs
+yet (CLAUDE.md rule 2).
+
+Contract check: §2.6 `LayerRef` has no per-layer `legend` field — §6 already states
+`styles.json` is the one file driving overlays, KML styling *and* legends, i.e. the
+frontend is meant to resolve `style_id` against `GET /styles` itself. Flagged this
+against a literal reading of an initial task description ("include legend data in each
+layer response") and the user confirmed: follow the contract as written, no `legend`
+field added to any response.
+
+Tests: `tests/m0_api/test_rendering.py` (9, synthetic grid + arrays — bounds, dry/nodata
+transparency, classes/continuous colours checked pixel-for-pixel against
+`styles.json`, extent_class fill+opacity, unknown layer_id raises, cache writes once
+and is reused) + one new endpoint test wiring a real GeoTIFF through `GET /flood/.../
+layers/*.png`. `pytest -q`: 184 passed (10 new).
+
+Note: this machine's `.venv` is missing `jsonschema`/`fastapi`/`httpx`/`pip` itself;
+`/usr/bin/python3` has the full stack instead and is what ran all tests this session.

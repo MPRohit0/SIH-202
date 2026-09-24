@@ -12,6 +12,7 @@ status codes, error shapes and the one 404 code path the mock supports.
 
 from __future__ import annotations
 
+import importlib
 import json
 import zipfile
 from io import BytesIO
@@ -19,8 +20,10 @@ from io import BytesIO
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.m0_api import schemas
+from backend.m0_api import mock_files, schemas
 from backend.m0_api.main import app
+from backend.m0_api.worker import Worker
+from tests.m0_api.conftest import wait_until
 
 client = TestClient(app)
 
@@ -110,15 +113,68 @@ def test_create_site_missing_config_is_422():
     assert_matches("error.schema.json", r.json()["detail"])
 
 
+@pytest.mark.parametrize("site_config", [{}, {"site_id": "Bad-Id"}, {"site_id": 7}])
+def test_create_site_bad_site_id_is_422(site_config):
+    r = client.post(f"{API}/sites", json={"site_config": site_config})
+    assert r.status_code == 422
+    assert_matches("error.schema.json", r.json()["detail"])
+
+
+def test_create_site_twice_while_active_is_409():
+    first = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}})
+    r = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}})
+    assert r.status_code == 409
+    detail = r.json()["detail"]
+    assert_matches("error.schema.json", detail)
+    assert detail["error"]["code"] == "site_onboarding_in_progress"
+    assert detail["error"]["details"]["job_id"] == first.json()["job_id"]
+
+
 # =============================================================================
 # 6. GET /jobs/{job_id}
 # =============================================================================
-def test_get_job():
-    r = client.get(f"{API}/jobs/{JOB_ID}")
+def test_get_job_created_by_post_sites():
+    job_id = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}, "demo_mode": True}).json()["job_id"]
+    r = client.get(f"{API}/jobs/{job_id}")
     assert r.status_code == 200
     body = r.json()
     assert_matches("job_status.schema.json", body)
-    assert body["job_id"] == JOB_ID
+    assert body["job_id"] == job_id
+    assert body["site_id"] == "kosi"
+    assert body["kind"] == "onboarding"
+    assert body["stage"] == "queued"
+    assert body["demo_mode"] is True
+
+
+def test_get_unknown_job_is_404():
+    r = client.get(f"{API}/jobs/{JOB_ID}")
+    assert r.status_code == 404
+    assert_matches("error.schema.json", r.json()["detail"])
+    assert r.json()["detail"]["error"]["code"] == "job_not_found"
+
+
+def test_job_survives_api_restart():
+    job_id = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}}).json()["job_id"]
+    import backend.m0_api.main as main_module
+
+    restarted = importlib.reload(main_module)  # a fresh app: nothing carried over in memory
+    r = TestClient(restarted.app).get(f"{API}/jobs/{job_id}")
+    assert r.status_code == 200
+    assert r.json()["stage"] == "queued"
+
+
+def test_job_runs_to_ready_through_worker():
+    job_id = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}}).json()["job_id"]
+    worker = Worker()
+    worker.acquire_lock()
+    worker.recover()
+    try:
+        wait_until(lambda: client.get(f"{API}/jobs/{job_id}").json()["stage"] == "ready", worker.tick)
+    finally:
+        worker.close()
+    body = client.get(f"{API}/jobs/{job_id}").json()
+    assert_matches("job_status.schema.json", body)
+    assert body["started_at"] is not None
 
 
 # =============================================================================
@@ -196,6 +252,28 @@ def test_get_flood_layer_png():
 def test_get_flood_layer_non_png_400():
     r = client.get(f"{API}/flood/{QUERY_ID}/layers/p_inundation.tif")
     assert r.status_code == 400
+
+
+def test_get_flood_layer_renders_real_geotiff_when_present(data_dir):
+    """A GeoTIFF at the contract §1.8 layers path is rendered for real
+    (backend/m0_api/rendering.py), not served as the 1x1 mock PNG."""
+    import numpy as np
+
+    from backend.shared.grid import CanonicalGrid, write_grid_raster
+
+    grid = CanonicalGrid(
+        site_id=KNOWN_SITE, grid_id="farfield", crs_epsg=32645,
+        origin_x=500_000.0, origin_y=3_100_000.0, cell_size_m=30.0, width=4, height=3,
+    )
+    layers_dir = data_dir / KNOWN_SITE / "queries" / QUERY_ID / "layers"
+    layers_dir.mkdir(parents=True)
+    write_grid_raster(layers_dir / "depth_p50.tif", np.full(grid.shape, 1.0, dtype=np.float32), grid)
+
+    r = client.get(f"{API}/flood/{QUERY_ID}/layers/depth_p50.png")
+    assert r.status_code == 200
+    assert r.content.startswith(b"\x89PNG")
+    assert r.content != mock_files.mock_png()
+    assert (layers_dir / "depth_p50.png").is_file()  # cached alongside the source .tif
 
 
 def test_get_flood_extent_geojson():

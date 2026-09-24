@@ -2,11 +2,11 @@
 from the actual request so responses look consistent with what the client
 asked for.
 
-This module has no registry, no job queue and no real M1-M7 outputs behind
-it — every well-formed ID returns the same example payload (CLAUDE.md rule 2:
-"every module runs end-to-end on synthetic data ... before real data
-exists"). Wiring this to `data/registry.sqlite` and real module outputs is
-future work, not part of this skeleton.
+Used by every endpoint except the job endpoints (`POST /sites`,
+`GET /jobs/{id}`), which read and write `data/registry.sqlite` (see
+`jobs.py`, `worker.py`). There are no real M1-M7 outputs behind these mocks
+yet (CLAUDE.md rule 2: "every module runs end-to-end on synthetic data ...
+before real data exists").
 """
 
 from __future__ import annotations

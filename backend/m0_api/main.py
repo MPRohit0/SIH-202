@@ -1,30 +1,35 @@
-"""M0 — FastAPI orchestrator (contract §5), mock mode.
+"""M0 — FastAPI orchestrator (contract §5).
 
-Serves every endpoint in `docs/handoff_contract.md` §5 from the example JSON
-in `contracts/examples/` (contract §8: "The frontend's mock mode serves the
+Most endpoints are still mocks. They serve the example JSON in
+`contracts/examples/` (contract §8: "The frontend's mock mode serves the
 example files from contracts/, so mocks can never drift from the contract").
 Every response is validated against its `contracts/schemas/*.json` schema
-before being sent.
+before it is sent.
 
-What this is NOT yet: there is no job queue, no `data/registry.sqlite`, and
-no real M1-M7 output behind any of this. Every well-formed ID returns the
-same mock payload; only `site_id` is checked against a short list of sites
-this mock server "knows about" (`mocks.KNOWN_SITE_IDS`), so 404 handling has
-at least one real code path to test. Wiring this to real modules is the next
-session's work, not this one's.
+Real so far: the job system. `POST /sites` creates an onboarding job in
+`data/registry.sqlite` and `GET /jobs/{job_id}` reads it back. The API holds
+no job state of its own, so restarting it loses nothing. A separate process,
+`python -m backend.m0_api.worker`, does the work: every stage is a fake task
+for now, and solver runs are detached fake-solver processes.
+
+Still mocked: every other endpoint, including `POST /sites/{id}/rerun`
+(contract §5.3 lists no stages for `rerun` yet). `site_id` is checked only
+against a short list of sites this server "knows about"
+(`mocks.KNOWN_SITE_IDS`).
 
 Run: `uvicorn backend.m0_api.main:app --reload --port 8000`
 """
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Any
 
 from fastapi import Body, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from backend.m0_api import mock_files, mocks, schemas
+from backend.m0_api import jobs, mock_files, mocks, registry, rendering, schemas
 
 app = FastAPI(title="SIH26 GLOF/dam-break decision-support API", version="0.1.0")
 
@@ -39,7 +44,8 @@ app.add_middleware(
 API = "/api/v1"
 
 # --- ID patterns (contract §1.7) --------------------------------------------
-SiteIdPath = Annotated[str, Path(pattern=r"^[a-z][a-z0-9_]{2,31}$")]
+SITE_ID_PATTERN = r"^[a-z][a-z0-9_]{2,31}$"
+SiteIdPath = Annotated[str, Path(pattern=SITE_ID_PATTERN)]
 QueryIdPath = Annotated[str, Path(pattern=r"^q_\d{8}T\d{6}Z_[0-9a-f]{6}$")]
 JobIdPath = Annotated[str, Path(pattern=r"^job_\d{8}T\d{6}Z_[0-9a-f]{6}$")]
 
@@ -112,10 +118,25 @@ def get_site(site_id: SiteIdPath) -> JSONResponse:
 @app.post(f"{API}/sites", status_code=202)
 def create_site(body: Annotated[dict, Body(...)]) -> JSONResponse:
     _validate_request_body("site_create_request.schema.json", body)
-    site_config = body.get("site_config", {})
-    new_site_id = site_config.get("site_id") or "new_site"
-    payload = mocks.mock_response("site_create_accepted.example.json", site_id=new_site_id)
-    return _validated_json("site_create_accepted.schema.json", payload, status_code=202)
+    site_config = body["site_config"]
+    site_id = site_config.get("site_id")
+    if not isinstance(site_id, str) or not re.match(SITE_ID_PATTERN, site_id):
+        raise HTTPException(
+            status_code=422,
+            detail=mocks.error("invalid_request", f"site_config.site_id must match {SITE_ID_PATTERN}.", {"field": "site_config.site_id"}),
+        )
+    conn = registry.connect()
+    try:
+        active = jobs.find_active_job(conn, site_id)
+        if active is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=mocks.error("site_onboarding_in_progress", f"Site '{site_id}' already has an active job.", {"site_id": site_id, "job_id": active}),
+            )
+        job_id = jobs.create_job(conn, "onboarding", site_id, demo_mode=bool(body.get("demo_mode", False)), payload={"site_config": site_config})
+    finally:
+        conn.close()
+    return _validated_json("site_create_accepted.schema.json", {"job_id": job_id, "site_id": site_id}, status_code=202)
 
 
 # =============================================================================
@@ -123,7 +144,14 @@ def create_site(body: Annotated[dict, Body(...)]) -> JSONResponse:
 # =============================================================================
 @app.get(f"{API}/jobs/{{job_id}}")
 def get_job(job_id: JobIdPath) -> JSONResponse:
-    return _validated_json("job_status.schema.json", mocks.mock_response("job_status.example.json", job_id=job_id))
+    conn = registry.connect()
+    try:
+        status = jobs.job_status(conn, job_id)
+    finally:
+        conn.close()
+    if status is None:
+        raise HTTPException(status_code=404, detail=mocks.error("job_not_found", f"No job '{job_id}'.", {"job_id": job_id}))
+    return _validated_json("job_status.schema.json", status)
 
 
 # =============================================================================
@@ -172,6 +200,18 @@ def get_flood(query_id: QueryIdPath) -> JSONResponse:
 def get_flood_layer(query_id: QueryIdPath, layer_filename: str) -> Response:
     if not layer_filename.endswith(".png"):
         raise HTTPException(status_code=400, detail=mocks.error("invalid_layer", f"'{layer_filename}' is not a .png layer request."))
+    layer_id = layer_filename[: -len(".png")]
+    # Contract §1.8: real GeoTIFFs land at data/<site_id>/queries/<query_id>/layers/.
+    # M5 doesn't produce them yet, so this is a real render only when one has been
+    # placed there by hand (e.g. a test); otherwise fall back to the mock PNG.
+    for site_id in mocks.KNOWN_SITE_IDS:
+        tif_path = registry.data_dir() / site_id / "queries" / query_id / "layers" / f"{layer_id}.tif"
+        if tif_path.is_file():
+            try:
+                png_bytes = rendering.render_and_cache(tif_path, layer_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=mocks.error("invalid_layer", str(exc))) from exc
+            return Response(content=png_bytes, media_type="image/png")
     return Response(content=mock_files.mock_png(), media_type="image/png")
 
 
