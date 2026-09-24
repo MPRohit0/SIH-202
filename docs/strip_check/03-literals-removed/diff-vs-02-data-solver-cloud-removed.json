@@ -1,0 +1,134 @@
+{
+  "home": {
+    "sizeA": [
+      1440,
+      4763
+    ],
+    "sizeB": [
+      1440,
+      4763
+    ],
+    "changedPct": 1.03
+  },
+  "dashboard": {
+    "sizeA": [
+      1440,
+      1287
+    ],
+    "sizeB": [
+      1440,
+      1287
+    ],
+    "changedPct": 0.45
+  },
+  "simulation": {
+    "sizeA": [
+      1440,
+      1080
+    ],
+    "sizeB": [
+      1440,
+      1080
+    ],
+    "changedPct": 0.54
+  },
+  "library": {
+    "sizeA": [
+      1440,
+      1312
+    ],
+    "sizeB": [
+      1440,
+      1312
+    ],
+    "changedPct": 0.11
+  },
+  "compare": {
+    "sizeA": [
+      1440,
+      1394
+    ],
+    "sizeB": [
+      1440,
+      1394
+    ],
+    "changedPct": 0.11
+  },
+  "lab": {
+    "sizeA": [
+      1440,
+      1233
+    ],
+    "sizeB": [
+      1440,
+      1233
+    ],
+    "changedPct": 0.12
+  },
+  "impact": {
+    "sizeA": [
+      1440,
+      1162
+    ],
+    "sizeB": [
+      1440,
+      1162
+    ],
+    "changedPct": 0.5
+  },
+  "data": {
+    "sizeA": [
+      1440,
+      997
+    ],
+    "sizeB": [
+      1440,
+      1018
+    ],
+    "changedPct": 7.52
+  },
+  "monitoring": {
+    "sizeA": [
+      1440,
+      995
+    ],
+    "sizeB": [
+      1440,
+      995
+    ],
+    "changedPct": 0.15
+  },
+  "exports": {
+    "sizeA": [
+      1440,
+      1123
+    ],
+    "sizeB": [
+      1440,
+      1123
+    ],
+    "changedPct": 0.13
+  },
+  "sites": {
+    "sizeA": [
+      1440,
+      929
+    ],
+    "sizeB": [
+      1440,
+      929
+    ],
+    "changedPct": 0.25
+  },
+  "settings": {
+    "sizeA": [
+      1440,
+      1005
+    ],
+    "sizeB": [
+      1440,
+      1005
+    ],
+    "changedPct": 0.15
+  }
+}
