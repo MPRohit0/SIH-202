@@ -59,3 +59,11 @@ __pycache__/
 
 # playwright screenshot tooling (kept separate from the app's deps)
 /visual/node_modules/
+
+# The repo root's .gitignore has a bare `data/` rule for the backend's
+# gitignored data/ folder (docs/handoff_contract.md §1.8). It unintentionally
+# also matches this app's static public/data/ assets - un-ignore them here.
+# (Both the directory and its contents need a rule: git won't descend into
+# an ignored directory to apply a deeper negation on its own.)
+!/public/data/
+!/public/data/**
