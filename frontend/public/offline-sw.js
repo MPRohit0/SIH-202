@@ -1,0 +1,5 @@
+const CACHE='sentriq-offline-v1';
+self.addEventListener('install',()=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
+self.addEventListener('message',e=>{if(e.data?.type!=='CACHE_URLS')return;e.waitUntil((async()=>{try{const c=await caches.open(CACHE);for(const path of e.data.urls){const u=new URL(path,self.location.origin);if(u.origin!==self.location.origin||/api\/|signin|signout|callback/.test(u.pathname))continue;const response=await fetch(u.href,{credentials:'same-origin'});if(response.ok&&!response.redirected)await c.put(u.href,response);}e.ports[0]?.postMessage({ok:true});}catch(err){e.ports[0]?.postMessage({ok:false,error:String(err)});}})());});
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||/api\/|signin|signout|callback/.test(u.pathname))return;e.respondWith(fetch(e.request).catch(async()=>{const c=await caches.open(CACHE);const hit=await c.match(e.request);if(hit)return hit;if(e.request.mode==='navigate'){const shell=await c.match('/');if(shell)return shell;}return Response.error();}));});
