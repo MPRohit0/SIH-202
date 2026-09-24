@@ -3,10 +3,30 @@ import {useEffect,useRef,useState} from 'react';
 import {Plus,Minus,LocateFixed,Layers,Navigation,MapPin} from 'lucide-react';
 import {Grid,Result} from '@/lib/model';
 import {Switch} from '@/components/ui/switch';
-export function TerrainMap({grid,result,frame,layer,valueKind="depth",wetMask,assets,observed,onSource,sourceIndex,picking=false}:{grid:Grid;result:Result|null;frame:number;layer:string;valueKind?:string;wetMask?:number[];assets:any[];observed?:any;onSource?:(i:number)=>void;sourceIndex?:number;picking?:boolean}){
+// Fallback class breaks, used until a site's contracts/styles.json (contract
+// §6, GET /styles) provides real ones via the `styles` prop. Descending, to
+// match the >bands[i] comparisons below. See STYLE_GUIDE.md §2.6.
+const fallbackBands:Record<string,number[]>={depth:[20,10,3,1],velocity:[5,2,1,.5],arrival:[60,30,15,5]};
+function bandsFor(valueKind:string,styles:any):number[]{
+ const fallback=fallbackBands[valueKind]??fallbackBands.depth;
+ const cfg=styles?.[valueKind==='velocity'?'velocity_p50':valueKind==='arrival'?'arrival_p50':'depth_p50'];
+ const raw=cfg?.breaks_m??cfg?.breaks_ms??cfg?.breaks_s;
+ if(!Array.isArray(raw)||raw.length!==4)return fallback;
+ const minutes=cfg?.breaks_s?raw.map((v:number)=>v/60):raw; // contract arrival breaks are seconds; this UI works in minutes
+ return [...minutes].reverse();
+}
+function legendLabels(valueKind:string,bands:number[]):string[]{
+ const fmt=(v:number)=>{const s=String(v);return s.startsWith('0.')?s.slice(1):s;};
+ const ascending=[...bands].reverse();
+ const first=valueKind==='depth'?0.3:0;
+ const rest=ascending[0]===first?ascending.slice(1):ascending; // don't repeat the wet threshold if a break already equals it
+ return [String(first),...rest.slice(0,-1).map(fmt),fmt(rest[rest.length-1])+'+'];
+}
+export function TerrainMap({grid,result,frame,layer,valueKind="depth",wetMask,assets,observed,onSource,sourceIndex,picking=false,styles}:{grid:Grid;result:Result|null;frame:number;layer:string;valueKind?:string;wetMask?:number[];assets:any[];observed?:any;onSource?:(i:number)=>void;sourceIndex?:number;picking?:boolean;styles?:any}){
  const ref=useRef<HTMLCanvasElement>(null);const [zoom,setZoom]=useState(grid.hillshade?2:1),[pan,setPan]=useState(grid.hillshade?{x:.48,y:.1}:{x:0,y:0}),[hover,setHover]=useState<any>(null),[showAssets,setShowAssets]=useState(true),[showWater,setShowWater]=useState(true),[controls,setControls]=useState(false);const drag=useRef<any>(null);
  const depth=result?(layer==='max'?result.maxDepth:result.frames[Math.min(frame,result.frames.length-1)]?.depth):null;
- useEffect(()=>{const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;canvas.width=grid.nx;canvas.height=grid.ny;const im=ctx.createImageData(grid.nx,grid.ny);if(depth&&showWater)for(let i=0;i<depth.length;i++){const d=depth[i];if(wetMask?wetMask[i]<.3:valueKind==='arrival'?d<0:d<.3)continue;const bands=valueKind==='velocity'?[5,2,1,.5]:valueKind==='arrival'?[60,30,15,5]:[20,10,3,1];const c=d>bands[0]?[68,86,238]:d>bands[1]?[31,140,239]:d>bands[2]?[29,198,229]:d>bands[3]?[67,222,212]:[157,245,223];im.data.set([...c,225],i*4);}ctx.putImageData(im,0,0);},[depth,grid,showWater,wetMask,valueKind]);
+ const bands=bandsFor(valueKind,styles);
+ useEffect(()=>{const canvas=ref.current;if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;canvas.width=grid.nx;canvas.height=grid.ny;const im=ctx.createImageData(grid.nx,grid.ny);if(depth&&showWater)for(let i=0;i<depth.length;i++){const d=depth[i];if(wetMask?wetMask[i]<.3:valueKind==='arrival'?d<0:d<.3)continue;const c=d>bands[0]?[68,86,238]:d>bands[1]?[31,140,239]:d>bands[2]?[29,198,229]:d>bands[3]?[67,222,212]:[157,245,223];im.data.set([...c,225],i*4);}ctx.putImageData(im,0,0);},[depth,grid,showWater,wetMask,valueKind,bands]);
  const percent=(lon:number,lat:number)=>({x:(lon-grid.west)/(grid.east-grid.west)*100,y:(grid.north-lat)/(grid.north-grid.south)*100});
  const getPoint=(e:any)=>{const b=e.currentTarget.getBoundingClientRect();const x=((e.clientX-b.left)/b.width-.5-pan.x)*100/zoom+50,y=((e.clientY-b.top)/b.height-.5-pan.y)*100/zoom+50;const ix=Math.floor(x/100*grid.nx),iy=Math.floor(y/100*grid.ny);return {x,y,i:iy*grid.nx+ix,valid:ix>=0&&iy>=0&&ix<grid.nx&&iy<grid.ny};};
  const source=sourceIndex??result?.params.sourceIndex??grid.sourceIndex;const sp={x:(source%grid.nx+.5)/grid.nx*100,y:(Math.floor(source/grid.nx)+.5)/grid.ny*100};
@@ -23,7 +43,7 @@ export function TerrainMap({grid,result,frame,layer,valueKind="depth",wetMask,as
   {controls&&<div className="map-layer-menu" onPointerDown={e=>e.stopPropagation()}><label>Flood depth<Switch checked={showWater} onCheckedChange={setShowWater}/></label><label>Exposure points<Switch checked={showAssets} onCheckedChange={setShowAssets}/></label></div>}
   <div className="north"><Navigation size={23}/><b>N</b></div>
   {picking&&<div className="pick-message"><MapPin size={15}/> Click a terrain cell to set the inflow source</div>}
-  <div className="depth-legend"><b>{valueKind==='velocity'?'VELOCITY':valueKind==='arrival'?'ARRIVAL TIME':'WATER DEPTH'} <span>{valueKind==='velocity'?'m/s':valueKind==='arrival'?'min':'m'}</span></b><div className="color-ramp"/><div>{(valueKind==='velocity'?['0','.5','1','2','5+']:valueKind==='arrival'?['0','5','15','30','60+']:['0.3','1','3','10','20+']).map(v=><span key={v}>{v}</span>)}</div></div>
+  <div className="depth-legend"><b>{valueKind==='velocity'?'VELOCITY':valueKind==='arrival'?'ARRIVAL TIME':'WATER DEPTH'} <span>{valueKind==='velocity'?'m/s':valueKind==='arrival'?'min':'m'}</span></b><div className="color-ramp"/>{styles?<div>{legendLabels(valueKind,bands).map(v=><span key={v}>{v}</span>)}</div>:<div>Awaiting style classes</div>}</div>
   <div className="map-bottom"><span>Terrain: {grid.source}</span><span>{hover?`${hover.z.toFixed(0)} m elevation · ${(valueKind==='arrival'&&hover.depth<0?'Not reached':hover.depth.toFixed(2))} ${valueKind==='velocity'?'m/s velocity':valueKind==='arrival'?'min arrival':'m depth'}`:'Drag to pan · Hover to inspect'}</span></div>
  </div>;
 }

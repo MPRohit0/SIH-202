@@ -1,0 +1,62 @@
+{
+  "home": {
+    "status": 200,
+    "file": "00-home.png",
+    "errors": []
+  },
+  "dashboard": {
+    "status": 200,
+    "file": "01-dashboard.png",
+    "errors": []
+  },
+  "simulation": {
+    "status": 200,
+    "file": "02-simulation.png",
+    "errors": []
+  },
+  "library": {
+    "status": 200,
+    "file": "03-library.png",
+    "errors": []
+  },
+  "compare": {
+    "status": 200,
+    "file": "04-compare.png",
+    "errors": []
+  },
+  "lab": {
+    "status": 200,
+    "file": "05-lab.png",
+    "errors": []
+  },
+  "impact": {
+    "status": 200,
+    "file": "06-impact.png",
+    "errors": []
+  },
+  "data": {
+    "status": 200,
+    "file": "07-data.png",
+    "errors": []
+  },
+  "monitoring": {
+    "status": 200,
+    "file": "08-monitoring.png",
+    "errors": []
+  },
+  "exports": {
+    "status": 200,
+    "file": "09-exports.png",
+    "errors": []
+  },
+  "sites": {
+    "status": 200,
+    "file": "10-sites.png",
+    "errors": []
+  },
+  "settings": {
+    "status": 200,
+    "file": "11-settings.png",
+    "errors": []
+  }
+}
