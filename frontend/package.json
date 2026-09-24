@@ -1,5 +1,5 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "sentriq-frontend",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -10,7 +10,7 @@
     "build": "vite build",
     "start": "vite preview",
     "lint": "eslint . --ignore-pattern dist",
-    "db:generate": "drizzle-kit generate"
+    "check:shell": "node scripts/check-shell.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

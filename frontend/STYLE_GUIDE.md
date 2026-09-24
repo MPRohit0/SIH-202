@@ -1,8 +1,9 @@
 # Frontend style guide (as built)
 
-This describes the frontend **as it exists today** (the "Sentriq" prototype in `frontend/`).
-Nothing here is a proposal. All values were read from the source, and file references are
-relative to `frontend/`.
+This describes the frontend **as it exists today**: a "Sentriq"-branded **UI shell**. Every
+screen, component and style below is unchanged from the original prototype; only its data
+source changed (see `README.md` and `API_USAGE.md`). Nothing here is a proposal. All values
+were read from the source, and file references are relative to `frontend/`.
 
 > **Heads-up on line numbers.** Most source files are minified: whole components sit on
 > one physical line. `app/globals.css` is 27 lines long but 77 KB. A reference like
@@ -14,9 +15,9 @@ relative to `frontend/`.
 
 | Aspect | What is used |
 |---|---|
-| Framework | **Next.js 16 App Router** (`app/`), built and served through **vinext on Vite 8** with the Cloudflare Workers Vite plugin (`vite.config.ts`). It is not a plain React + Vite SPA. |
+| Framework | **Plain Vite 8 + React 19 SPA** (`vite.config.ts`, `index.html`, `src/main.tsx`). No Next.js, no vinext, no Cloudflare Workers plugin — those were removed; see `../docs/progress.md`. |
 | Main styling method | **One global stylesheet**, `app/globals.css`, with hand-written BEM-ish class names (`.s-panel`, `.s-btn.primary`, `.map-stage`, …). Almost every colour is a literal hex value in that file (506 distinct values). |
-| Tailwind | Tailwind CSS v4 is loaded (`@import "tailwindcss"`, `postcss.config.mjs`) and a `@theme inline` block maps shadcn tokens. It is used **only inside `components/ui/*`** (shadcn). App code uses no utility classes except `hidden` on the file input (`app/sentriq/app.tsx:58`). |
+| Tailwind | Tailwind CSS v4 is loaded (`@import "tailwindcss"`, `postcss.config.mjs`) and a `@theme inline` block maps shadcn tokens. It is used **only inside `components/ui/*`** (shadcn). App code uses no utility classes except `hidden` (buttons that stay on screen but are disabled use the `disabled` attribute, not this class). |
 | Component library | **shadcn/ui, "new-york" style** (`components.json`), built on Radix. The vendored base CSS is `vendor/shadcn-tailwind-4.13.0.css`, and `tw-animate-css` is also imported. |
 | How shadcn is themed | Through `[data-slot=…]` attribute selectors in `globals.css` (e.g. `[data-slot=tabs-trigger][data-state=active]`, `[data-slot=slider-thumb]`, `[data-slot=table-cell]`), plus `!important` overrides (`.s-nav`, `.s-select`). |
 | Inline styles | Used only for dynamic positions: map pins and labels as `left/top %`, the pan/zoom `transform`, the swipe `clipPath`, and matrix-node positions. |
@@ -170,9 +171,10 @@ The raster canvas uses `mix-blend-mode: screen`.
 | 3D ground grid | `#18323c` / `#0f2935`. Block sides `#183242`. |
 | Map grid overlay | `#b3cdad09` lines at 16.66% × 20% |
 | SPH lab canvas | bg `#122f31`, grid `#345150`, walls `#addcc9`, particles `#50e0d4`, compressed (ρ>1100) `#2e9bfa`, text `#daeeea` |
-| KML export style (unused fn) | `aaefba2b` (KML ABGR, i.e. `#2bbaef` at alpha 0xaa) |
-| GEE script layer | `19c8cb` |
-| HTML report | text `#152d38`, small `#678`, link `#067c78`, rules `#ddd` (light page) |
+
+> The KML export, GEE script and HTML report generators these three rows used to describe were removed along with
+> the rest of the data layer (see `API_USAGE.md` and `../docs/progress.md`); their colours no longer exist anywhere
+> in the codebase.
 
 > `docs/handoff_contract.md` §6 says the colours in `contracts/styles.json` should come from this
 > guide. Its depth breaks are `[0.3, 0.5, 2, 5]` m and its arrival breaks are
@@ -268,9 +270,10 @@ The UI is almost flat, with only a few glows:
 ## 7. Layout structure
 
 ### 7.1 Routes
-- `/` → landing page (`app/page.tsx` → `SentriqApp` with `view='home'`).
-- `/{view}` for `dashboard | simulation | library | compare | lab | impact | data | monitoring | exports | sites | settings`
-  (`app/[view]/page.tsx:3`). Any other value returns 404.
+- `/` → landing page (`src/main.tsx` → `SentriqApp` with `initialView='home'`).
+- `/{view}` for `dashboard | simulation | library | compare | lab | impact | data | monitoring | exports | sites | settings`.
+  Any other value renders a plain "404" div (`src/main.tsx`) — there is no server, so this returns HTTP 200; a
+  production host needs an SPA fallback to `index.html` for all of these paths.
 - **Everything is one client component**, `app/sentriq/app.tsx`. Navigation calls `history.pushState` and switches a
   `view` state, so the router does not re-render the page.
 
@@ -326,7 +329,7 @@ collapse to one column and `.map-workspace` stacks the inspector under the map.
 | `SentriqApp` (default) | `app/sentriq/app.tsx:22` | The whole application: state, data loading, all views, workers, uploads, exports. | `initialView?: string` (default `'home'`) |
 | `Logo` | `app/sentriq/app.tsx:60` | Hexagon + mountains SVG logo (sidebar). | none |
 | `MiniMetric` | `app/sentriq/app.tsx:61` | Label / big value / unit tile (`.mini-metric`). | `label`, `value` (preformatted string), `unit` (all `any`) |
-| `Landing` (default) | `app/sentriq/landing.tsx:7` | Public landing page. | `grid, result, cache, severity, rapid(v), queryMs, frame, playing, setFrame, setPlaying, go(view), summary{area,depth,velocity,peak}, wet[], pop, bracket` (typed `any`). `cache`, `playing` and `pop` are accepted but unused. |
+| `Landing` (default) | `app/sentriq/landing.tsx:7` | Public landing page. | `grid, result, cache, severity, rapid(v), queryMs, frame, playing, setFrame, setPlaying, go(view), summary{area,depth,velocity,peak}, wet[], pop, bracket` (typed `any`). `playing` and `pop` are accepted but unused. |
 | `Brand` | `app/sentriq/landing.tsx:22` | Logo variant for the landing header and footer. It duplicates `Logo` with a slightly different path. | none |
 | `SelectField` | `app/sentriq/ui.tsx:6` | Labelled shadcn `Select`. | `value`, `onChange(v)`, `options: [value,label][]`, `label?` |
 | `Num` | `app/sentriq/ui.tsx:7` | Labelled numeric input with a unit suffix. It keeps a draft string and clamps to `[min,max]` on blur. | `label`, `value`, `onChange(n)`, `min=0`, `max=10000`, `step=1`, `unit?` |
@@ -334,7 +337,7 @@ collapse to one column and `.map-workspace` stacks the inspector under the map.
 | `Badge` | `app/sentriq/ui.tsx:9` | Status pill (`.s-badge`). `ready` adds a check icon. | `children`, `tone: 'neutral' \| 'ready' \| 'amber' \| 'danger'` (default `neutral`) |
 | `Empty` | `app/sentriq/ui.tsx:10` | Empty-state block. | `title`, `children`, `icon?` (lucide component) |
 | `SourceLink` | `app/sentriq/ui.tsx:11` | External link with an arrow icon, `target=_blank`. | `href`, `children` |
-| `TerrainMap` | `app/terrain-map.tsx:6` | 2D map: hillshade image (or elevation canvas), flood raster canvas, observed polygons SVG, exposure dots, inflow pin, pan/zoom, hover inspector, legend, layer menu, click-to-pick inflow cell. | `grid: Grid`, `result: Result \| null`, `frame: number`, `layer: string` (`'max'` or `'time'`), `valueKind?: 'depth'\|'velocity'\|'arrival'`, `wetMask?: number[]`, `assets: any[]` (`{lon,lat,name}`), `observed?: FeatureCollection`, `onSource?(i)`, `sourceIndex?`, `picking?` |
+| `TerrainMap` | `app/terrain-map.tsx:6` | 2D map: hillshade image (or elevation canvas), flood raster canvas, observed polygons SVG, exposure dots, inflow pin, pan/zoom, hover inspector, legend, layer menu, click-to-pick inflow cell. | `grid: Grid`, `result: Result \| null`, `frame: number`, `layer: string` (`'max'` or `'time'`), `valueKind?: 'depth'\|'velocity'\|'arrival'`, `wetMask?: number[]`, `assets: any[]` (`{lon,lat,name}`), `observed?: FeatureCollection`, `onSource?(i)`, `sourceIndex?`, `picking?`, `styles?: any` (contract §6 shape from `source.getStyles()`; legend labels read "Awaiting style classes" until it arrives — see API_USAGE.md) |
 | `WavesMini`, `ElevationCanvas` | `app/terrain-map.tsx:31-32` | Pin icon, and the fallback elevation raster when the grid has no hillshade. | `ElevationCanvas{grid}` |
 | `Terrain3D` (default) | `app/sentriq/terrain-3d.tsx:8` | Three.js DEM mesh cropped around `grid.sourceIndex`, with water quads, inflow marker and orbit controls. Falls back to `TerrainCanvas` if WebGL fails. | `grid`, `result`, `frame=24`, `mode='terrain'` (`'particles'` adds points), `className=''`, `wire=false` |
 | `TerrainCanvas` (default) | `app/sentriq/terrain-canvas.tsx:4` | 2D-canvas painter's-algorithm 3D fallback. Drag rotates, wheel zooms. | `grid`, `result`, `frame`, `reset: number` (increment it to reset the camera) |
