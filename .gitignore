@@ -1,0 +1,10 @@
+node_modules/
+__pycache__/
+*.pyc
+
+.env
+.venv/
+data/
+.pytest_cache/
+
+# Playwright / browser cache used by frontend/visual (not committed)

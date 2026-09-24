@@ -1,0 +1,8 @@
+{
+  "name": "strip-check",
+  "private": true,
+  "type": "module",
+  "description": "Playwright screenshots of every screen, kept separate from the app's dependencies.",
+  "scripts": { "shots": "node shots.mjs" },
+  "devDependencies": { "playwright": "1.63.0" }
+}

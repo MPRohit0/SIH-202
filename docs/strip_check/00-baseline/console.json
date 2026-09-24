@@ -1,0 +1,86 @@
+{
+  "home": {
+    "status": 200,
+    "file": "00-home.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "dashboard": {
+    "status": 200,
+    "file": "01-dashboard.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "simulation": {
+    "status": 200,
+    "file": "02-simulation.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "library": {
+    "status": 200,
+    "file": "03-library.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "compare": {
+    "status": 200,
+    "file": "04-compare.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "lab": {
+    "status": 200,
+    "file": "05-lab.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "impact": {
+    "status": 200,
+    "file": "06-impact.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "data": {
+    "status": 200,
+    "file": "07-data.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "monitoring": {
+    "status": 200,
+    "file": "08-monitoring.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "exports": {
+    "status": 200,
+    "file": "09-exports.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "sites": {
+    "status": 200,
+    "file": "10-sites.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  },
+  "settings": {
+    "status": 200,
+    "file": "11-settings.png",
+    "errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ]
+  }
+}
