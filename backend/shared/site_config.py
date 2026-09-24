@@ -29,7 +29,7 @@ SITES_DIR = Path(__file__).resolve().parents[2] / "sites"
 SITE_ID_PATTERN = r"^[a-z][a-z0-9_]{2,31}$"  # contract §1.7
 SLUG_PATTERN = r"^[a-z][a-z0-9_]*$"
 
-Unit = Literal["m", "m^3", "deg", "epsg", "enum", "iso8601"]
+Unit = Literal["m", "m^3", "deg", "epsg", "enum", "iso8601", "-", "m^0.5/s", "m^3/s", "s"]
 Status = Literal["sourced", "placeholder"]
 
 
@@ -147,6 +147,81 @@ class ErodibilityValue(SourcedValue):
     unit: Literal["enum"]
 
 
+class DimensionlessValue(SourcedValue):
+    value: float | None
+    unit: Literal["-"]
+
+
+class WeirCoefficientValue(SourcedValue):
+    """A broad-crested weir coefficient, m^0.5/s (`backend/m2_breach/weir.py`)."""
+
+    value: Annotated[float, Field(gt=0)] | None
+    unit: Literal["m^0.5/s"]
+
+
+class CurveValue(SourcedValue):
+    """A surveyed elevation-volume curve: [[elevation_m, volume_m3], ...]."""
+
+    value: list[list[float]] | None
+    unit: Literal["m^3"]
+
+    @field_validator("value")
+    @classmethod
+    def _curve(cls, v):
+        if v is not None:
+            if len(v) < 2:
+                raise ValueError("a surveyed curve needs at least 2 points")
+            for point in v:
+                if len(point) != 2:
+                    raise ValueError(f"each curve point must be [elevation_m, volume_m3], got {point!r}")
+            elevations = [p[0] for p in v]
+            volumes = [p[1] for p in v]
+            if elevations != sorted(elevations) or len(set(elevations)) != len(elevations):
+                raise ValueError("curve elevations must be strictly increasing")
+            if volumes != sorted(volumes) or len(set(volumes)) != len(volumes):
+                raise ValueError("curve volumes must be strictly increasing")
+        return v
+
+
+class DischargeValue(SourcedValue):
+    value: Annotated[float, Field(gt=0)] | None
+    unit: Literal["m^3/s"]
+
+
+class _RangeValue(SourcedValue):
+    """[low, high] in the subclass's unit, low <= high, both >= 0. Used for
+    `Dam.imposed_ranges` (`docs/decisions.md`, `docs/handoff_contract.md` §3.1
+    `imposed_ranges`) — a dam with `equations_applicable: false` (e.g. a
+    concrete dam) reports these instead of computed method ranges."""
+
+    value: list[float] | None
+
+    @field_validator("value")
+    @classmethod
+    def _range(cls, v):
+        if v is not None:
+            if len(v) != 2:
+                raise ValueError(f"a range must be [low, high], got {len(v)} numbers")
+            lo, hi = v
+            if lo < 0 or hi < 0:
+                raise ValueError(f"range {v} must be non-negative")
+            if lo > hi:
+                raise ValueError(f"range {v} must satisfy low <= high")
+        return v
+
+
+class DischargeRangeValue(_RangeValue):
+    unit: Literal["m^3/s"]
+
+
+class LengthRangeValue(_RangeValue):
+    unit: Literal["m"]
+
+
+class TimeRangeValue(_RangeValue):
+    unit: Literal["s"]
+
+
 class DateTimeValue(SourcedValue):
     """ISO 8601 date or datetime, kept as the original string."""
 
@@ -212,14 +287,91 @@ class BreachInputs(_Strict):
     erodibility: ErodibilityValue
 
 
+class VolumeElevation(_Strict):
+    """Storage above the final breach invert (`backend/m2_breach/storage.py`).
+
+    Optional and additive (`docs/decisions.md`, `docs/handoff_contract.md` §3.1); a `Dam` without
+    this block cannot use the `breach_growth_weir` hydrograph method (`hydrograph.py` falls back
+    to `triangular`).
+    """
+
+    method: Literal["surveyed_curve", "area_volume_relation"]
+    breach_invert_elevation_m: LengthValue | None = None
+    points: CurveValue | None = None
+    area_volume_exponent_b: DimensionlessValue | None = None
+
+    @model_validator(mode="after")
+    def _check_method(self):
+        if self.method == "surveyed_curve":
+            if self.points is None or self.breach_invert_elevation_m is None:
+                raise ValueError("volume_elevation.method='surveyed_curve' needs 'points' and "
+                                  "'breach_invert_elevation_m'")
+        else:
+            if self.area_volume_exponent_b is None:
+                raise ValueError("volume_elevation.method='area_volume_relation' needs "
+                                  "'area_volume_exponent_b'")
+            b = self.area_volume_exponent_b.value
+            if b is not None and b <= 1:
+                raise ValueError(f"area_volume_exponent_b must be > 1 (V = a*A^b), got {b!r}")
+        return self
+
+
+class BreachHydrographSettings(_Strict):
+    """Weir coefficients and breach side slope (`backend/m2_breach/weir.py`).
+
+    Optional and additive; no defaults exist in code (`docs/decisions.md`) — a `Dam` without this
+    block cannot use the `breach_growth_weir` hydrograph method.
+    """
+
+    weir_coefficient_rect: WeirCoefficientValue
+    weir_coefficient_side: WeirCoefficientValue
+    side_slope_z: DimensionlessValue  # horizontal:vertical, >= 0
+
+    @field_validator("side_slope_z")
+    @classmethod
+    def _side_slope(cls, v):
+        if v.value is not None and v.value < 0:
+            raise ValueError(f"side_slope_z must be >= 0, got {v.value!r}")
+        return v
+
+
+class ImposedRanges(_Strict):
+    """Breach parameter ranges imposed from the site config rather than computed from the
+    Azmi (2026) equations — required when `Dam.equations_applicable` is false (contract §3.1,
+    §4.2: "Dams with `equations_applicable: false` return `imposed_ranges` from the config,
+    flagged with caveat `concrete_dam_imposed`"). `docs/Equations.md` §7 refuses `kind:
+    concrete_dam`; those dams use this block instead of being blocked outright."""
+
+    peak_discharge_m3s: DischargeRangeValue
+    breach_width_m: LengthRangeValue
+    failure_time_s: TimeRangeValue
+
+
+class CascadeTrigger(_Strict):
+    """When a downstream dam in a cascade fails, under `Cascade.approach ==
+    'two_stage_imposed'` (`docs/decisions.md`): the dam's own breach hydrograph is triggered
+    once routed inflow from its upstream dam(s) first reaches `value` (m^3/s). Per-dam, not
+    site-level, because different dams in a chain have different capacities — this is additive
+    to contract §3.1's single site-level `cascade.trigger` and is PENDING team agreement
+    (`docs/decisions.md`)."""
+
+    type: Literal["inflow_threshold"]
+    value: DischargeValue
+
+
 class Dam(_Strict):
     id: Annotated[str, Field(pattern=SLUG_PATTERN)]
     name: str
     kind: Literal["moraine_dammed_lake", "embankment_dam", "concrete_dam", "landslide_dam"]
     triggered_by: str | None = None
+    trigger: CascadeTrigger | None = None
+    equations_applicable: bool = True
+    imposed_ranges: ImposedRanges | None = None
     location: PointValue
     breach_location: PointValue
     breach_inputs: BreachInputs
+    volume_elevation: VolumeElevation | None = None
+    breach_hydrograph: BreachHydrographSettings | None = None
 
 
 class PointOfInterest(_Strict):
@@ -241,6 +393,15 @@ class Event(_Strict):
     imagery_post_event: DateTimeValue
 
 
+class Cascade(_Strict):
+    """Present only when a site has a dam with `triggered_by` set (`docs/decisions.md` M2
+    cascade decision). `approach='two_stage_imposed'` is the only one M2 implements today:
+    `dambreak_structure` (dynamic breaching inside a Delft3D structure) belongs to M3, not M2 —
+    `backend/m2_breach/cascade.py` raises if it sees that value."""
+
+    approach: Literal["two_stage_imposed", "dambreak_structure"]
+
+
 def _bbox_contains(outer: list[float], inner: list[float]) -> bool:
     return outer[0] <= inner[0] and outer[1] <= inner[1] and inner[2] <= outer[2] and inner[3] <= outer[3]
 
@@ -255,6 +416,7 @@ class SiteConfig(_Strict):
     crs: Crs
     domains: Domains
     dams: Annotated[list[Dam], Field(min_length=1)]  # upstream -> downstream
+    cascade: Cascade | None = None
     points_of_interest: list[PointOfInterest] = []
     events: list[Event] = []
 
@@ -271,6 +433,23 @@ class SiteConfig(_Strict):
             if dam.triggered_by is not None and dam.triggered_by not in dam_ids[:i]:
                 raise ValueError(f"dams[{i}].triggered_by '{dam.triggered_by}' is not a dam id listed "
                                  f"before it (dams are ordered upstream -> downstream)")
+            if dam.triggered_by is None and dam.trigger is not None:
+                raise ValueError(f"dam '{dam.id}': 'trigger' is only meaningful on a dam with "
+                                 f"'triggered_by' set")
+            if dam.triggered_by is not None and self.cascade is None:
+                raise ValueError(f"dam '{dam.id}' has 'triggered_by' set but the site has no "
+                                 f"top-level 'cascade' block")
+            if (dam.triggered_by is not None and self.cascade is not None
+                    and self.cascade.approach == "two_stage_imposed" and dam.trigger is None):
+                raise ValueError(f"dam '{dam.id}': cascade.approach='two_stage_imposed' requires "
+                                 f"every triggered dam to have its own 'trigger'")
+            if dam.kind == "concrete_dam" and dam.equations_applicable:
+                raise ValueError(f"dam '{dam.id}': kind='concrete_dam' requires "
+                                 f"equations_applicable: false (docs/Equations.md §7 — the "
+                                 f"breach equations are not recommended for concrete dams)")
+            if not dam.equations_applicable and dam.imposed_ranges is None:
+                raise ValueError(f"dam '{dam.id}': equations_applicable: false requires "
+                                 f"'imposed_ranges'")
 
         ff, nf = self.domains.far_field, self.domains.near_field
         if ff.inflow.from_ not in dam_ids:

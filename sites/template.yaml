@@ -92,16 +92,34 @@ domains:
 # -----------------------------------------------------------------------------
 # Dams / lakes - one entry per structure that can breach, upstream -> downstream.
 # triggered_by: id of the upstream dam whose flood causes this breach (cascade), else null.
+# A site with any triggered_by needs a top-level cascade: block (below).
 #
 # breach_inputs feed the empirical breach relations (e.g. Froehlich 2008/2016,
 # Xu & Zhang 2009). Confirm the enum codes against your breach module's
 # coefficient tables. Expect breach_height <= dam_height.
+#
+# equations_applicable: false (required for kind: concrete_dam - the equations are not
+# recommended for concrete dams, docs/Equations.md §7) reports imposed_ranges instead of
+# computing breach_inputs through the equations; breach_inputs is still required by the
+# schema below but is only used for the hydrograph shape, not for the breach parameter ranges.
+#
+# trigger: only on a dam with triggered_by set. Under cascade.approach: two_stage_imposed
+# this dam's own breach hydrograph starts when routed inflow from its upstream dam first
+# reaches trigger.value (m^3/s) - see docs/decisions.md, "M2 cascade engine".
 # -----------------------------------------------------------------------------
 dams:
   - id: <dam_id>
     name: <Dam or lake name>
     kind: <moraine_dammed_lake | embankment_dam | concrete_dam | landslide_dam>
     triggered_by: null
+    # trigger:                     # only if triggered_by is set
+    #   type: inflow_threshold
+    #   value: {value: null, unit: m^3/s, source: "", status: placeholder}
+    equations_applicable: true     # false -> concrete_dam, or any dam using imposed ranges
+    # imposed_ranges:               # required if equations_applicable: false
+    #   peak_discharge_m3s: {value: null, unit: m^3/s, source: "", status: placeholder}  # [low, high]
+    #   breach_width_m:     {value: null, unit: m,     source: "", status: placeholder}  # [low, high]
+    #   failure_time_s:     {value: null, unit: s,     source: "", status: placeholder}  # [low, high]
     location:                      # dam crest centre
       value: null                  # [lon, lat]
       unit: deg
@@ -153,6 +171,15 @@ dams:
         unit: enum
         source: ""
         status: placeholder
+
+# -----------------------------------------------------------------------------
+# Cascade - only present if any dam above has triggered_by set.
+# approach: two_stage_imposed (M2-implemented: a downstream dam's hydrograph is triggered by
+#   routed upstream inflow crossing its own trigger.value, see the dams block above) or
+#   dambreak_structure (dynamic breaching inside a Delft3D structure - M3's job, not M2's).
+# -----------------------------------------------------------------------------
+# cascade:
+#   approach: two_stage_imposed
 
 # -----------------------------------------------------------------------------
 # Points of interest - reported on in outputs (arrival time, peak depth, ...)

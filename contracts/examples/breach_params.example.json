@@ -1,0 +1,281 @@
+{
+  "contract_version": "0.1.0",
+  "site_id": "teesta",
+  "has_placeholders": true,
+  "placeholder_fields": [
+    "dams[0].breach_inputs.water_volume_above_invert",
+    "dams[0].breach_inputs.water_height_above_invert",
+    "dams[0].breach_inputs.breach_height",
+    "dams[0].breach_inputs.dam_height",
+    "dams[0].breach_inputs.average_embankment_width",
+    "dams[0].breach_inputs.dam_type",
+    "dams[0].breach_inputs.failure_mode",
+    "dams[0].breach_inputs.erodibility",
+    "dams[1].trigger.value",
+    "dams[1].breach_inputs.water_volume_above_invert",
+    "dams[1].breach_inputs.water_height_above_invert",
+    "dams[1].breach_inputs.breach_height",
+    "dams[1].breach_inputs.dam_height",
+    "dams[1].breach_inputs.average_embankment_width",
+    "dams[1].breach_inputs.dam_type",
+    "dams[1].breach_inputs.failure_mode",
+    "dams[1].breach_inputs.erodibility"
+  ],
+  "dams": [
+    {
+      "dam_id": "south_lhonak",
+      "equations_applicable": true,
+      "inputs_used": {
+        "Vw_m3": 50000000.0,
+        "hw_m": 20.0,
+        "hb_m": 20.0,
+        "hd_m": 30.0,
+        "Wave_m": 300.0,
+        "dam_type_code": "HD",
+        "failure_mode": "O",
+        "erodibility": "H"
+      },
+      "parameters": {
+        "peak_discharge_m3s": {
+          "methods": {
+            "F16": {
+              "value": 4295.128576631262,
+              "in_valid_range": null
+            },
+            "Z20": {
+              "value": 5258.393205062716,
+              "in_valid_range": null
+            },
+            "XZ9": {
+              "value": null,
+              "status": "blocked",
+              "reason": "XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            },
+            "H14": {
+              "value": 4362.084874212117,
+              "in_valid_range": null
+            },
+            "DFM_updated": {
+              "value": null,
+              "status": "blocked",
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            },
+            "DFM_2024": {
+              "value": null,
+              "status": "blocked",
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            }
+          },
+          "low": null,
+          "high": null,
+          "unit": "m3s",
+          "interval": "method_range",
+          "selected_pair": [
+            "DFM_updated",
+            "DFM_2024"
+          ],
+          "status": "blocked",
+          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; DFM_2024: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+        },
+        "breach_width_m": {
+          "methods": {
+            "F95": {
+              "value": 129.71489933736368,
+              "in_valid_range": null
+            },
+            "F8": {
+              "value": 115.0849988417622,
+              "in_valid_range": null
+            },
+            "XZ9": {
+              "value": null,
+              "status": "blocked",
+              "reason": "XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            },
+            "DFM_updated": {
+              "value": null,
+              "status": "blocked",
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            }
+          },
+          "low": null,
+          "high": null,
+          "unit": "m",
+          "interval": "method_range",
+          "selected_pair": [
+            "DFM_updated",
+            "XZ9"
+          ],
+          "status": "blocked",
+          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+        },
+        "failure_time_s": {
+          "methods": {
+            "F95": {
+              "value": 7424.433532875445,
+              "in_valid_range": null
+            },
+            "F8": {
+              "value": 7134.073527574549,
+              "in_valid_range": null
+            },
+            "MCLM": {
+              "value": 5650.107051841618,
+              "in_valid_range": null
+            },
+            "DFM_updated": {
+              "value": 6916.6561536036,
+              "in_valid_range": null
+            }
+          },
+          "low": 6916.6561536036,
+          "high": 7134.073527574549,
+          "unit": "s",
+          "interval": "method_range",
+          "selected_pair": [
+            "DFM_updated",
+            "F8"
+          ]
+        }
+      },
+      "warnings": [
+        "xz9_blocked_h_r",
+        "failure_time_uncertain",
+        "clear_water",
+        "moraine_extrapolation"
+      ]
+    },
+    {
+      "dam_id": "teesta_iii",
+      "equations_applicable": true,
+      "inputs_used": {
+        "Vw_m3": 5000000.0,
+        "hw_m": 62.0,
+        "hb_m": 60.0,
+        "hd_m": 60.0,
+        "Wave_m": 95.0,
+        "dam_type_code": "FD",
+        "failure_mode": "O",
+        "erodibility": "M"
+      },
+      "parameters": {
+        "peak_discharge_m3s": {
+          "methods": {
+            "F16": {
+              "value": 14625.719915062959,
+              "in_valid_range": null
+            },
+            "Z20": {
+              "value": null,
+              "status": "blocked",
+              "reason": "Z20 has no branch for dam_type='FD'; only HD/CD are given by Azmi (docs/Equations.md \u00a71.3), and the FD/ZD mapping is NOT STATED \u2014 blocked per \u00a77."
+            },
+            "XZ9": {
+              "value": null,
+              "status": "blocked",
+              "reason": "XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            },
+            "H14": {
+              "value": 3349.0185674791173,
+              "in_valid_range": null
+            },
+            "DFM_updated": {
+              "value": null,
+              "status": "blocked",
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; Z20: Z20 has no branch for dam_type='FD'; only HD/CD are given by Azmi (docs/Equations.md \u00a71.3), and the FD/ZD mapping is NOT STATED \u2014 blocked per \u00a77."
+            },
+            "DFM_2024": {
+              "value": null,
+              "status": "blocked",
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            }
+          },
+          "low": null,
+          "high": null,
+          "unit": "m3s",
+          "interval": "method_range",
+          "selected_pair": [
+            "DFM_updated",
+            "DFM_2024"
+          ],
+          "status": "blocked",
+          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; Z20: Z20 has no branch for dam_type='FD'; only HD/CD are given by Azmi (docs/Equations.md \u00a71.3), and the FD/ZD mapping is NOT STATED \u2014 blocked per \u00a77.; DFM_2024: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+        },
+        "breach_width_m": {
+          "methods": {
+            "F95": {
+              "value": 76.49673538362383,
+              "in_valid_range": null
+            },
+            "F8": {
+              "value": 57.55771810671468,
+              "in_valid_range": null
+            },
+            "XZ9": {
+              "value": null,
+              "status": "blocked",
+              "reason": "XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            },
+            "DFM_updated": {
+              "value": null,
+              "status": "blocked",
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+            }
+          },
+          "low": null,
+          "high": null,
+          "unit": "m",
+          "interval": "method_range",
+          "selected_pair": [
+            "DFM_updated",
+            "XZ9"
+          ],
+          "status": "blocked",
+          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+        },
+        "failure_time_s": {
+          "methods": {
+            "F95": {
+              "value": 815.1812733552979,
+              "in_valid_range": null
+            },
+            "F8": {
+              "value": 751.9973780749207,
+              "in_valid_range": null
+            },
+            "MCLM": {
+              "value": 4070.8085341213446,
+              "in_valid_range": null
+            },
+            "DFM_updated": {
+              "value": 2845.214219592915,
+              "in_valid_range": null
+            }
+          },
+          "low": 751.9973780749207,
+          "high": 2845.214219592915,
+          "unit": "s",
+          "interval": "method_range",
+          "selected_pair": [
+            "DFM_updated",
+            "F8"
+          ]
+        }
+      },
+      "warnings": [
+        "xz9_blocked_h_r",
+        "z20_dam_type_unmapped",
+        "failure_time_uncertain",
+        "clear_water"
+      ]
+    }
+  ],
+  "provenance": {
+    "method": "empirical",
+    "code_version": "e60ffd1",
+    "data_sources": [
+      "docs/Equations.md",
+      "docs/paper_azmi.md"
+    ]
+  }
+}

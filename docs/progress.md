@@ -181,3 +181,128 @@ layers/*.png`. `pytest -q`: 184 passed (10 new).
 
 Note: this machine's `.venv` is missing `jsonschema`/`fastapi`/`httpx`/`pip` itself;
 `/usr/bin/python3` has the full stack instead and is what ran all tests this session.
+
+## 2026-09-24 — M2 breach engine
+
+Built `backend/m2_breach/` from scratch (it was an empty directory): one module per base
+equation (`f16.py`, `xz9.py`, `z20.py`, `f95.py`, `f8.py`, `mclm.py`, `h14.py`), the Table 5/DFM
+2024 fusion (`dfm.py`), the dual-method range logic (`ranges.py`) and the per-site orchestrator
+(`breach_params.py`) that writes `data/<site_id>/breach/breach_params.json`.
+
+**Blocker surfaced and confirmed with the user before writing any code:** `docs/Equations.md`
+itself says to block Xu & Zhang (2009) (code XZ9) until its reference height `h_r` is sourced
+from the original paper — Azmi's reproduction never defines it. XZ9 feeds the updated-DFM fusion
+for both Q_p and B_ave, and DFM 2024 for Q_p, so today **only the failure-time (T_f) dual-method
+range is computable**; Q_p and B_ave report their individually-computable base methods (F16, Z20;
+F95, F8) but their recommended-pair range is `status: "blocked"`. Z20 is also blocked outside
+HD/CD dam types (Teesta III is FD) — the FD/ZD mapping isn't in Azmi's reproduction either.
+Full writeup: `docs/decisions.md` "M2 breach engine: XZ9/h_r blocker...".
+
+Added `contracts/schemas/breach_params.schema.json` and `contracts/examples/
+breach_params.example.json` (generated from `sites/teesta.yaml`, so it shows a real blocked-XZ9
+case), wired into `tests/m0_api/test_schemas.py`'s example/schema pairing.
+
+Tests: `tests/m2_breach/` (46 tests) — hand-computed values per equation and branch (F16 O/P,
+k_h continuity at h_b=6.1m, a length-scaling dimension check; Z20 HD/CD plus FD/ZD blocked; F8
+T_f unit derivation; DFM equals its weighted sum; a blocked component propagates through DFM;
+a negative DFM value is flagged (`dfm_nonpositive`), never clipped); `breach_params.py`
+end-to-end on both a synthetic config and the real `sites/teesta.yaml` (concrete-dam refusal,
+moraine caveat, placeholder propagation, schema validation); and `test_breach_cases.py`, which
+reproduces `docs/paper_azmi.md` Table 7's median % error over `tests/data/breach_cases.csv` for
+every method that isn't blocked (F16/Z20 for Q_p, F95/F8 for B_ave, F95/F8/MCLM for T_f) — all 7
+land within the paper's own reported MAD of its median, with no tuning:
+
+```
+F16_Qp:   n=29  our=-11.6%  paper=-10.1%  MAD=31.9
+Z20_Qp:   n=41  our= -9.7%  paper=-26.2%  MAD=34.0
+F95_Bave: n=128 our= -9.4%  paper= -5.2%  MAD=23.2
+F8_Bave:  n=128 our= -6.5%  paper= -1.8%  MAD=29.8
+F95_Tf:   n=68  our=  4.2%  paper=-11.3%  MAD=36.6
+F8_Tf:    n=68  our=  5.0%  paper= -7.3%  MAD=35.3
+MCLM_Tf:  n=68  our= 14.3%  paper=  3.4%  MAD=59.4
+```
+
+`pytest -q`: 231 passed (46 new). Ran with `/usr/bin/python3` (this machine's `.venv` is still
+missing several packages, per the last session's note).
+
+**Out of scope this session, left for next:** hydrographs (`hydrograph()`, contract §4.2's
+`hydrographs/*.csv` + sidecar) and cascades. Also open: sourcing h_r for XZ9, and the FD/ZD
+mapping for Z20 — both block real Q_p/B_ave ranges for Teesta until resolved.
+
+## 2026-09-24 — M2 breach hydrographs
+
+Built contract §4.2's hydrograph part, left open at the end of the last session:
+
+- `backend/m2_breach/weir.py`: trapezoidal broad-crested weir discharge (standard hydraulics, not
+  from `docs/Equations.md`) — no built-in coefficients, read from config (`docs/decisions.md`).
+- `backend/m2_breach/storage.py`: `StorageCurve` above the final breach invert, from a surveyed
+  elevation-volume curve or an area-volume-relation derivation (documented, not from a paper).
+- `backend/m2_breach/hydrograph.py`: `breach_growth_weir()` (level-pool routed, ODE via
+  `scipy.integrate.solve_ivp`, breach width+depth grow together over `failure_time_s`),
+  `triangular()` fallback (volume-exact), `hydrograph_for_dam()`/`hydrograph()` (method selection,
+  `peak_within_m2_range` against the M2 Q_p range, caveats), `write_hydrograph()`.
+- `backend/shared/site_config.py`: additive optional `Dam.volume_elevation` and
+  `Dam.breach_hydrograph` blocks.
+- `contracts/schemas/hydrograph_sidecar.schema.json` + generated example; registered in
+  `tests/m0_api/test_schemas.py`.
+- New tests: `tests/m2_breach/{test_weir,test_storage,test_hydrograph}.py` — mass conservation
+  (weir and triangular), zero flow before breach start/offset, `peak_within_m2_range` correctness
+  (not tuned to force `true` — the M2 Q_p range is blocked for the synthetic dam, so the flag is
+  `None`), method fallback/blocking, sidecar schema validation.
+
+`pytest -q`: 280 passed (49 new). Ran with `/usr/bin/python3` (installed `scipy` there via
+`pip install --user --break-system-packages`; this machine's `.venv` still has no `pip`).
+
+**Out of scope this session, left for next:** cascades (downstream dam `t_offset_s`), and the
+pending site-config-schema decision (`volume_elevation`/`breach_hydrograph` are additive so this
+doesn't block, but the wider v1-vs-contract migration is still open).
+
+## 2026-09-24 — M2 cascade engine (multi-dam sites)
+
+Extended M2 for sites with several dams in sequence (Teesta: South Lhonak → Teesta III), left open
+at the end of the last session. Contract §3.1's `cascade.approach: null ⚙️` was genuinely
+undecided (nothing about it was in this file before today) — confirmed the choice with the user
+before building: **`two_stage_imposed`**, not `dambreak_structure`. Full reasoning in
+`docs/decisions.md` ("M2 cascade engine: two-stage imposed hydrograph").
+
+- `backend/shared/site_config.py`: additive `Dam.equations_applicable` (default `true`),
+  `Dam.imposed_ranges` (`{peak_discharge_m3s, breach_width_m, failure_time_s}`, each a
+  `[low, high]` `RangeValue`), `Dam.trigger` (`{type: inflow_threshold, value: DischargeValue}`),
+  and top-level `SiteConfig.cascade` (`{approach: two_stage_imposed | dambreak_structure}`). New
+  cross-checks: `kind: concrete_dam` ⇒ `equations_applicable: false` ⇒ `imposed_ranges` required;
+  `triggered_by` ⇒ site needs a `cascade` block; `two_stage_imposed` ⇒ every triggered dam needs
+  its own `trigger`.
+- `backend/m2_breach/breach_params.py`: `compute_dam` now branches on `equations_applicable` —
+  `false` builds the output ranges from `imposed_ranges` (`interval: "imposed"`, caveat
+  `concrete_dam_imposed`) instead of running the Azmi equations. Deleted `DamKindRefused`: a
+  concrete dam without `equations_applicable: false` is now rejected by the loader, not by
+  `compute_dam`.
+- `backend/m2_breach/cascade.py` (new): `cascade_plan()` (ordered stages, raises
+  `UnsupportedCascadeApproach` for `dambreak_structure`), `trigger_time()` (linear-interpolated
+  threshold crossing on a routed-inflow time series — no routing/celerity invented, the series is
+  always an input), `triggered_hydrograph()` (sets `t_offset_s` to the trigger time, or returns
+  `None` if the threshold is never reached in that scenario; releases only the dam's own storage —
+  superposition, caveat `cascade_superposition`; raises `HydrographBlocked` if the threshold is a
+  placeholder).
+- `backend/m2_breach/hydrograph.py`: `Hydrograph.trigger` (optional dict), included in the sidecar
+  only when set.
+- Contracts: `breach_params.schema.json`'s `OutputRange.interval` gains `"imposed"` (nullable
+  `selected_pair`, optional `source`); `hydrograph_sidecar.schema.json` gains an optional
+  `trigger` object. `contracts/examples/breach_params.example.json` regenerated from
+  `sites/teesta.yaml` — no diff (teesta_iii stays an embankment dam today).
+- `sites/teesta.yaml`: added `cascade: {approach: two_stage_imposed}` and `teesta_iii.trigger`
+  (placeholder — not sourced). `sites/template.yaml`: documented the new fields.
+- New tests: `tests/fixtures/m2_breach/synth_cascade.yaml` (synthetic two-dam site: moraine lake →
+  concrete dam with imposed ranges and a trigger), `tests/m2_breach/test_cascade.py` (plan
+  ordering incl. a three-dam chain, `trigger_time` interpolation, triggered/not-triggered/blocked
+  hydrographs, superposition volume check, sidecar schema validation, an end-to-end
+  lagged-hydrograph scenario), plus loader cross-check tests in `tests/shared/test_site_config.py`
+  and imposed-range tests in `tests/m2_breach/test_breach_params.py`.
+
+`pytest -q`: 307 passed (27 new). Ran with `/usr/bin/python3`.
+
+**Out of scope this session, left for next:** Teesta III's dam type is still unverified
+(`docs/ideation.md`) — if it turns out to be concrete rather than embankment, its
+`equations_applicable`/`imposed_ranges` need filling from a real source. The per-dam `trigger`
+deviation from contract §3.1 is PENDING team agreement (see decisions.md); h_r (XZ9) and the
+Z20 FD/ZD mapping are still blocked from earlier sessions.

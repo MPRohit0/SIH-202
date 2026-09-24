@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "breach_params.schema.json",
+  "title": "M2 breach engine output (contract §4.2), data/<site_id>/breach/breach_params.json",
+  "description": "Additive to the §4.2 example: each method result and each output's range may carry status:'blocked'/reason instead of a value, when docs/Equations.md itself blocks an equation (e.g. XZ9 pending h_r). An output range may also have interval:'imposed' (source, no selected_pair) for a dam with equations_applicable:false (e.g. concrete dams, per Azmi 2026 / docs/Equations.md §7). See docs/decisions.md for these additions.",
+  "type": "object",
+  "required": ["contract_version", "site_id", "has_placeholders", "placeholder_fields", "dams", "provenance"],
+  "properties": {
+    "contract_version": { "type": "string" },
+    "site_id": { "type": "string" },
+    "has_placeholders": { "type": "boolean" },
+    "placeholder_fields": { "type": "array", "items": { "type": "string" } },
+    "dams": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/DamBreachParams" }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["method", "code_version", "data_sources"],
+      "properties": {
+        "method": { "const": "empirical" },
+        "code_version": { "type": "string" },
+        "data_sources": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "MethodValue": {
+      "description": "A single method's result: either computed (value + in_valid_range) or blocked (value:null, status, reason).",
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "value": { "type": ["number", "null"] },
+        "in_valid_range": { "type": ["boolean", "null"] },
+        "status": { "const": "blocked" },
+        "reason": { "type": "string" }
+      },
+      "if": { "properties": { "value": { "type": "null" } } },
+      "then": { "required": ["value", "status", "reason"] }
+    },
+    "OutputRange": {
+      "description": "The dual-method range for one output (peak_discharge_m3s, breach_width_m or failure_time_s), or (interval:'imposed') a range taken from the site config's Dam.imposed_ranges for a dam with equations_applicable:false.",
+      "type": "object",
+      "required": ["methods", "low", "high", "unit", "interval", "selected_pair"],
+      "properties": {
+        "methods": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/MethodValue" }
+        },
+        "low": { "type": ["number", "null"] },
+        "high": { "type": ["number", "null"] },
+        "unit": { "type": "string" },
+        "interval": { "enum": ["method_range", "imposed"] },
+        "selected_pair": {
+          "type": ["array", "null"],
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string" }
+        },
+        "source": { "type": "string" },
+        "status": { "const": "blocked" },
+        "reason": { "type": "string" }
+      },
+      "if": { "properties": { "low": { "type": "null" } } },
+      "then": { "required": ["status", "reason"] }
+    },
+    "DamBreachParams": {
+      "type": "object",
+      "required": ["dam_id", "equations_applicable", "inputs_used", "parameters", "warnings"],
+      "properties": {
+        "dam_id": { "type": "string" },
+        "equations_applicable": { "type": "boolean" },
+        "inputs_used": {
+          "type": "object",
+          "properties": {
+            "Vw_m3": { "type": ["number", "null"] },
+            "hw_m": { "type": ["number", "null"] },
+            "hb_m": { "type": ["number", "null"] },
+            "hd_m": { "type": ["number", "null"] },
+            "Wave_m": { "type": ["number", "null"] },
+            "dam_type_code": { "type": ["string", "null"] },
+            "failure_mode": { "type": ["string", "null"] },
+            "erodibility": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "parameters": {
+          "type": "object",
+          "required": ["peak_discharge_m3s", "breach_width_m", "failure_time_s"],
+          "properties": {
+            "peak_discharge_m3s": { "$ref": "#/$defs/OutputRange" },
+            "breach_width_m": { "$ref": "#/$defs/OutputRange" },
+            "failure_time_s": { "$ref": "#/$defs/OutputRange" }
+          },
+          "additionalProperties": false
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

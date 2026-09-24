@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hydrograph_sidecar.schema.json",
+  "title": "M2 hydrograph sidecar (contract §4.2), data/<site_id>/breach/hydrographs/<scenario_id>__<dam_id>.json",
+  "description": "Additive to the §4.2 example: peak_within_m2_range, has_placeholders, caveats and provenance (see docs/decisions.md).",
+  "type": "object",
+  "required": [
+    "contract_version", "scenario_id", "dam_id", "method", "params", "dt_s", "t_offset_s",
+    "peak_q_m3s", "time_to_peak_s", "volume_m3", "mass_balance_error_pct",
+    "peak_within_m2_range", "has_placeholders", "caveats", "provenance"
+  ],
+  "properties": {
+    "contract_version": { "type": "string" },
+    "scenario_id": { "type": ["string", "null"] },
+    "dam_id": { "type": "string" },
+    "method": {
+      "enum": ["breach_growth_weir", "triangular", "imposed", "equivalent_event"]
+    },
+    "params": {
+      "type": "object",
+      "required": ["breach_width_m", "failure_time_s", "water_volume_m3"],
+      "properties": {
+        "breach_width_m": { "type": ["number", "null"] },
+        "failure_time_s": { "type": "number" },
+        "water_volume_m3": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "dt_s": { "type": "number", "exclusiveMinimum": 0 },
+    "t_offset_s": { "type": "number", "minimum": 0 },
+    "peak_q_m3s": { "type": "number", "minimum": 0 },
+    "time_to_peak_s": { "type": "number", "minimum": 0 },
+    "volume_m3": { "type": "number", "minimum": 0 },
+    "mass_balance_error_pct": { "type": "number" },
+    "peak_within_m2_range": { "type": ["boolean", "null"] },
+    "trigger": {
+      "description": "Present only for a downstream dam in a cascade.approach:'two_stage_imposed' site (docs/decisions.md). Records how t_offset_s was derived from the routed upstream inflow.",
+      "type": "object",
+      "required": ["triggered", "triggered_by", "type", "threshold_m3s", "inflow_source"],
+      "properties": {
+        "triggered": { "type": "boolean" },
+        "triggered_by": { "type": "string" },
+        "type": { "const": "inflow_threshold" },
+        "threshold_m3s": { "type": "number", "exclusiveMinimum": 0 },
+        "trigger_time_s": { "type": ["number", "null"], "minimum": 0 },
+        "inflow_peak_m3s": { "type": ["number", "null"], "minimum": 0 },
+        "inflow_source": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "has_placeholders": { "type": "boolean" },
+    "caveats": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/Caveat" }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["method", "code_version", "data_sources"],
+      "properties": {
+        "method": { "const": "empirical" },
+        "code_version": { "type": "string" },
+        "data_sources": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

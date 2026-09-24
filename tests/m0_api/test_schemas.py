@@ -31,6 +31,8 @@ EXAMPLE_TO_SCHEMA = {
     "validation.example.json": "validation.schema.json",
     "historical_validation.example.json": "historical_validation.schema.json",
     "gee_layers.example.json": "gee_layers.schema.json",
+    "breach_params.example.json": "breach_params.schema.json",
+    "hydrograph_sidecar.example.json": "hydrograph_sidecar.schema.json",
     "scene3d.example.json": "scene3d.schema.json",
 }
 

@@ -126,6 +126,13 @@ dams:
     name: Teesta III dam (Chungthang)
     kind: embankment_dam
     triggered_by: south_lhonak
+    trigger:
+      type: inflow_threshold
+      value:
+        value: null
+        unit: m^3/s
+        source: "NOT SOURCED. Replace from: Teesta III spillway/outlet discharge capacity (project DPR / CWC) or official 2023 failure timeline (when routed South Lhonak flow overwhelmed the dam)."
+        status: placeholder
     location:
       value: [88.640, 27.600]
       unit: deg
@@ -177,6 +184,13 @@ dams:
         unit: enum
         source: "Placeholder: rockfill assumed medium. Replace from: embankment material description in project documents."
         status: placeholder
+
+# Cascade: South Lhonak GLOF triggers Teesta III (docs/decisions.md, "M2 cascade engine").
+# approach: two_stage_imposed — M2 does not route the flood itself. Teesta III's own hydrograph
+# fires when routed South Lhonak inflow (from the far-field Delft3D run, or M5's HAND fallback)
+# reaches teesta_iii.trigger.value above; t_offset_s in its sidecar is that arrival time.
+cascade:
+  approach: two_stage_imposed
 
 points_of_interest:
   # --- villages / towns ---

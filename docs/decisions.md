@@ -206,3 +206,179 @@ are set (contract §0.5).
 4. Should a lapsed re-check date make a site `outdated`, or only show the "re-check overdue"
    banner (as proposed)?
 5. Accept the two new job endpoints (cancel, resume)?
+
+## 2026-09-24 — M2 breach engine: XZ9/h_r blocker, Z20 dam-type mapping, breach_params.json additions (DECIDED with user this session)
+
+**Status:** implemented in `backend/m2_breach/`. Two things are blocked pending real sources, not
+worked around; one contract addition was made.
+
+### XZ9 blocked (`backend/m2_breach/xz9.py`)
+
+`docs/Equations.md` §1.2/§2.3 marks Xu & Zhang (2009)'s reference height `h_r` "NOT STATED —
+UNCLEAR", and §7's checklist says: "Block XZ9 (both Q_p and B_ave) until h_r is sourced; don't
+hard-code a guess." Both `peak_discharge_xz9()` and `breach_width_xz9()` raise
+`BlockedEquationError` unconditionally; the coefficient tables are transcribed in the docstring
+so implementation is a one-line change once h_r has a source.
+
+**Consequence for the recommended method pairs** (`docs/paper_azmi.md`): XZ9 feeds the updated
+DFM for Q_p and B_ave, and DFM 2024 for Q_p (`Q_p(DFM2024) = 1.23·F16 − 0.84·H14 + 0.26·XZ9`). So:
+
+| Output | Recommended pair | Status today |
+|---|---|---|
+| Q_p | DFM_updated + DFM_2024 | **blocked** (both members need XZ9) — F16, Z20 still reported individually |
+| B_ave | DFM_updated + XZ9 | **blocked** (both members need XZ9) — F95, F8 still reported individually |
+| T_f | DFM_updated + F8 | **computable** — neither needs XZ9 |
+
+Only T_f gets a real dual-method range until h_r is sourced. Confirmed with the user before
+building rather than guessing a value for h_r.
+
+### Z20 blocked outside HD/CD (`backend/m2_breach/z20.py`)
+
+`docs/Equations.md` §1.3 gives only HD and CD branches for Zhong et al. (2020); FD/ZD mapping is
+NOT STATED, and §7 says to raise for any other dam type. Teesta III (`sites/teesta.yaml`) is FD,
+so its Q_p output has Z20 blocked with warning `z20_dam_type_unmapped` — F16 is still reported.
+
+### `breach_params.json` additions (agreed with user; additive, not a change to existing fields)
+
+Contract §4.2's example shows every method as `{value, in_valid_range}`. A blocked method (or a
+blocked dual-method range) instead writes `{value: null, status: "blocked", reason: "<why>"}`
+with `low`/`high`/`in_valid_range` also null on a blocked range. `contracts/schemas/
+breach_params.schema.json` (new) encodes both shapes; `contracts/examples/
+breach_params.example.json` (new, generated from `sites/teesta.yaml`) shows a real blocked case.
+`in_valid_range` is `null` everywhere in practice — `docs/Equations.md` states "Valid range: NOT
+AVAILABLE" for every base equation, so no calibration-range check is invented.
+
+Also: the §4.2 example has no top-level `caveats` field, only per-dam `warnings`. This
+implementation follows the example as given — `moraine_extrapolation`, `placeholder_data`,
+`failure_time_uncertain`, `clear_water` etc. are folded into `warnings`, not a separate list, to
+avoid adding an unshown field.
+
+**Decide:** whether to fold this shape back into `docs/handoff_contract.md` §4.2 once XZ9/Z20 are
+unblocked, or keep it as a permanent "blocked equation" convention other modules may need too.
+
+## 2026-09-24 — M2 breach hydrographs: coefficients, storage curve, Q_p-range check (DECIDED with user this session)
+
+**Status:** implemented in `backend/m2_breach/{weir,storage,hydrograph}.py`. Contract §4.2's
+hydrograph part (`hydrograph(site_id, dam_id, params)`, `hydrographs/*.csv` + sidecar) had not
+been built yet (`docs/progress.md`, "out of scope this session, left for next").
+
+### No built-in weir/side-slope/storage coefficients (CLAUDE.md rule 3)
+
+`backend/m2_breach/weir.py`'s broad-crested weir equation and `storage.py`'s area-volume
+relation are standard hydraulics, **not** from `docs/Equations.md` (that document's scope is the
+Azmi 2026 breach-parameter equations). No source in this repo gives a weir coefficient, breach
+side slope or area-volume exponent, so the code has **no default value** for any of them —
+inventing one would violate rule 3. They are additive, optional fields on `Dam`
+(`backend/shared/site_config.py`): `volume_elevation` (mirrors contract §3.1's block already
+drafted there but missing from the v1 loader — see the pending site-config-schema decision above)
+and a new `breach_hydrograph` block (`weir_coefficient_rect`, `weir_coefficient_side`,
+`side_slope_z`, all SourcedValues). A `Dam` without both blocks fully sourced cannot use
+`breach_growth_weir`; `hydrograph_for_dam` falls back to the volume-conserving `triangular`
+method (needs `params["peak_discharge_m3s"]`), or raises `HydrographBlocked` if neither is
+available — the same "block, don't guess" pattern as XZ9.
+
+### Storage curve when bathymetry is missing
+
+`storage.from_area_volume_relation(V_w, h_w, b)` derives `V(h) = V_w * (h/h_w)^(b/(b-1))` from
+the site's area-volume exponent `b` (`V = a*A^b`) and the one calibration point M2 already has —
+this is an SIH26-derived shape assumption (self-similar basin), not a published formula; every
+hydrograph built from it carries caveat `storage_from_area_volume_relation`. When bathymetry
+exists, `storage.from_surveyed_curve(points, invert_elevation_m)` interpolates it directly with
+no caveat.
+
+### `peak_within_m2_range` when the Q_p range is blocked
+
+The M2 Q_p range (`DFM_updated`+`DFM_2024`) is blocked for every dam today (XZ9 pending h_r — see
+the XZ9 decision above), so the synthetic test dam's weir-routed peak (~1500 m³/s at
+V_w=1e6, B_ave=40m) can't be checked against it. Agreed: `peak_within_m2_range` is `null` (not
+`False`) with caveat `m2_qp_range_blocked` when the range is blocked, and tests check the flag is
+correctly `null`/`true`/`false` rather than picking inputs to force `true`.
+
+### Breach growth: width and invert depth together
+
+Per Fread/HEC-RAS-style breach growth, the invert drops linearly from the initial water surface
+to the final invert over `failure_time_s` while the bottom width grows from 0 to
+`B_ave - z*h_b` (B_ave being the mean of top and bottom width, `docs/Equations.md` §0). This keeps
+`Q=0` at breach start for any side slope `z`, avoiding the discontinuity a width-only growth model
+would have.
+
+### New contract files
+
+`contracts/schemas/hydrograph_sidecar.schema.json` (new) encodes contract §4.2's sidecar shape
+plus additive fields `peak_within_m2_range`, `has_placeholders`, `caveats`, `provenance` (same
+pattern as the `breach_params.json` additions above). `contracts/examples/
+hydrograph_sidecar.example.json` (new) is generated by actually running `breach_growth_weir()`,
+not hand-written.
+
+## 2026-09-24 — M2 cascade engine: two-stage imposed hydrograph (DECIDED with user this session)
+
+**Status:** implemented in `backend/m2_breach/cascade.py`, `backend/shared/site_config.py`. This
+finally resolves `docs/handoff_contract.md` §3.1's `cascade.approach: null ⚙️` for the case M2
+needs today (Teesta: South Lhonak GLOF → Teesta III), though the contract doc itself is not
+edited — see "Site-config schema" decision at the top of this file for why the v1 loader keeps
+diverging from §3.1 until that migration happens.
+
+### Approach chosen: `two_stage_imposed`, not `dambreak_structure`
+
+Confirmed with the user (both options were live in §3.1 and in `docs/ideation.md`'s "model its
+failure as an imposed scenario" note): M2 does **not** route the flood itself. A downstream dam's
+own breach hydrograph is triggered once **routed inflow** at that dam — an input time series
+produced by the stage-1 Delft3D run's observation cross-section (M3), or M5's HAND fallback —
+first reaches a threshold. `backend/m2_breach/cascade.py`'s `cascade_plan()` raises
+`UnsupportedCascadeApproach` if it sees `cascade.approach: dambreak_structure`; that approach
+(breaching modelled dynamically inside a Delft3D structure) belongs to M3, and is out of scope
+for this module. No celerity/attenuation value is invented to do the routing in M2 (CLAUDE.md
+rule 3) — see `trigger_time()`'s docstring.
+
+### Per-dam trigger threshold, not the single site-level `cascade.trigger` in §3.1 (PENDING team agreement)
+
+Contract §3.1 sketches one site-level `cascade.trigger.value_m3s`. With a chain of dams (or more
+sites onboarded later), different dams have different capacities, so this deviates: `Dam.trigger`
+(`{type: inflow_threshold, value: SourcedValue m^3/s}`) is per dam, required on every dam with
+`triggered_by` set when `cascade.approach == two_stage_imposed`
+(`SiteConfig._cross_checks`). **This is additive and PENDING team agreement** — the contract's
+single site-level `trigger` block is not removed from the doc, and could still be adopted as a
+site-wide default with per-dam overrides if the team prefers. `sites/teesta.yaml`'s
+`teesta_iii.trigger.value` is `status: placeholder` — not sourced yet (needs the spillway/outlet
+capacity or the 2023 failure timeline).
+
+### Superposition, not routed-inflow-through-storage
+
+The triggered dam's hydrograph (`cascade.triggered_hydrograph`) releases only **its own** stored
+volume (`hydrograph_for_dam`, unchanged) — it does not level-pool route the incoming upstream
+flood through the reservoir during the breach. The routed upstream flood keeps flowing through
+the stage-2 hydraulic model and is added there (superposition), not by M2. This was the simpler
+of two options discussed; the alternative (inflow term in the storage ODE) would need M3 to know
+not to also inject the upstream flood at that point, adding coupling for a physical effect
+(reservoir filling before breach) that is already a known limitation. Caveat
+`cascade_superposition` records this on every triggered hydrograph.
+
+### `equations_applicable` / `imposed_ranges` now enforced by the loader, not `compute_dam`
+
+`docs/Equations.md` §7 says to refuse `kind: concrete_dam`. Previously `breach_params.compute_dam`
+raised `DamKindRefused` for it outright — but §4.2 says such a dam should report `imposed_ranges`
+from the config instead, flagged `concrete_dam_imposed` (this was simply not built yet). Now:
+
+- `SiteConfig._cross_checks` requires `equations_applicable: false` whenever `kind: concrete_dam`,
+  and requires `imposed_ranges` whenever `equations_applicable: false`. `DamKindRefused` is
+  deleted; a bad config is now a loader error instead of a `compute_dam` exception.
+- `compute_dam` for `equations_applicable: false` builds each output range straight from
+  `imposed_ranges` (`interval: "imposed"`, `selected_pair: null`, `source` from the config's
+  `SourcedValue`), or `status: "blocked"` if that range is itself a placeholder — same
+  "block, don't guess" pattern as XZ9.
+- `breach_params.schema.json`'s `OutputRange.interval` gains `"imposed"`; `selected_pair` may be
+  `null` for it. `hydrograph_sidecar.schema.json` gains an optional `trigger` object.
+
+`sites/teesta.yaml`'s `teesta_iii` stays `kind: embankment_dam` / `dam_type: FD` — its true dam
+type is still unverified (`docs/ideation.md`: "Verify Teesta III dam type before applying
+embankment equations"). If it turns out to be concrete, flip `equations_applicable: false` and
+fill `imposed_ranges` from a source; no code change needed.
+
+### Tests
+
+`tests/fixtures/m2_breach/synth_cascade.yaml` (new): a synthetic two-dam site (`synth_lake` →
+`synth_dam2`, concrete, imposed ranges, per-dam trigger), fully sourced so cascade tests aren't
+tangled with placeholder-detection tests. Loader cross-checks are tested in
+`tests/shared/test_site_config.py`; `cascade_plan`/`trigger_time`/`triggered_hydrograph` (including
+a three-dam chain, an end-to-end lagged-hydrograph scenario, and the placeholder-threshold block)
+are tested in `tests/m2_breach/test_cascade.py`.

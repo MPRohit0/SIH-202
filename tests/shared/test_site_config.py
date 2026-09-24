@@ -1,8 +1,12 @@
 """Tests for backend.shared.site_config — site config model and loader."""
 
+import copy
 import warnings
+from pathlib import Path
 
+import pydantic
 import pytest
+import yaml
 
 from backend.shared.site_config import (
     PlaceholderWarning,
@@ -12,6 +16,14 @@ from backend.shared.site_config import (
 )
 
 from .conftest import SITES_DIR, SYNTH_PLACEHOLDERS, fully_sourced
+
+CASCADE_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "m2_breach" / "synth_cascade.yaml"
+
+
+@pytest.fixture
+def cascade_raw() -> dict:
+    with open(CASCADE_FIXTURE, encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 def load_quiet(path, **kwargs) -> SiteConfig:
@@ -226,6 +238,67 @@ def test_breach_higher_than_dam_warns(synth_raw, write_site):
 def test_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_site_config(tmp_path / "nope.yaml")
+
+
+# --------------------------------------------------------------------------- cascade (M2 two_stage_imposed)
+
+
+def test_cascade_fixture_loads(cascade_raw):
+    cfg = SiteConfig.model_validate(cascade_raw)
+    assert cfg.cascade.approach == "two_stage_imposed"
+    assert cfg.dams[1].trigger.value.value == 500.0
+    assert cfg.dams[1].imposed_ranges.peak_discharge_m3s.value == [800.0, 1500.0]
+
+
+def test_concrete_dam_must_set_equations_applicable_false(cascade_raw):
+    raw = copy.deepcopy(cascade_raw)
+    raw["dams"][1]["equations_applicable"] = True
+    with pytest.raises(pydantic.ValidationError, match="equations_applicable"):
+        SiteConfig.model_validate(raw)
+
+
+def test_equations_applicable_false_requires_imposed_ranges(cascade_raw):
+    raw = copy.deepcopy(cascade_raw)
+    del raw["dams"][1]["imposed_ranges"]
+    with pytest.raises(pydantic.ValidationError, match="imposed_ranges"):
+        SiteConfig.model_validate(raw)
+
+
+def test_trigger_on_untriggered_dam_rejected(cascade_raw):
+    raw = copy.deepcopy(cascade_raw)
+    raw["dams"][0]["trigger"] = copy.deepcopy(raw["dams"][1]["trigger"])
+    with pytest.raises(pydantic.ValidationError, match="trigger"):
+        SiteConfig.model_validate(raw)
+
+
+def test_triggered_by_without_cascade_block_rejected(cascade_raw):
+    raw = copy.deepcopy(cascade_raw)
+    del raw["cascade"]
+    with pytest.raises(pydantic.ValidationError, match="cascade"):
+        SiteConfig.model_validate(raw)
+
+
+def test_two_stage_imposed_requires_trigger_on_triggered_dam(cascade_raw):
+    raw = copy.deepcopy(cascade_raw)
+    del raw["dams"][1]["trigger"]
+    with pytest.raises(pydantic.ValidationError, match="trigger"):
+        SiteConfig.model_validate(raw)
+
+
+def test_imposed_range_low_above_high_rejected(cascade_raw):
+    raw = copy.deepcopy(cascade_raw)
+    raw["dams"][1]["imposed_ranges"]["peak_discharge_m3s"]["value"] = [1500.0, 800.0]
+    with pytest.raises(pydantic.ValidationError, match="low <= high"):
+        SiteConfig.model_validate(raw)
+
+
+def test_dambreak_structure_cascade_approach_loads(cascade_raw):
+    """The loader accepts 'dambreak_structure' (it's M2's cascade.py that refuses to act on
+    it — see tests/m2_breach/test_cascade.py)."""
+    raw = copy.deepcopy(cascade_raw)
+    raw["cascade"]["approach"] = "dambreak_structure"
+    cfg = SiteConfig.model_validate(raw)
+    assert cfg.cascade.approach == "dambreak_structure"
 
 
 # --------------------------------------------------------------------------- real config smoke test
