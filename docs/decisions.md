@@ -2,7 +2,9 @@
 
 ## 2026-09-24 — Site config schema: YAML v1 vs contract §3.1 (PENDING team decision)
 
-**Status:** pending — needs agreement from all module owners (contract §9) before the contract is changed.
+**Status:** RESOLVED 2026-09-25 by user instruction — see "Site config: YAML v1 canonical, contract
+0.2.0" below for the decision and what changed. Module-owner sign-off (contract §9 step 2) is still
+outstanding; this is a working resolution, not yet a frozen contract.
 
 `backend/shared/site_config.py` validates the format actually used in `sites/template.yaml` and
 `sites/teesta.yaml` (`schema_version: 1`), **not** `docs/handoff_contract.md` §3.1. The contract has not
@@ -411,3 +413,93 @@ reasoning as `library.py`'s existing "never write synthetic run_ids into data/".
 the report against `validation.schema.json` with `model` substituted to `"delft3d"` for the check
 only, and records this as a `notes` entry in the report itself so it's never silently passed off as
 real.
+
+## 2026-09-25 — M6 loss estimation: JRC depth-damage functions, additive asset_values.csv columns
+
+**Status:** implemented, additive-only.
+
+`loss_inr` (`docs/handoff_contract.md` §4.7) is priced from the JRC global flood depth-damage
+functions (Huizinga et al. 2017, `docs/data_sources.md` src_031/src_032) — the ASIA continent
+damage curves and India's max-damage values, both extracted from the published workbook by
+`backend/m6_impact/jrc_damage.py`. Full rationale for every default in
+`docs/impact_outputs.md` §5.
+
+Per user instruction this session: `asset_values.csv` gains two additive columns beyond the
+contract's `asset_class,value_inr_per_unit,unit,source,status` — `value_eur2010` (the JRC
+figure before currency conversion) and `jrc_cell` (the exact sheet/cell it came from), so every
+`value_inr_per_unit` is re-derivable and auditable rather than an opaque number. This is a
+contract change (`docs/handoff_contract.md` §4.7 updated in the same commit); flagged per
+CLAUDE.md rule 1 rather than applied silently.
+
+JRC values are 2010 EUR; the contract wants INR at current prices. Per user instruction, the
+conversion is two factors in `config/impact.yaml`, applied in order — EUR→INR at the 2010
+annual-average RBI reference rate, then a 2010→current Indian price index (CPWD cost index or
+WPI, team to choose which) — both currently `status: placeholder`. Until both are sourced,
+`loss_inr` and every `by_asset_class` entry are null Estimates (never an invented FX rate or
+index, CLAUDE.md rule 3); `has_placeholders: true` propagates honestly. The same applies to
+`config.loss.default_road_width_m` (no source yet for road width by class), which keeps roads
+unpriced independently of the FX/index state.
+
+Scope limit, not yet resolved: `loss_inr` prices only buildings (`buildings.gpkg`) and roads
+(`roads.gpkg`). Hospitals, schools and bridges (`facilities.gpkg`) are points with no footprint
+polygon, so there's no area to apply a JRC per-m² damage value to without inventing one;
+agriculture has no cropland exposure layer yet. Both are named in every result's `assumptions`
+rather than silently omitted or estimated with a guessed area.
+
+## 2026-09-25 — Site config: YAML v1 canonical, contract 0.2.0
+
+**Status:** decided by user instruction this session; module-owner sign-off (contract §9 step 2)
+still outstanding. Resolves the 2026-09-24 "Site config schema: YAML v1 vs contract §3.1" entry
+above — read that entry's diff table first for exactly what changed.
+
+**Decision:** `sites/*.yaml` and `backend/shared/site_config.py` stay as they are (schema_version 1);
+`docs/handoff_contract.md` §3 is rewritten to mirror them, and `contract_version` bumps 0.1.0 →
+0.2.0 (before-1.0 breaking change, contract §9). Concretely:
+
+- Contract §1.3/§1.7, §3 (all of §3.1/§3.1a/§3.2/§3.3), §4.1, §4.2, §5.1, §5.2 rewritten; every
+  `"contract_version"` in the doc and in `contracts/examples/*.json` + `styles.json` bumped to
+  0.2.0; `CONTRACT_VERSION` constants in `backend/{shared/grid,m2_breach/*,m5_emulator/*}.py` and
+  the FastAPI app version in `backend/m0_api/main.py` bumped to match.
+- **IDs are bare local slugs inside the YAML** (`south_lhonak`), and the global `dam_id`/`poi_id`
+  (§1.7) is *derived* by prefixing the site id (`teesta__south_lhonak`) — not stored in the YAML
+  itself. This documents what the loader already does; it does **not** fix two known bugs found
+  while writing this: `backend/m2_breach` writes the bare slug as `dam_id` in
+  `breach_params.json`/hydrograph sidecars (should be derived), and `backend/m5_emulator` builds
+  `poi_id` from a POI's display `name` instead of its `id`. Both are flagged for their own M2/M5
+  sessions, not fixed here (CLAUDE.md "one module per session").
+- The separate 2026-09-24 "ID naming scheme" proposal (fully `__`-delimited `scenario_id`/`run_id`)
+  is **not** adopted by this decision and stays pending on its own.
+- **New optional `Dam` field: `initial_water_level`** (m, `LengthValue`) — was in the 0.1.0 draft
+  (`initial_water_level_m`, §3.3) but had no home in the implemented schema. Added to
+  `backend/shared/site_config.py`, `sites/template.yaml` (commented, optional) and
+  `sites/teesta.yaml` (`teesta_iii`, `status: placeholder` — no invented reservoir level, CLAUDE.md
+  rule 3).
+- **`sites/teesta.yaml` additions**, both null placeholders, no invented numbers: `equations_applicable: true`
+  made explicit on both dams (was relying on the pydantic default; for `teesta_iii`, explicit because
+  its `kind` is `embankment_dam`, believed concrete-faced rockfill — Xu & Zhang dam-type `FD`, which
+  the equations do cover — not `kind: concrete_dam`, which the loader blocks per `docs/Equations.md`
+  §7); `volume_elevation` (method `area_volume_relation`, `area_volume_exponent_b` placeholder) on
+  both dams, needed for `breach_growth_weir` — without it `hydrograph.py` keeps falling back to
+  `triangular`, unchanged behaviour, just now an explicit documented gap instead of a silent one.
+- **`crs.utm_epsg.status` → `sourced`.** The value (EPSG:32645) was already correct; the field was
+  `placeholder` only because no one had written down that it's a *derivation*, not a lookup: UTM
+  zone 45N covers 84°E–90°E, the far-field bbox (88.10–88.85°E) lies entirely inside it, so the EPSG
+  code follows from the bbox alone via the EPSG registry, with no DEM-choice dependency (contract
+  §1.3's "confirm against the DEM projection" was itself a misconception — we reproject onto this
+  CRS on load regardless of the DEM's native projection).
+- `contracts/schemas/site_config.schema.json` added — the one schema in `contracts/` generated
+  directly from `SiteConfig.model_json_schema()` rather than transcribed from the contract prose
+  (`contracts/README.md` explains why). `site_create_request.schema.json`'s `site_config` field now
+  `$ref`s it; found and fixed a real bug while wiring this up: `backend/m0_api/main.py`'s
+  `create_site` read `site_config.get("site_id")` (the 0.1.0 draft's flat key, never valid), now
+  reads `site_config["site"]["id"]`. Test payloads in `tests/m0_api/test_endpoints.py` (previously
+  `{"site_config": {"site_id": "kosi"}}`, never a valid config) now build a full config from
+  `tests/fixtures/shared/synth.yaml` with `site.id` overridden.
+- Fixed while here: `sites/teesta.yaml`'s header comment pointed at `sites/_template.yaml`; the file
+  is `sites/template.yaml`.
+- `docs/handoff_contract.md` also flags several 0.1.0-draft fields as **not implemented** and out of
+  scope for this change: `dem.source`/`landcover.source` (deliberately deferred — chosen from the
+  M1-2 DEM comparison report, not pre-selected in config), `thresholds`, `simulation`, `recheck`,
+  `demo_mode`, `emulator_inputs` (§3.3 stays documentation-only until M2/M5 wire it up),
+  `crest_elevation_m`, `reservoir_storage_m3`, `lake_area_m2`. Adding any of these later is an
+  additive contract change (§9), not a silent YAML addition.

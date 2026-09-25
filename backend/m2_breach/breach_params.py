@@ -18,7 +18,7 @@ from backend.shared.site_config import Dam, SiteConfig
 from . import dfm, f8, f16, f95, h14, mclm, ranges, xz9, z20
 from .result import BlockedEquationError, MethodResult, warn_if_breach_exceeds_dam
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 

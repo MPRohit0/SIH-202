@@ -1,9 +1,11 @@
 """Tests for backend.shared.site_config — site config model and loader."""
 
 import copy
+import json
 import warnings
 from pathlib import Path
 
+import jsonschema
 import pydantic
 import pytest
 import yaml
@@ -18,6 +20,12 @@ from backend.shared.site_config import (
 from .conftest import SITES_DIR, SYNTH_PLACEHOLDERS, fully_sourced
 
 CASCADE_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "m2_breach" / "synth_cascade.yaml"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _contracts_schema_store() -> dict:
+    schemas_dir = REPO_ROOT / "contracts" / "schemas"
+    return {p.name: json.loads(p.read_text()) for p in schemas_dir.glob("*.schema.json")}
 
 
 @pytest.fixture
@@ -176,6 +184,47 @@ def test_bad_datetime_rejected(synth_raw, write_site):
         load_quiet(write_site(synth_raw))
 
 
+# --------------------------------------------------------------------------- initial_water_level, volume_elevation
+
+
+def test_initial_water_level_absent_by_default(synth_raw, write_site):
+    cfg = load_quiet(write_site(synth_raw))
+    assert cfg.dams[0].initial_water_level is None
+
+
+def test_initial_water_level_loads_and_lists_as_placeholder(synth_raw, write_site):
+    synth_raw["dams"][0]["initial_water_level"] = {
+        "value": None, "unit": "m", "source": "", "status": "placeholder",
+    }
+    cfg = load_quiet(write_site(synth_raw))
+    assert cfg.dams[0].initial_water_level.status == "placeholder"
+    assert "dams[0].initial_water_level" in cfg.placeholder_fields
+
+
+def test_initial_water_level_wrong_unit_rejected(synth_raw, write_site):
+    synth_raw["dams"][0]["initial_water_level"] = {
+        "value": None, "unit": "m^3", "source": "", "status": "placeholder",
+    }
+    with pytest.raises(SiteConfigError):
+        load_quiet(write_site(synth_raw))
+
+
+def test_volume_elevation_area_relation_placeholder_lists(synth_raw, write_site):
+    synth_raw["dams"][0]["volume_elevation"] = {
+        "method": "area_volume_relation",
+        "area_volume_exponent_b": {"value": None, "unit": "-", "source": "", "status": "placeholder"},
+    }
+    cfg = load_quiet(write_site(synth_raw))
+    assert cfg.dams[0].volume_elevation.method == "area_volume_relation"
+    assert "dams[0].volume_elevation.area_volume_exponent_b" in cfg.placeholder_fields
+
+
+def test_volume_elevation_area_relation_needs_exponent(synth_raw, write_site):
+    synth_raw["dams"][0]["volume_elevation"] = {"method": "area_volume_relation"}
+    with pytest.raises(SiteConfigError, match="area_volume_exponent_b"):
+        load_quiet(write_site(synth_raw))
+
+
 # --------------------------------------------------------------------------- cross-field rules
 
 
@@ -309,5 +358,19 @@ def test_teesta_config_loads_with_placeholder_warning():
         cfg = load_site_config(SITES_DIR / "teesta.yaml")
     assert cfg.site.id == "teesta"
     assert cfg.crs.utm_epsg.value == 32645
+    assert cfg.crs.utm_epsg.status == "sourced"
     assert cfg.has_placeholders is True
     assert [d.id for d in cfg.dams] == ["south_lhonak", "teesta_iii"]
+    for dam in cfg.dams:
+        assert dam.equations_applicable is True
+        assert dam.volume_elevation is not None
+        assert dam.volume_elevation.method == "area_volume_relation"
+    assert cfg.dams[1].initial_water_level is not None
+    assert cfg.dams[1].initial_water_level.status == "placeholder"
+
+    schema = json.loads((REPO_ROOT / "contracts" / "schemas" / "site_config.schema.json").read_text())
+    resolver = jsonschema.RefResolver(base_uri="", referrer=schema, store=_contracts_schema_store())
+    validator = jsonschema.Draft202012Validator(schema, resolver=resolver)
+    raw = yaml.safe_load((SITES_DIR / "teesta.yaml").read_text())
+    errors = list(validator.iter_errors(raw))
+    assert errors == []

@@ -50,7 +50,7 @@ from backend.m5_emulator import monte_carlo as mc
 from backend.m5_emulator.emulator import FloodEmulator, OUTPUT_KEYS, OUTPUT_SHORT_NAME, _corridor_indices
 from backend.shared.grid import FLOAT_NODATA
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 
 #: docs/handoff_contract.md §1.5.
 HIGH_P = 0.9

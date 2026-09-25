@@ -33,7 +33,7 @@ from rasterio.warp import reproject
 
 from .site_config import SiteConfig, SourcedValue
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 FLOAT_NODATA = -9999.0
 UINT8_NODATA = 255
 DENSIFY_PTS = 21  # points added along each bbox edge when projecting, so curved edges are covered

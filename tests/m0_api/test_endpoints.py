@@ -12,18 +12,31 @@ status codes, error shapes and the one 404 code path the mock supports.
 
 from __future__ import annotations
 
+import copy
 import importlib
 import json
 import zipfile
 from io import BytesIO
+from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from backend.m0_api import mock_files, schemas
 from backend.m0_api.main import app
 from backend.m0_api.worker import Worker
 from tests.m0_api.conftest import wait_until
+
+SYNTH_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "shared" / "synth.yaml"
+
+
+def valid_site_config(site_id: str = "kosi") -> dict:
+    """A full, `site_config.schema.json`-valid config for POST /sites tests
+    (the schema now `$ref`s the real `SiteConfig` model, contract §5.2)."""
+    cfg = copy.deepcopy(yaml.safe_load(SYNTH_FIXTURE.read_text()))
+    cfg["site"]["id"] = site_id
+    return cfg
 
 client = TestClient(app)
 
@@ -54,7 +67,7 @@ def test_styles():
     assert r.status_code == 200
     body = r.json()
     assert_matches("styles.schema.json", body)
-    assert body["contract_version"] == "0.1.0"
+    assert body["contract_version"] == "0.2.0"
 
 
 # =============================================================================
@@ -100,7 +113,7 @@ def test_get_site_detail_malformed_id_is_422():
 # 5. POST /sites
 # =============================================================================
 def test_create_site_accepted():
-    r = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}, "demo_mode": True})
+    r = client.post(f"{API}/sites", json={"site_config": valid_site_config(), "demo_mode": True})
     assert r.status_code == 202
     body = r.json()
     assert_matches("site_create_accepted.schema.json", body)
@@ -121,8 +134,8 @@ def test_create_site_bad_site_id_is_422(site_config):
 
 
 def test_create_site_twice_while_active_is_409():
-    first = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}})
-    r = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}})
+    first = client.post(f"{API}/sites", json={"site_config": valid_site_config()})
+    r = client.post(f"{API}/sites", json={"site_config": valid_site_config()})
     assert r.status_code == 409
     detail = r.json()["detail"]
     assert_matches("error.schema.json", detail)
@@ -134,7 +147,7 @@ def test_create_site_twice_while_active_is_409():
 # 6. GET /jobs/{job_id}
 # =============================================================================
 def test_get_job_created_by_post_sites():
-    job_id = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}, "demo_mode": True}).json()["job_id"]
+    job_id = client.post(f"{API}/sites", json={"site_config": valid_site_config(), "demo_mode": True}).json()["job_id"]
     r = client.get(f"{API}/jobs/{job_id}")
     assert r.status_code == 200
     body = r.json()
@@ -154,7 +167,7 @@ def test_get_unknown_job_is_404():
 
 
 def test_job_survives_api_restart():
-    job_id = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}}).json()["job_id"]
+    job_id = client.post(f"{API}/sites", json={"site_config": valid_site_config()}).json()["job_id"]
     import backend.m0_api.main as main_module
 
     restarted = importlib.reload(main_module)  # a fresh app: nothing carried over in memory
@@ -164,7 +177,7 @@ def test_job_survives_api_restart():
 
 
 def test_job_runs_to_ready_through_worker():
-    job_id = client.post(f"{API}/sites", json={"site_config": {"site_id": "kosi"}}).json()["job_id"]
+    job_id = client.post(f"{API}/sites", json={"site_config": valid_site_config()}).json()["job_id"]
     worker = Worker()
     worker.acquire_lock()
     worker.recover()
@@ -331,7 +344,7 @@ def _write_synthetic_timeline(data_dir, *, query_id=QUERY_ID, site_id=KNOWN_SITE
     query_dir = data_dir / site_id / "queries" / query_id
     m5_timeline.write_timeline_inputs(
         result, grid, query_dir, hydrographs=[hg], chainage_m=chainage_m, cell_index=cell_index,
-        pois={}, t_end_s=t_end_s, contract_version="0.1.0", created_at="2026-09-24T10:15:00Z",
+        pois={}, t_end_s=t_end_s, contract_version="0.2.0", created_at="2026-09-24T10:15:00Z",
     )
     return query_dir
 
@@ -467,7 +480,7 @@ def _write_synthetic_compare(data_dir, *, site_id=KNOWN_SITE, model="delft3d", s
     out_dir = data_dir / site_id / "emulator" / model / "validation"
     compare_dir = m5_compare.write_compare_inputs(
         report, library.X_raw, maps, library.grid, specs, [held_out_run_id] + library.run_ids[1:], library.t_end_s,
-        settings, held_out_run_id, out_dir, contract_version="0.1.0", created_at="2026-09-25T00:00:00Z",
+        settings, held_out_run_id, out_dir, contract_version="0.2.0", created_at="2026-09-25T00:00:00Z",
     )
     return compare_dir
 

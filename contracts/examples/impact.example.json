@@ -1,5 +1,5 @@
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "query_id": "q_20260924T101500Z_3fa9c1",
   "site_id": "teesta",
   "population_persons": {
@@ -71,7 +71,7 @@
     {
       "poi_id": "teesta__poi__chungthang",
       "name": "Chungthang",
-      "kind": "town",
+      "kind": "village",
       "chainage_m": 12000.0,
       "zone": "high",
       "p_inundation": 0.95,
@@ -119,7 +119,7 @@
   ],
   "provenance": {
     "method": "gp_emulator",
-    "contract_version": "0.1.0",
+    "contract_version": "0.2.0",
     "code_version": "mock-0.0.0",
     "solver_versions": {
       "delft3d": "mock-0.0.0",

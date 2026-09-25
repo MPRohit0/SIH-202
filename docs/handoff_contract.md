@@ -1,6 +1,12 @@
 # SIH26 — Data Hand-off Contract
 
-**Version:** 0.1.0 (DRAFT) · **Status:** review as a team, then freeze before playbook step M0-1 **Repo location:** `docs/handoff_contract.md` · **Machine-readable version:** `contracts/` (JSON Schemas generated from this file in M0-1)
+**Version:** 0.2.0 (DRAFT) · **Status:** review as a team, then freeze before playbook step M0-1 **Repo location:** `docs/handoff_contract.md` · **Machine-readable version:** `contracts/` (JSON Schemas generated from this file in M0-1)
+
+**0.2.0 change (2026-09-25):** §3 (site config) rewritten to match the schema actually implemented
+in `sites/*.yaml` / `backend/shared/site_config.py`, which had drifted from the 0.1.0 draft since
+before M0-1. See `docs/decisions.md` "Site config: YAML v1 canonical, contract 0.2.0" for the full
+list of changes and the reasoning; decided by the user this session, module owners still need to
+confirm per rule 8 below.
 
 ---
 
@@ -8,7 +14,7 @@
 
 1. This document and `contracts/` define every piece of data that passes between modules. If code and contract disagree, the code is wrong.
 2. A module reads another module's data **only** through the files, functions and endpoints defined here — never by reaching into its internals.
-3. Every JSON payload and metadata file carries `"contract_version": "0.1.0"`.
+3. Every JSON payload and metadata file carries `"contract_version": "0.2.0"`.
 4. Every numeric **fact** (a dam height, a lake volume) is a `SourcedValue` (§2.1). Every numeric **result** is an `Estimate` (§2.2). Settings (thresholds, frequencies) are plain values documented in `docs/decisions.md`.
 5. Any result that depends on a `placeholder` input sets `"has_placeholders": true` and lists the fields in `"placeholder_fields"`. The UI must show this.
 6. Predicted and observed values are never mixed in one field: every `Estimate` says which it is (`kind`).
@@ -60,7 +66,7 @@ Each site has two grids, written by M1, and **every raster in the project is ali
 
 ```jsonc
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "site_id": "teesta",
   "grid_id": "farfield",            // "farfield" | "nearfield"
   "crs_epsg": 32645,
@@ -108,18 +114,37 @@ Each site has two grids, written by M1, and **every raster in the project is ali
 
 ### 1.7 IDs
 
+Within `sites/<site_id>.yaml`, dams, POIs and events use a **bare local slug** (`south_lhonak`,
+`chungthang`), unique within the site (`backend/shared/site_config.py` `SLUG_PATTERN =
+^[a-z][a-z0-9_]*$`) — not the `<site_id>__<slug>` form. Everywhere else (API responses, run/scenario
+IDs, file paths outside the site config), the **global** id is *derived* by prefixing the site id:
+
+```
+dam_id = f"{site_id}__{dam.id}"        # e.g. "teesta__south_lhonak"
+poi_id = f"{site_id}__poi__{poi.id}"   # e.g. "teesta__poi__chungthang"
+```
+
+Known drift, not fixed this session (`docs/decisions.md` 2026-09-25): `backend/m2_breach` writes
+the bare local slug as `dam_id` in `breach_params.json`/hydrograph sidecars instead of the derived
+form; `backend/m5_emulator` builds `poi_id` from the POI's display `name`, not its `id`. Both need
+fixing so every module emits the same derived id.
+
 |ID|Pattern|Example|
 |---|---|---|
 |`site_id`|`^[a-z][a-z0-9_]{2,31}$`|`teesta`, `rishiganga`|
-|`dam_id`|`<site_id>__<slug>`|`teesta__south_lhonak`, `teesta__teesta3`|
+|`dam_id`|derived, `<site_id>__<dam.id>`|`teesta__south_lhonak`, `teesta__teesta_iii`|
 |`scenario_id`|`<site_id>_s<NNN>` (design), `<site_id>_hist_<event>` (historical), `<site_id>_demo_s<NNN>` (demo mode), `<site_id>_n_<slug>` (named extra)|`teesta_s007`, `teesta_hist_2023`|
 |`run_id`|`<scenario_id>__<model>`|`teesta_s007__delft3d`, `teesta_s003__sph`|
 |`model`|`delft3d` \| `sph`||
 |`query_id`|`q_<YYYYMMDDTHHMMSSZ>_<6 hex>`|`q_20260924T101500Z_3fa9c1`|
 |`job_id`|`job_<YYYYMMDDTHHMMSSZ>_<6 hex>`|`job_20260924T101500Z_b17e02`|
 |`event_id`|`<site-or-place>_<year>`|`teesta_2023`, `chamoli_2021`|
-|`poi_id`|`<site_id>__poi__<slug>`|`teesta__poi__chungthang`|
+|`poi_id`|derived, `<site_id>__poi__<poi.id>`|`teesta__poi__chungthang`|
 |`input name`|fixed list in §3.3|`breach_width_m`|
+
+(A separate, still-**pending** proposal in `docs/decisions.md` ["ID naming scheme", 2026-09-24]
+would replace `scenario_id`/`run_id` with a fully `__`-delimited hierarchy, e.g.
+`teesta__s007__delft3d`. Not adopted here.)
 
 ### 1.8 Folder layout (`data/` is gitignored)
 
@@ -213,7 +238,7 @@ Standard caveat IDs: `moraine_extrapolation`, `concrete_dam_imposed`, `clear_wat
 ```jsonc
 {
   "method": "gp_emulator",     // gp_emulator | empirical_fallback | delft3d_direct | sph_direct | observed
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "code_version": "a1b2c3d",   // git commit
   "solver_versions": { "delft3d": "<version string>", "dualsphysics": "<version string>" },
   "run_ids": ["teesta_s001__delft3d", "..."],
@@ -251,108 +276,167 @@ HTTP status: 400 bad request, 404 not found, 409 conflict (e.g. site still onboa
 
 ## 3. Site config — `sites/<site_id>.yaml`
 
-Owned by the team. Read by every module. Values that are facts use `SourcedValue` (written inline as `{value, unit, source, status}`).
+Owned by the team. Read by every module through `backend/shared/site_config.py`'s
+`load_site_config(site_id)`, which validates the file against the `SiteConfig` Pydantic model —
+the source of truth for this section (`sites/template.yaml` is a filled-in-with-nulls copy of the
+same shape, meant to be copied per new site). Values that are facts use the **site-config
+SourcedValue** (§3.1a below, not §2.1's — see the differences).
+
+Two site-config-only conventions, different from the rest of the contract:
+- **IDs are bare local slugs** inside this file (`south_lhonak`, not `teesta__south_lhonak`) — see
+  §1.7 for how the global id is derived elsewhere.
+- **`schema_version: 1`** is this file's own version key, separate from the document-wide
+  `contract_version` used in every module's JSON *output* (§0 rule 3).
+
+### 3.1a SourcedValue in a site config
+
+```yaml
+some_key:
+  value:  <number | [number, ...] | string | null>
+  unit:   <string>
+  source: <string>
+  status: sourced | placeholder
+  note:   <string>                # optional
+```
+
+|Field|Rule|
+|---|---|
+|`value`|A number, or a fixed-length array sharing one source: point → `[lon, lat]`, bbox → `[min_lon, min_lat, max_lon, max_lat]`, curve → `[[elevation_m, volume_m3], ...]`, range → `[low, high]`. `null` only while `status: placeholder`.|
+|`unit`|One of `m`, `m^3`, `m^3/s`, `s`, `deg`, `epsg`, `enum`, `iso8601`, `-` (dimensionless), `m^0.5/s` (weir coefficient).|
+|`source`|A full citation (document/dataset, version, page/table, DOI or URL) when `sourced`; otherwise where the real value should come from.|
+|`status`|`sourced` \| `placeholder` only — **no `assumed`** here (unlike §2.1's API `SourcedValue`, which also allows `assumed`; a site-config assumption is written as a `sourced` value whose `source` states the assumption and points to `docs/decisions.md`).|
+
+Coordinates are WGS 84 (EPSG:4326), decimal degrees, longitude first. Enums and `id`/`name`/`kind`/`category`/`from`/`triggered_by`/`description` keys are plain strings, not wrapped.
 
 ### 3.1 Structure
 
 ```yaml
-contract_version: 0.1.0
-site_id: teesta
-name: "Teesta — South Lhonak GLOF to Teesta III"
-state: Sikkim
-crs_epsg: 32645
+schema_version: 1
+
+site:
+  id: teesta                       # lowercase snake_case; must equal the file name
+  name: "Teesta basin - South Lhonak Lake and Teesta III (Chungthang)"
+  region: "Sikkim (Mangan, Gangtok, Pakyong districts); West Bengal (Kalimpong, Jalpaiguri)"
+  river: Teesta
+
+crs:
+  utm_epsg:                        # WGS 84 / UTM zone nnN -> EPSG 326nn (32601-32660, 32701-32760)
+    value: 32645
+    unit: epsg
+    source: "..."
+    status: sourced
 
 domains:
-  farfield:
-    bbox_lonlat: {value: null, unit: deg, source: null, status: placeholder}   # [min_lon, min_lat, max_lon, max_lat]
-    cell_size_m: 30            # ⚙️
-  nearfield:
-    bbox_lonlat: {value: null, unit: deg, source: null, status: placeholder}
-    cell_size_m: 2             # ⚙️ must divide farfield cell size exactly
+  far_field:                       # most upstream breach to the downstream limit
+    description: "South Lhonak Lake to Teesta Barrage (Gajoldoba)"
+    bbox: {value: [88.10, 26.65, 88.85, 28.00], unit: deg, source: "...", status: placeholder}
+    grid_resolution: {value: 30, unit: m, source: "...", status: placeholder}
+    inflow:
+      from: south_lhonak           # a dam id, or "far_field" (only meaningful for near_field)
+      location: {value: [88.200, 27.905], unit: deg, source: "...", status: placeholder}
+  near_field:                      # fine grid around assets needing detailed inundation
+    description: "Lachen Chu approach, Teesta III dam and Chungthang town"
+    bbox: {value: [88.60, 27.56, 88.69, 27.65], unit: deg, source: "...", status: placeholder}    # must sit inside far_field
+    grid_resolution: {value: 10, unit: m, source: "...", status: placeholder}
+    inflow:
+      from: far_field
+      location: {value: [88.625, 27.635], unit: deg, source: "...", status: placeholder}
 
-dem:
-  source: copernicus_glo30     # ⚙️ srtm_gl1 | copernicus_glo30 | cartodem (decided after M1-2)
-landcover:
-  source: esa_worldcover       # esa_worldcover | bhuvan_lulc
+dams:                               # upstream -> downstream; id is a bare local slug
+  - id: south_lhonak
+    name: "South Lhonak Lake (moraine dam)"
+    kind: moraine_dammed_lake       # moraine_dammed_lake | embankment_dam | concrete_dam | landslide_dam
+    triggered_by: null              # upstream dam id whose flood causes this breach (cascade), else null
+    # trigger:                      # only if triggered_by is set
+    #   type: inflow_threshold
+    #   value: {value: null, unit: m^3/s, source: "...", status: placeholder}
+    equations_applicable: true      # false -> concrete_dam (or any dam using imposed ranges instead)
+    # imposed_ranges:                # required if equations_applicable: false
+    #   peak_discharge_m3s: {value: [lo, hi], unit: m^3/s, source: "...", status: placeholder}
+    #   breach_width_m:     {value: [lo, hi], unit: m,     source: "...", status: placeholder}
+    #   failure_time_s:     {value: [lo, hi], unit: s,     source: "...", status: placeholder}
+    location: {value: [88.200, 27.910], unit: deg, source: "...", status: placeholder}          # dam crest centre
+    breach_location: {value: [88.200, 27.905], unit: deg, source: "...", status: placeholder}   # breach centreline
+    breach_inputs:                  # feed the Azmi (2026) empirical breach relations
+      water_volume_above_invert: {value: null, unit: m^3, source: "...", status: placeholder}   # Vw
+      water_height_above_invert: {value: null, unit: m,   source: "...", status: placeholder}   # hw
+      breach_height:             {value: null, unit: m,   source: "...", status: placeholder}   # hb (<= dam_height)
+      dam_height:                {value: null, unit: m,   source: "...", status: placeholder}   # hd
+      average_embankment_width:  {value: null, unit: m,   source: "...", status: placeholder}   # Wave
+      dam_type:      {value: HD, unit: enum, source: "...", status: placeholder}  # HD homogeneous | CD core-wall | FD concrete-faced | ZD zoned-fill (Xu & Zhang classes)
+      failure_mode:   {value: O,  unit: enum, source: "...", status: placeholder}  # O overtopping | P piping
+      erodibility:    {value: H,  unit: enum, source: "...", status: placeholder}  # H high | M medium | L low
+    volume_elevation:               # optional; needed for the breach_growth_weir hydrograph method
+      method: area_volume_relation  # surveyed_curve | area_volume_relation
+      # breach_invert_elevation_m: {...}   # required if surveyed_curve
+      # points: {value: [[elev_m, vol_m3], ...], unit: m^3, source: "...", status: placeholder}   # required if surveyed_curve
+      area_volume_exponent_b: {value: null, unit: "-", source: "...", status: placeholder}       # required if area_volume_relation; V = a*A^b, b > 1
+    # breach_hydrograph:             # optional weir coefficients + side slope (backend/m2_breach/weir.py)
+    #   weir_coefficient_rect: {value: null, unit: m^0.5/s, source: "...", status: placeholder}
+    #   weir_coefficient_side: {value: null, unit: m^0.5/s, source: "...", status: placeholder}
+    #   side_slope_z:          {value: null, unit: "-",     source: "...", status: placeholder}
+    # initial_water_level:           # optional; water level (m) at t0, for a reservoir inside the Delft3D domain
+    #   {value: null, unit: m, source: "...", status: placeholder}
 
-dams:                          # upstream first
-  - dam_id: teesta__south_lhonak
-    name: "South Lhonak moraine dam"
-    kind: natural_moraine      # natural_moraine | natural_landslide | embankment | cfrd | concrete | barrage
-    order: 1
-    location_lonlat:                         {value: null, unit: deg, source: null, status: placeholder}
-    breach_location_lonlat:                  {value: null, unit: deg, source: null, status: placeholder}
-    dam_height_m:                            {value: null, unit: m,  source: null, status: placeholder}
-    crest_elevation_m:                       {value: null, unit: m,  source: null, status: placeholder}
-    water_volume_above_breach_invert_m3:     {value: null, unit: m3, source: null, status: placeholder}  # Vw
-    water_height_above_breach_invert_m:      {value: null, unit: m,  source: null, status: placeholder}  # hw
-    breach_height_m:                         {value: null, unit: m,  source: null, status: placeholder}  # hb
-    average_embankment_width_m:              {value: null, unit: m,  source: null, status: placeholder}  # Wave
-    reservoir_storage_m3:                    {value: null, unit: m3, source: null, status: placeholder}  # S
-    lake_area_m2:                            {value: null, unit: m2, source: null, status: placeholder}
-    dam_type_code: {value: null, unit: null, source: null, status: placeholder}   # HD | CD | FD | ZD (Xu & Zhang classes)
-    failure_mode:  {value: null, unit: null, source: null, status: placeholder}   # overtopping | piping
-    erodibility:   {value: null, unit: null, source: null, status: placeholder}   # high | medium | low
-    volume_elevation:
-      method: area_volume_relation   # surveyed_curve | area_volume_relation
-      relation: null                 # ⚙️ name of the published relation, source in data_sources.md
-      points: []                     # [[elevation_m, volume_m3], ...] when surveyed_curve
-    equations_applicable: true       # false → use imposed_ranges (e.g. concrete dams)
-    imposed_ranges: null             # {peak_discharge_m3s: [lo, hi], breach_width_m: [lo, hi], failure_time_s: [lo, hi]} with sources
-    initial_water_level_m: null      # for reservoirs inside the Delft3D domain
-
-  - dam_id: teesta__teesta3
-    name: "Teesta III (Chungthang)"
-    kind: null                       # ⚙️ verify dam type from sources before choosing
-    order: 2
+  - id: teesta_iii
+    name: "Teesta III dam (Chungthang)"
+    kind: embankment_dam
+    triggered_by: south_lhonak
     # ...same fields as above...
 
+# Present only if any dam above has triggered_by set.
 cascade:
-  approach: null                     # ⚙️ dambreak_structure | two_stage_imposed
-  trigger:                           # only for two_stage_imposed
-    type: inflow_threshold
-    value_m3s: {value: null, unit: m3s, source: null, status: placeholder}
+  approach: two_stage_imposed       # two_stage_imposed (implemented, M2) | dambreak_structure (M3, not M2)
 
 points_of_interest:
-  - poi_id: teesta__poi__chungthang
+  - id: chungthang
     name: Chungthang
-    kind: town                       # village | town | dam | bridge | hospital | school | hydropower | other
-    location_lonlat: {value: null, unit: deg, source: null, status: placeholder}
+    category: village                # village | dam | bridge | hospital
+    location: {value: [88.646, 27.603], unit: deg, source: "...", status: placeholder}
 
-emulator_inputs: []                  # filled after M2 — see §3.3
-
-thresholds: {extent_m: 0.3, arrival_m: 0.1, high_p: 0.9, possible_p: 0.1}   # ⚙️
-
-simulation:
-  delft3d: {duration_s: null, map_output_interval_s: 60, base_flow_m3s: {value: null, unit: m3s, source: null, status: placeholder}}   # ⚙️
-  sph:     {time_window_s: null, dp_m: null, scenarios: []}   # ⚙️ scenario_ids that get SPH runs
-
-recheck:
-  frequency_days: 90                 # ⚙️ user-editable in the UI
-  lake_area_change_threshold_pct: 10 # ⚙️
-
-demo_mode:
-  cell_size_m: 90                    # ⚙️
-  n_scenarios: 6                     # ⚙️
-  duration_s: null                   # ⚙️
-
-events: [teesta_2023]
+events:                              # historical (validation) or hypothetical (scenarios), full objects
+  - id: sikkim_glof_2023
+    name: "South Lhonak GLOF and Teesta III breach, October 2023"
+    kind: historical                 # historical | hypothetical
+    onset: {value: "2023-10-03T23:00:00+05:30", unit: iso8601, source: "...", status: placeholder}
+    breach_times:                    # one key per dam id that fails in this event
+      south_lhonak: {value: "2023-10-03T23:00:00+05:30", unit: iso8601, source: "...", status: placeholder}
+      teesta_iii:   {value: "2023-10-04T01:00:00+05:30", unit: iso8601, source: "...", status: placeholder}
+    simulation_start: {value: "2023-10-03T21:00:00+05:30", unit: iso8601, source: "...", status: placeholder}
+    simulation_end:   {value: "2023-10-05T00:00:00+05:30", unit: iso8601, source: "...", status: placeholder}
+    imagery_pre_event:  {value: "2023-09-28", unit: iso8601, source: "...", status: placeholder}
+    imagery_post_event: {value: "2023-10-06", unit: iso8601, source: "...", status: placeholder}
 ```
+
+**Not implemented in the site config yet** — these were in the 0.1.0 draft above but have no home
+in `SiteConfig` today; adding any of them is an additive contract change (§9), not a silent
+addition to the YAML:
+
+|Field (0.1.0 draft)|Status|
+|---|---|
+|`dem.source`, `landcover.source`|Deliberately deferred: the DEM is chosen from the M1-2 comparison report (void %, difference maps, valley profiles), not pre-selected in config. `download.py` (M1-1) fetches every candidate DEM for a site's bbox regardless.|
+|`thresholds`|Not a per-site config field; `extent_m/arrival_m/high_p/possible_p` (§1.5) are process-wide constants today, defined where M5/M6 read them. Making them per-site is future work.|
+|`simulation` (delft3d/sph settings), `recheck`, `demo_mode`, `emulator_inputs`|Not yet added to `SiteConfig`; M3/M4/M5/M7 currently take these as function arguments or module-level constants, not config fields.|
+|`crest_elevation_m`, `reservoir_storage_m3`, `lake_area_m2`|Not modelled as separate dam fields; `crest_elevation` follows from `location`/`breach_inputs.dam_height` once sourced, and storage/lake area belong in `volume_elevation` (a curve or relation) rather than single scalars.|
 
 ### 3.2 Rules
 
-- `rishiganga.yaml` has the same structure. Its dams list is the Raunthi Gad landslide lake (`kind: natural_landslide`); the 2021 event is an `event` entry, **not** a dam.
-- A config may be loaded with placeholders, but every result then carries `has_placeholders: true`.
-- The loader (F3) rejects any fact missing `unit`, `source` (when `sourced`) or `status`.
+- `rishiganga.yaml` has the same structure. Its dams list is the Raunthi Gad landslide lake (`kind: landslide_dam`); the 2021 event is an `events[]` entry, **not** a dam (CLAUDE.md "Rishi Ganga 2021 was a rock-ice avalanche / mass flow, not a dam breach").
+- A config may be loaded with placeholders, but every result then carries `has_placeholders: true` and lists the offending dotted paths (e.g. `dams[0].breach_inputs.water_volume_above_invert`) — this is what `load_site_config` reports as `placeholder_fields`.
+- The loader rejects any fact missing `unit`, `source`, or `status`; a `sourced` value needs a non-empty `source`; `value: null` is only legal with `status: placeholder`. Extra/unknown keys anywhere in the file are rejected (`extra="forbid"`).
+- `kind: concrete_dam` requires `equations_applicable: false` with `imposed_ranges` set (`docs/Equations.md` §7 refuses breach equations for concrete dams); every other `kind` may set `equations_applicable` either way, e.g. an embankment/CFRD dam like Teesta III stays `true` because its Xu & Zhang dam-type class (`FD`) is covered by the equations even though `kind != concrete_dam`.
+- A dam with `triggered_by` set needs a site-level `cascade` block; under `cascade.approach: two_stage_imposed` that dam also needs its own `trigger`.
 
 ### 3.3 Emulator inputs
 
-Filled per site after M2 is done. Only these names are allowed:
+Not yet a `SiteConfig` field (see the "not implemented" table above) — filled per site after M2 is
+done, in a future `emulator_inputs` block. Reserved names, referencing dams by their **bare local
+id** (§1.7):
 
 |Name|Unit|Applies to|Notes|
 |---|---|---|---|
 |`water_volume_m3`|m³|a dam|use either this or `initial_water_level_m`, not both|
-|`initial_water_level_m`|m|a dam||
+|`initial_water_level_m`|m|a dam|maps to `dams[].initial_water_level` (§3.1)|
 |`breach_width_m`|m|a dam|final average breach width|
 |`failure_time_s`|s|a dam|deliberately wide range|
 |`manning_multiplier` ⚙️|–|whole domain|optional; scales the roughness raster (e.g. 0.8–1.25) to capture roughness uncertainty|
@@ -360,7 +444,7 @@ Filled per site after M2 is done. Only these names are allowed:
 ```yaml
 emulator_inputs:
   - name: breach_width_m
-    dam_id: teesta__south_lhonak
+    dam_id: south_lhonak
     range: {low: null, high: null, unit: m, basis: "M2 dual-method range", source: "breach/breach_params.json"}
     slider: {positions: [0, 10], mapping: linear}   # linear | log (log suggested for failure_time_s ⚙️)
     default: null                                   # value used when not set in unknown-breach mode is "sample full range"
@@ -374,7 +458,7 @@ Slider mapping: linear → `value = low + (p / 10) × (high − low)`; log → t
 
 ### 4.1 M1 — Terrain → `data/<site_id>/terrain/`
 
-**Inputs:** site config (`domains`, `dem`, `landcover`, `dams` for burn-in), raw downloads, `data/manning_table.csv`.
+**Inputs:** site config (`domains`, `dams` for burn-in), raw downloads (§3.1's "not implemented" note: the site config has no `dem`/`landcover` source field yet — M1-1's `download.py` fetches every candidate DEM/landcover product for the site's bbox; the DEM used for `dem.tif` is picked from the M1-2 comparison report, not read from config), `data/manning_table.csv`.
 
 |File|Type|Content|Consumers|
 |---|---|---|---|
@@ -388,7 +472,7 @@ Slider mapping: linear → `value = low + (p / 10) × (high − low)`; log → t
 |`domain.gpkg`|polygon|model domain|M3|
 |`centreline.gpkg`|linestring|main channel, `chainage_m` measured downstream from the most upstream breach|M5, M6|
 |`chainage_samples.csv`|CSV|`chainage_m,x_m,y_m,bed_elev_m` every cell size|M5 timeline, M6|
-|`pois.gpkg`|points|POIs from site config snapped to grid: `poi_id,name,kind,chainage_m,dist_to_channel_m,row,col`|M3, M4, M5, M6|
+|`pois.gpkg`|points|POIs from site config snapped to grid: `poi_id,name,kind,chainage_m,dist_to_channel_m,row,col` — `poi_id` derived (§1.7), `kind` = the site config's `category` (§3.1)|M3, M4, M5, M6|
 |`nearfield.stl`|STL|near-field terrain in the SPH frame (§1.3)|M4|
 |`nearfield_frame.json`|JSON|`{crs_epsg, origin_x, origin_y, units: "m"}`|M4, M0-6|
 |`provenance.json`|JSON|sources, versions, `vertical_datum`, processing steps, burn-in details|M6 report|
@@ -403,16 +487,16 @@ Slider mapping: linear → `value = low + (p / 10) × (high − low)`; log → t
 
 ```jsonc
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "site_id": "teesta",
   "has_placeholders": true,
-  "placeholder_fields": ["dams[0].water_volume_above_breach_invert_m3"],
+  "placeholder_fields": ["dams[0].breach_inputs.water_volume_above_invert"],
   "dams": [
     {
       "dam_id": "teesta__south_lhonak",
       "equations_applicable": true,
       "inputs_used": { "Vw_m3": 0.0, "hw_m": 0.0, "hb_m": 0.0, "hd_m": 0.0, "Wave_m": 0.0,
-                       "dam_type_code": "HD", "failure_mode": "overtopping", "erodibility": "high" },
+                       "dam_type_code": "HD", "failure_mode": "O", "erodibility": "H" },
       "parameters": {
         "peak_discharge_m3s": {
           "methods": {
@@ -451,7 +535,7 @@ Sidecar:
 
 ```jsonc
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "scenario_id": "teesta_s007", "dam_id": "teesta__south_lhonak",
   "method": "breach_growth_weir",     // breach_growth_weir | triangular | imposed | equivalent_event
   "params": { "breach_width_m": 0.0, "failure_time_s": 0.0, "water_volume_m3": 0.0 },
@@ -468,7 +552,7 @@ Sidecar:
 
 ```jsonc
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "site_id": "teesta", "model": "delft3d",
   "method": "latin_hypercube", "seed": 42, "n": 30,
   "inputs": [ { "name": "breach_width_m", "dam_id": "teesta__south_lhonak", "low": 0.0, "high": 0.0, "unit": "m" } ],
@@ -497,7 +581,7 @@ Sidecar:
 
 ```jsonc
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "run_id": "teesta_s007__delft3d", "scenario_id": "teesta_s007", "model": "delft3d",
   "status": "postprocessed",          // queued | running | completed | postprocessed | failed
   "solver_version": "<version string>",
@@ -539,7 +623,7 @@ Sidecar:
 
 ```jsonc
 {
-  "contract_version": "0.1.0", "site_id": "teesta", "model": "delft3d", "n_runs": 30,
+  "contract_version": "0.2.0", "site_id": "teesta", "model": "delft3d", "n_runs": 30,
   "per_run": [ { "run_id": "teesta_s001__delft3d", "iou": 0.0, "f1": { "0.05": 0.0, "0.1": 0.0, "0.3": 0.0 },
                  "depth_rmse_wet_m": 0.0, "arrival_mae_s": 0.0, "velocity_mae_ms": 0.0,
                  "area_error_pct": 0.0, "coverage_90": 0.0 } ],
@@ -590,14 +674,14 @@ Summary statistics are computed **per Monte Carlo sample**, then summarised acro
 |`buildings.gpkg`, `roads.gpkg`, `facilities.gpkg`, `places.gpkg`|OSM extracts (`osm_id`, `kind`, `name`)|
 |`hydropower.gpkg`|hand-made list with `source`|
 |`damage_curves.csv`|`asset_class,depth_m,damage_fraction,source`|
-|`asset_values.csv`|`asset_class,value_inr_per_unit,unit,source,status`|
+|`asset_values.csv`|`asset_class,value_inr_per_unit,unit,source,status,value_eur2010,jrc_cell` — the last two are additive (`docs/decisions.md` 2026-09-25 "JRC loss estimation"): the JRC 2010-EUR figure and the exact sheet/cell it came from, so `value_inr_per_unit` (computed as `value_eur2010 x FX x price index`) is always re-derivable and auditable|
 |`provenance.json`|sources, dates, coverage report summary|
 
 **`impact.json`**
 
 ```jsonc
 {
-  "contract_version": "0.1.0", "query_id": "q_20260924T101500Z_3fa9c1", "site_id": "teesta",
+  "contract_version": "0.2.0", "query_id": "q_20260924T101500Z_3fa9c1", "site_id": "teesta",
   "population_persons": { "value": 0, "low": 0, "high": 0, "unit": "persons", "interval": "zone_range", "kind": "predicted",
                           "basis": "value = Σ p × pop; low = HIGH zone; high = HIGH + POSSIBLE" },
   "assets": {
@@ -612,7 +696,7 @@ Summary statistics are computed **per Monte Carlo sample**, then summarised acro
   "loss_inr": { "value": 0, "low": 0, "high": 0, "unit": "INR", "interval": "P10-P90", "kind": "predicted",
                 "by_asset_class": {}, "assumptions": ["damage curves: src_031", "asset values: src_032"] },
   "warning_table": [
-    { "poi_id": "teesta__poi__chungthang", "name": "Chungthang", "kind": "town", "chainage_m": 0.0,
+    { "poi_id": "teesta__poi__chungthang", "name": "Chungthang", "kind": "village", "chainage_m": 0.0,
       "zone": "high",                                   // high | possible
       "p_inundation": 0.0,
       "arrival_s":   { "value": 0, "low": 0, "high": 0, "unit": "s",  "interval": "P10-P90", "kind": "predicted", "confidence": "MODERATE" },
@@ -717,9 +801,9 @@ Base URL: `http://localhost:8000/api/v1`. JSON unless stated. Errors per §2.7. 
 
 `SiteDetail` adds:
 
-- `dams`: `[{dam_id, name, kind, order, key_specs: {<name>: SourcedValue}}]`
-- `emulator_inputs`: `[{name, dam_id, label_key, unit, low, high, slider: {positions, mapping}, default}]`
-- `domain`, `centreline`, `pois`: GeoJSON FeatureCollections (EPSG:4326)
+- `dams`: `[{dam_id, name, kind, order, key_specs: {<name>: SourcedValue}}]` — `dam_id` derived (§1.7); `kind` is the site config's `dams[].kind` (`moraine_dammed_lake | embankment_dam | concrete_dam | landslide_dam`, §3.1), not the 0.1.0 draft's `natural_moraine`/etc; `order` = 1-based position in the config's `dams` list (upstream first); `key_specs` keys are `breach_inputs` names (`water_volume_above_invert`, `dam_height`, ...).
+- `emulator_inputs`: `[{name, dam_id, label_key, unit, low, high, slider: {positions, mapping}, default}]` — not populated until §3.3 is implemented (currently always `[]`).
+- `domain`, `centreline`, `pois`: GeoJSON FeatureCollections (EPSG:4326) — POI `properties.kind` is the site config's `category` (`village | dam | bridge | hospital`, §3.1), not the 0.1.0 draft's `town/school/hydropower/other`.
 - `validation_summary`: `{extent, depth, arrival, velocity}` grades
 - `caveats`: `[Caveat]`
 
@@ -728,7 +812,7 @@ Base URL: `http://localhost:8000/api/v1`. JSON unless stated. Errors per §2.7. 
 Request:
 
 ```jsonc
-{ "site_config": { "...": "the YAML structure of §3 as JSON" }, "demo_mode": true }
+{ "site_config": { "...": "the §3.1 YAML as JSON, validated by contracts/schemas/site_config.schema.json" }, "demo_mode": true }
 ```
 
 Response `202`: `{ "job_id": "job_20260924T101500Z_b17e02", "site_id": "new_site" }`. Validation errors return `422` listing the invalid fields.
@@ -777,7 +861,7 @@ Response (`FloodQueryResponse`):
 
 ```jsonc
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "query_id": "q_20260924T101500Z_3fa9c1", "site_id": "teesta",
   "status": "complete",                    // partial | complete | failed
   "method": "gp_emulator",                 // gp_emulator | empirical_fallback
@@ -847,7 +931,7 @@ percentiles are per-cell marginals, not a true joint distribution -- flagged via
                         { "chainage_m": 12000.0, "arrival_p10_s": 2100, "arrival_p50_s": 2400, "arrival_p90_s": null } ],
   "pois_on_profile": [ { "poi_id": "teesta__poi__chungthang", "name": "Chungthang", "chainage_m": 12000.0 } ],
   "caveats": [ { "id": "clear_water", "severity": "warning", "text_key": "caveat_clear_water" } ],
-  "provenance": { "method": "gp_emulator", "contract_version": "0.1.0", "created_at": "2026-09-24T10:15:00Z" }
+  "provenance": { "method": "gp_emulator", "contract_version": "0.2.0", "created_at": "2026-09-24T10:15:00Z" }
 }
 ```
 
@@ -887,7 +971,7 @@ Extent at time t = cells whose arrival ≤ t.
 
 ```jsonc
 {
-  "contract_version": "0.1.0", "site_id": "teesta", "event_id": "teesta_2023",
+  "contract_version": "0.2.0", "site_id": "teesta", "event_id": "teesta_2023",
   "observed": {
     "extent_url": "/api/v1/files/teesta/gee/observed/teesta_2023_observed.geojson",
     "area_m2": { "value": 0.0, "unit": "m2", "kind": "observed", "source": "src_040" },
@@ -949,7 +1033,7 @@ One file drives map overlays (M0-5), KML styling (M6-6) and legends (M8). Colour
 
 ```jsonc
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "extent_class": {
     "high":     { "fill": "#<hex>", "opacity": 0.65, "label_key": "legend_high" },
     "possible": { "fill": "#<hex>", "opacity": 0.35, "pattern": "hatch", "label_key": "legend_possible" }

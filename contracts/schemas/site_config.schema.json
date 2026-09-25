@@ -1,0 +1,1469 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "site_config.schema.json",
+  "title": "SiteConfig",
+  "$defs": {
+    "BBoxValue": {
+      "additionalProperties": false,
+      "description": "[min_lon, min_lat, max_lon, max_lat] in EPSG:4326 decimal degrees.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "deg",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "BBoxValue",
+      "type": "object"
+    },
+    "BreachHydrographSettings": {
+      "additionalProperties": false,
+      "description": "Weir coefficients and breach side slope (`backend/m2_breach/weir.py`).\n\nOptional and additive; no defaults exist in code (`docs/decisions.md`) \u2014 a `Dam` without this\nblock cannot use the `breach_growth_weir` hydrograph method.",
+      "properties": {
+        "weir_coefficient_rect": {
+          "$ref": "#/$defs/WeirCoefficientValue"
+        },
+        "weir_coefficient_side": {
+          "$ref": "#/$defs/WeirCoefficientValue"
+        },
+        "side_slope_z": {
+          "$ref": "#/$defs/DimensionlessValue"
+        }
+      },
+      "required": [
+        "weir_coefficient_rect",
+        "weir_coefficient_side",
+        "side_slope_z"
+      ],
+      "title": "BreachHydrographSettings",
+      "type": "object"
+    },
+    "BreachInputs": {
+      "additionalProperties": false,
+      "properties": {
+        "water_volume_above_invert": {
+          "$ref": "#/$defs/VolumeValue"
+        },
+        "water_height_above_invert": {
+          "$ref": "#/$defs/LengthValue"
+        },
+        "breach_height": {
+          "$ref": "#/$defs/LengthValue"
+        },
+        "dam_height": {
+          "$ref": "#/$defs/LengthValue"
+        },
+        "average_embankment_width": {
+          "$ref": "#/$defs/LengthValue"
+        },
+        "dam_type": {
+          "$ref": "#/$defs/DamTypeValue"
+        },
+        "failure_mode": {
+          "$ref": "#/$defs/FailureModeValue"
+        },
+        "erodibility": {
+          "$ref": "#/$defs/ErodibilityValue"
+        }
+      },
+      "required": [
+        "water_volume_above_invert",
+        "water_height_above_invert",
+        "breach_height",
+        "dam_height",
+        "average_embankment_width",
+        "dam_type",
+        "failure_mode",
+        "erodibility"
+      ],
+      "title": "BreachInputs",
+      "type": "object"
+    },
+    "Cascade": {
+      "additionalProperties": false,
+      "description": "Present only when a site has a dam with `triggered_by` set (`docs/decisions.md` M2\ncascade decision). `approach='two_stage_imposed'` is the only one M2 implements today:\n`dambreak_structure` (dynamic breaching inside a Delft3D structure) belongs to M3, not M2 \u2014\n`backend/m2_breach/cascade.py` raises if it sees that value.",
+      "properties": {
+        "approach": {
+          "enum": [
+            "two_stage_imposed",
+            "dambreak_structure"
+          ],
+          "title": "Approach",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approach"
+      ],
+      "title": "Cascade",
+      "type": "object"
+    },
+    "CascadeTrigger": {
+      "additionalProperties": false,
+      "description": "When a downstream dam in a cascade fails, under `Cascade.approach ==\n'two_stage_imposed'` (`docs/decisions.md`): the dam's own breach hydrograph is triggered\nonce routed inflow from its upstream dam(s) first reaches `value` (m^3/s). Per-dam, not\nsite-level, because different dams in a chain have different capacities \u2014 this is additive\nto contract \u00a73.1's single site-level `cascade.trigger` and is PENDING team agreement\n(`docs/decisions.md`).",
+      "properties": {
+        "type": {
+          "const": "inflow_threshold",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/DischargeValue"
+        }
+      },
+      "required": [
+        "type",
+        "value"
+      ],
+      "title": "CascadeTrigger",
+      "type": "object"
+    },
+    "Crs": {
+      "additionalProperties": false,
+      "properties": {
+        "utm_epsg": {
+          "$ref": "#/$defs/EpsgValue"
+        }
+      },
+      "required": [
+        "utm_epsg"
+      ],
+      "title": "Crs",
+      "type": "object"
+    },
+    "CurveValue": {
+      "additionalProperties": false,
+      "description": "A surveyed elevation-volume curve: [[elevation_m, volume_m3], ...].",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "m^3",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "CurveValue",
+      "type": "object"
+    },
+    "Dam": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "moraine_dammed_lake",
+            "embankment_dam",
+            "concrete_dam",
+            "landslide_dam"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "triggered_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Triggered By"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CascadeTrigger"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "equations_applicable": {
+          "default": true,
+          "title": "Equations Applicable",
+          "type": "boolean"
+        },
+        "imposed_ranges": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImposedRanges"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "location": {
+          "$ref": "#/$defs/PointValue"
+        },
+        "breach_location": {
+          "$ref": "#/$defs/PointValue"
+        },
+        "breach_inputs": {
+          "$ref": "#/$defs/BreachInputs"
+        },
+        "volume_elevation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VolumeElevation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "breach_hydrograph": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BreachHydrographSettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "initial_water_level": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LengthValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "location",
+        "breach_location",
+        "breach_inputs"
+      ],
+      "title": "Dam",
+      "type": "object"
+    },
+    "DamTypeValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "enum": [
+                "HD",
+                "CD",
+                "FD",
+                "ZD"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "enum",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "DamTypeValue",
+      "type": "object"
+    },
+    "DateTimeValue": {
+      "additionalProperties": false,
+      "description": "ISO 8601 date or datetime, kept as the original string.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "iso8601",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "DateTimeValue",
+      "type": "object"
+    },
+    "DimensionlessValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "-",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "DimensionlessValue",
+      "type": "object"
+    },
+    "DischargeRangeValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "m^3/s",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "DischargeRangeValue",
+      "type": "object"
+    },
+    "DischargeValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "m^3/s",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "DischargeValue",
+      "type": "object"
+    },
+    "Domain": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "bbox": {
+          "$ref": "#/$defs/BBoxValue"
+        },
+        "grid_resolution": {
+          "$ref": "#/$defs/LengthValue"
+        },
+        "inflow": {
+          "$ref": "#/$defs/Inflow"
+        }
+      },
+      "required": [
+        "bbox",
+        "grid_resolution",
+        "inflow"
+      ],
+      "title": "Domain",
+      "type": "object"
+    },
+    "Domains": {
+      "additionalProperties": false,
+      "properties": {
+        "far_field": {
+          "$ref": "#/$defs/Domain"
+        },
+        "near_field": {
+          "$ref": "#/$defs/Domain"
+        }
+      },
+      "required": [
+        "far_field",
+        "near_field"
+      ],
+      "title": "Domains",
+      "type": "object"
+    },
+    "EpsgValue": {
+      "additionalProperties": false,
+      "description": "A WGS 84 / UTM EPSG code (326nn north, 327nn south).",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "epsg",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "EpsgValue",
+      "type": "object"
+    },
+    "ErodibilityValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "enum": [
+                "H",
+                "M",
+                "L"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "enum",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "ErodibilityValue",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "historical",
+            "hypothetical"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "onset": {
+          "$ref": "#/$defs/DateTimeValue"
+        },
+        "breach_times": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DateTimeValue"
+          },
+          "title": "Breach Times",
+          "type": "object"
+        },
+        "simulation_start": {
+          "$ref": "#/$defs/DateTimeValue"
+        },
+        "simulation_end": {
+          "$ref": "#/$defs/DateTimeValue"
+        },
+        "imagery_pre_event": {
+          "$ref": "#/$defs/DateTimeValue"
+        },
+        "imagery_post_event": {
+          "$ref": "#/$defs/DateTimeValue"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "onset",
+        "breach_times",
+        "simulation_start",
+        "simulation_end",
+        "imagery_pre_event",
+        "imagery_post_event"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "FailureModeValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "enum": [
+                "O",
+                "P"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "enum",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "FailureModeValue",
+      "type": "object"
+    },
+    "ImposedRanges": {
+      "additionalProperties": false,
+      "description": "Breach parameter ranges imposed from the site config rather than computed from the\nAzmi (2026) equations \u2014 required when `Dam.equations_applicable` is false (contract \u00a73.1,\n\u00a74.2: \"Dams with `equations_applicable: false` return `imposed_ranges` from the config,\nflagged with caveat `concrete_dam_imposed`\"). `docs/Equations.md` \u00a77 refuses `kind:\nconcrete_dam`; those dams use this block instead of being blocked outright.",
+      "properties": {
+        "peak_discharge_m3s": {
+          "$ref": "#/$defs/DischargeRangeValue"
+        },
+        "breach_width_m": {
+          "$ref": "#/$defs/LengthRangeValue"
+        },
+        "failure_time_s": {
+          "$ref": "#/$defs/TimeRangeValue"
+        }
+      },
+      "required": [
+        "peak_discharge_m3s",
+        "breach_width_m",
+        "failure_time_s"
+      ],
+      "title": "ImposedRanges",
+      "type": "object"
+    },
+    "Inflow": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/PointValue"
+        }
+      },
+      "required": [
+        "from",
+        "location"
+      ],
+      "title": "Inflow",
+      "type": "object"
+    },
+    "LengthRangeValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "m",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "LengthRangeValue",
+      "type": "object"
+    },
+    "LengthValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "m",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "LengthValue",
+      "type": "object"
+    },
+    "PointOfInterest": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "village",
+            "dam",
+            "bridge",
+            "hospital"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/PointValue"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "location"
+      ],
+      "title": "PointOfInterest",
+      "type": "object"
+    },
+    "PointValue": {
+      "additionalProperties": false,
+      "description": "[lon, lat] in EPSG:4326 decimal degrees.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "deg",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "PointValue",
+      "type": "object"
+    },
+    "Site": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{2,31}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Region"
+        },
+        "river": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "River"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Site",
+      "type": "object"
+    },
+    "TimeRangeValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "s",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "TimeRangeValue",
+      "type": "object"
+    },
+    "VolumeElevation": {
+      "additionalProperties": false,
+      "description": "Storage above the final breach invert (`backend/m2_breach/storage.py`).\n\nOptional and additive (`docs/decisions.md`, `docs/handoff_contract.md` \u00a73.1); a `Dam` without\nthis block cannot use the `breach_growth_weir` hydrograph method (`hydrograph.py` falls back\nto `triangular`).",
+      "properties": {
+        "method": {
+          "enum": [
+            "surveyed_curve",
+            "area_volume_relation"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "breach_invert_elevation_m": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LengthValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "points": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CurveValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "area_volume_exponent_b": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DimensionlessValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "VolumeElevation",
+      "type": "object"
+    },
+    "VolumeValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "m^3",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "VolumeValue",
+      "type": "object"
+    },
+    "WeirCoefficientValue": {
+      "additionalProperties": false,
+      "description": "A broad-crested weir coefficient, m^0.5/s (`backend/m2_breach/weir.py`).",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "unit": {
+          "const": "m^0.5/s",
+          "title": "Unit",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "sourced",
+            "placeholder"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "source",
+        "status"
+      ],
+      "title": "WeirCoefficientValue",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "site": {
+      "$ref": "#/$defs/Site"
+    },
+    "crs": {
+      "$ref": "#/$defs/Crs"
+    },
+    "domains": {
+      "$ref": "#/$defs/Domains"
+    },
+    "dams": {
+      "items": {
+        "$ref": "#/$defs/Dam"
+      },
+      "minItems": 1,
+      "title": "Dams",
+      "type": "array"
+    },
+    "cascade": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Cascade"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "points_of_interest": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PointOfInterest"
+      },
+      "title": "Points Of Interest",
+      "type": "array"
+    },
+    "events": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "title": "Events",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "site",
+    "crs",
+    "domains",
+    "dams"
+  ],
+  "type": "object"
+}

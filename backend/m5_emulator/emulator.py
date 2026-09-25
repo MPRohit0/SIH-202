@@ -31,7 +31,7 @@ from backend.m5_emulator.pca import PCABasis, corridor_mask, fit_pca
 from backend.m5_emulator.transforms import DEFAULT_TRANSFORMS, OutputTransform, TRANSFORMS_BY_NAME, fill_arrival
 from backend.shared.grid import CanonicalGrid, FLOAT_NODATA
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 
 #: Raw map-stack key (matches synthetic.py / M3-M4 raster names) -> the
 #: short name the contract's manifest/file layout uses (§4.6:

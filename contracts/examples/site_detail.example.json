@@ -28,7 +28,7 @@
     {
       "dam_id": "teesta__south_lhonak",
       "name": "South Lhonak moraine dam",
-      "kind": "natural_moraine",
+      "kind": "moraine_dammed_lake",
       "order": 1,
       "key_specs": {
         "dam_height_m": {
@@ -40,9 +40,9 @@
       }
     },
     {
-      "dam_id": "teesta__teesta3",
+      "dam_id": "teesta__teesta_iii",
       "name": "Teesta III (Chungthang)",
-      "kind": null,
+      "kind": "embankment_dam",
       "order": 2,
       "key_specs": {}
     }
@@ -138,7 +138,7 @@
         "properties": {
           "poi_id": "teesta__poi__chungthang",
           "name": "Chungthang",
-          "kind": "town",
+          "kind": "village",
           "chainage_m": 12000.0,
           "dist_to_channel_m": 80.0
         }

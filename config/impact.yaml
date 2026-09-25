@@ -1,0 +1,64 @@
+# M6 loss-estimation defaults (docs/impact_outputs.md §5 "Loss estimation").
+# Every value below is a fact: {value, unit, source, status[, note]}, same shape as
+# sites/*.yaml's SourcedValue (CLAUDE.md rule 3). status: placeholder values load, but
+# every loss_inr computed from them must set has_placeholders: true.
+
+loss:
+  # Huizinga, de Moel & Szewczyk (2017), Global flood depth-damage functions:
+  # methodology and the database with guidelines. JRC EUR 28552 EN. doi:10.2760/16510.
+  # docs/data_sources.md src_031 (damage functions) / src_032 (max damage values).
+  jrc_source_damage_curves: src_031
+  jrc_source_asset_values: src_032
+  jrc_region: ASIA
+  jrc_country: India
+
+  # Top of the JRC tabulated depth range (m); damage_fraction is 1.0 above this.
+  depth_cap_m: 6.0
+
+  eur_to_inr_2010:
+    value: null
+    unit: INR/EUR
+    source: "TO FILL: RBI reference rate, 2010 annual average"
+    status: placeholder
+    note: "Applied first (docs/decisions.md 2026-09-25 'JRC loss estimation')."
+
+  price_index_2010_to_current:
+    value: null
+    unit: "-"
+    source: "TO FILL: CPWD cost index or WPI, 2010 -> current year (team to choose)"
+    status: placeholder
+    note: "Applied second, in INR, after the FX conversion."
+
+  default_road_width_m:
+    value: null
+    unit: m
+    source: "TO FILL: no source yet for road width by class (e.g. IRC geometric design standards)"
+    status: placeholder
+    note: "Applied to every OSM highway=* kind uniformly until per-class widths are sourced."
+
+  # OSM building=* tag value -> JRC building damage class. Unmapped values (including
+  # building=yes, normalised to 'building' by exposure_osm.py) fall back to
+  # default_building_class and are counted in the loss output's assumptions.
+  default_building_class: residential
+  osm_building_to_jrc:
+    house: residential
+    residential: residential
+    apartments: residential
+    detached: residential
+    terrace: residential
+    semidetached_house: residential
+    dormitory: residential
+    bungalow: residential
+    commercial: commercial
+    retail: commercial
+    office: commercial
+    hotel: commercial
+    kiosk: commercial
+    industrial: industrial
+    warehouse: industrial
+
+  # NOTE: facilities.gpkg (hospitals, schools, bridges) and agriculture are not
+  # included in loss_inr. facilities.gpkg holds points, not footprint polygons, so
+  # there is no area to apply a per-m2 damage value to without inventing one
+  # (CLAUDE.md rule 3); exposure/ also has no cropland layer for agriculture. Both
+  # are named in loss_inr.assumptions so this scope limit is never silent.

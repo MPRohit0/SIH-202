@@ -8,7 +8,7 @@
   ],
   "properties": {
     "site_config": {
-      "type": "object"
+      "$ref": "site_config.schema.json"
     },
     "demo_mode": {
       "type": "boolean"

@@ -16,14 +16,17 @@ rule 1) — fix here, don't hand-edit around it.
   `contracts/`, so mocks can never drift from the contract"). Numeric values
   follow the contract's own "0.0 / ILLUSTRATIVE" convention — they are not site
   facts (CLAUDE.md rule 3).
+- `schemas/site_config.schema.json` (contract §3.1) is the one exception to
+  "generated from `docs/handoff_contract.md`": it's generated straight from
+  `backend.shared.site_config.SiteConfig.model_json_schema()`, since §3.1 is
+  itself written to mirror that model (`docs/decisions.md` 2026-09-25). Regenerate
+  it after any change to `site_config.py`'s models, don't hand-edit it.
 - `tests/m0_api/test_schemas.py` checks every example against its schema;
   `tests/m0_api/test_endpoints.py` checks every live endpoint's response the
   same way.
 
 Known gaps, not yet resolved (see `docs/decisions.md`):
 
-- The site-config schema used by `sites/*.yaml` differs from contract §3.1; no
-  schema for it is generated here until that's settled.
 - `docs/m5_spec.md`, `docs/equations.md` and `docs/events/` don't exist yet, so
   the schemas here don't encode the confidence-rule thresholds or per-event
   specifics — only the shapes contract §2-§5 already spell out.

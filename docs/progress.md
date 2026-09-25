@@ -659,3 +659,136 @@ rule now exists but isn't plugged into `run_acceptance()` yet), and the real
   written into `data_dir`, `sph_vs_delft3d` staying mocked, mock fallback with no `scenario_id` and
   with an unwritten scenario, diff PNG rendering/caching, mock fallback for an unwritten diff PNG).
   `pytest -q`: **527 passed** (full project suite, no regressions).
+
+## 2026-09-25 — M6: exposure download scripts (OSM + WorldPop)
+
+`backend/m6_impact` was completely empty before this session (no files at all). Scope today was
+narrow: the `exposure/` *inputs* the contract lists in §4.7 that come from public data (not
+`impact.json`, warning tables, loss or exports — those need real M5 output first and are separate
+work).
+
+- Dev environment gap found and fixed: `.venv` had no `pip` at all and was missing `httpx`,
+  `geopandas`, `shapely`, `fiona`, `scipy`, `scikit-learn`, `fastapi`, `jsonschema` and more,
+  despite all being declared in `environment.yml`/`requirements.txt`. Bootstrapped pip
+  (`get-pip.py`) and installed the missing packages so `pytest -q` runs clean again.
+- New `backend/m6_impact/exposure_osm.py`: queries the public Overpass API for a site's
+  `domains.far_field.bbox` and writes `buildings.gpkg` (`building=*`), `roads.gpkg` (`highway=*`),
+  `facilities.gpkg` (`amenity=hospital|school` + bridges, one file with a `kind` column per the
+  contract's `facilities.gpkg` schema) and `places.gpkg` (`place=city|town|village|hamlet`), each
+  with `osm_id`, `kind`, `name` in EPSG:4326. Uses Overpass's `out geom;` so no separate node
+  resolution is needed; OSM relations (multipolygon buildings) are NOT fetched — documented
+  limitation. `overpass-api.de` returns 406 without a descriptive `User-Agent` and 504 under load
+  for large Himalayan-valley bboxes — added a UA header and a retry-with-backoff (5 attempts) for
+  502/503/504. Idempotent: an existing layer file is never re-queried.
+- New `backend/m6_impact/exposure_worldpop.py`: WorldPop "Global 2000-2020, 1km, UN-adjusted"
+  population counts for India (CC BY 4.0). Deliberately NOT the 100m "constrained" product
+  (~530 MB and its server ignores HTTP Range requests, so no windowed/partial read is possible)
+  — the 1km mosaic is ~18 MB and downloads whole in seconds; population is disaggregated uniformly
+  within each ~1km source cell rather than by building footprint, an honest coarse approximation
+  noted in `provenance.json`. National raster is cached once under `data/_cache/worldpop/` (shared
+  across sites); each site clips it to its bbox into `data/<site_id>/raw/`, then
+  `backend/shared/grid.build_farfield_grid` + `resample_to_grid(method="sum")` produce
+  `exposure/population.tif` on the far-field grid, sum-preserving by construction (GDAL's `sum`
+  resampling area-weights source-to-destination overlap). Idempotent on `population.tif`.
+  Both scripts merge their results into one shared `exposure/provenance.json` (dataset, URL/query,
+  license, fetched-at, feature/pixel counts) rather than overwriting each other's entries.
+- Verified end-to-end for real against `sites/teesta.yaml` (far-field bbox, still all-placeholder
+  coordinates per the file's own header — fine for exercising the pipeline, not for real results):
+  292,504 buildings, 41,205 roads, 2,387 facilities (2,180 bridges, 140 schools, 67 hospitals),
+  279 places, and population resampling that preserved the total exactly (3,099,432.5 persons
+  before and after, on the real WorldPop raster). Reran both scripts a second time to confirm every
+  file is skipped (no re-download) once present.
+- Tests (`tests/m6_impact/`, 23 new, all offline/mocked — no real network calls in CI): Overpass
+  element-to-row parsing (buildings/roads/facilities/places tag filtering, relations dropped, short
+  ways dropped), `fetch_category` GPKG output shape + skip-existing, provenance merging (including
+  that a skip-existing rerun must not clobber the richer provenance entry from the original fetch —
+  found and fixed while writing this test); WorldPop URL construction, bbox clipping, sum-preserving
+  resample onto a synthetic far-field grid (reusing `tests/fixtures/shared/synth.yaml`), `fetch()`
+  skip-existing and placeholder-bbox rejection. `pytest -q`: **550 passed** (full project suite, no
+  regressions).
+- Not done yet (left for a future M6 session): `hydropower.gpkg` (hand-made, needs a `source`),
+  `damage_curves.csv`/`asset_values.csv`, and all of `impact.json` computation / warning table /
+  loss / exports — none of today's scripts touch those.
+
+## 2026-09-25 — M6: loss estimation from JRC depth-damage functions
+
+`loss_inr` (`docs/handoff_contract.md` §4.7), scoped to buildings and roads. New:
+- `config/impact.yaml`: loss defaults — JRC region/country, depth cap, OSM building→JRC class
+  map, and three `SourcedValue`-shaped placeholders (EUR→INR rate, 2010→current price index,
+  default road width) that must be filled in before real INR numbers appear.
+- `backend/m6_impact/jrc_damage.py`: extracts `damage_curves.csv` (ASIA depth-damage fractions)
+  and `asset_values.csv` (India max-damage values, cited by exact sheet/cell) from the JRC
+  workbook the user provided (`data/copy_of_global_flood_depth-damage_functions__30102017.xlsx`,
+  gitignored — Huizinga et al. 2017, `docs/data_sources.md` src_031/src_032). Verified end to end
+  against the real workbook and against `sites/teesta.yaml`'s real OSM exposure data (292,504
+  buildings): CSVs generate correctly, cite real cells (e.g. residential India = 212.78 €/m² at
+  `'MaxDamage-Residential'!D90`), and `estimate_loss` on the full far-field grid (5016x2534
+  cells) completes in ~22s.
+- `backend/m6_impact/loss.py`: `damage_fraction` (interpolated JRC curve, capped at 6 m),
+  `building_losses`/`road_losses` (footprint-centroid / densified-line depth sampling),
+  `estimate_loss` (the top-level `loss_inr` Estimate + `by_asset_class` + `assumptions`). Every
+  number that depends on the FX rate, price index or road width comes back as a null Estimate
+  while those stay `status: placeholder` — never an invented conversion (CLAUDE.md rule 3).
+  Hospitals/schools/bridges (points, no footprint) and agriculture (no cropland layer) are
+  explicitly not priced, named in `assumptions` every time.
+- Contract change, logged in `docs/decisions.md`: `asset_values.csv` gains additive
+  `value_eur2010`/`jrc_cell` columns so every INR figure is re-derivable, not opaque.
+- Tests (`tests/m6_impact/test_jrc_damage.py`, `test_loss.py`, 47 new): extraction against a
+  mini workbook replicating the real layout plus one test (skipped when the gitignored real
+  workbook is absent) that checks the cited cell against the actual JRC figures; damage-fraction
+  interpolation/capping; building/road loss pricing (hand-computed expected values, dry/excluded
+  buildings, unmapped-kind fallback, placeholder FX/width → null); a stale-CSV staleness check;
+  `estimate_loss` P10≤P50≤P90 ordering; and a schema-validation test that splices a real
+  `loss_inr` into `contracts/examples/impact.example.json` and validates it against
+  `impact.schema.json`. `pytest -q`: **574 passed** (full project suite, no regressions).
+- Docs: `docs/impact_outputs.md` §5 "Loss estimation" (every default with its Why, new
+  acceptance checks I6-I9); `docs/data_sources.md` (previously empty) now has src_031/src_032;
+  `docs/decisions.md` dated entry.
+- Not done yet: the EUR→INR rate and price index need a team decision (RBI reference rate;
+  CPWD cost index or WPI) before `loss_inr` reports real numbers; road widths by highway class;
+  `hydropower.gpkg`; the rest of `impact.json` (`population_persons`, `assets`, `warning_table`,
+  exports) — this session only added `loss_inr`.
+
+## 2026-09-25 — M1 kickoff: site config vs contract resolved (0.2.0), M1-1 download.py
+
+Session started to work on `backend/m1_terrain` (found empty, no code, no tests) and found no DEM
+files anywhere in the repo or the sites config. Before writing anything DEM-related, resolved the
+long-pending `docs/decisions.md` (2026-09-24) "site config schema: YAML v1 vs contract §3.1" split,
+per user instruction, then built M1-1.
+
+**Contract 0.2.0** (`docs/decisions.md` 2026-09-25 has the full list): `sites/*.yaml` +
+`backend/shared/site_config.py` kept as canonical; `docs/handoff_contract.md` §1.7/§3/§4.1/§4.2/
+§5.1/§5.2 rewritten to match, `contract_version` bumped everywhere (doc, `contracts/examples/*`,
+`CONTRACT_VERSION` constants in 7 backend modules, FastAPI app version). New `Dam.initial_water_level`
+field (was in the 0.1.0 draft, had no home in code). `sites/teesta.yaml`: `crs.utm_epsg` flipped to
+`sourced` (it's a derivation from the bbox, not a DEM-dependent lookup); both dams got explicit
+`equations_applicable: true` and a `volume_elevation` placeholder block; `teesta_iii` got
+`initial_water_level` (placeholder). Generated `contracts/schemas/site_config.schema.json` straight
+from `SiteConfig.model_json_schema()` and wired it into `site_create_request.schema.json` — this
+caught and fixed a real bug in `backend/m0_api/main.py`'s `create_site` (`site_config.get("site_id")`,
+the never-valid 0.1.0-draft key; now reads `site_config["site"]["id"]`). Two known bugs logged but
+*not* fixed this session (out of scope): M2 writes a bare `dam_id` instead of the derived
+`<site_id>__<slug>` form; M5 builds `poi_id` from a POI's `name` instead of its `id`.
+`pytest -q` (excluding `tests/m6_impact`, which needs `geopandas`/`shapely` not installed in this
+sandbox — pre-existing environment gap, unrelated): **555 passed**.
+
+**M1-1** (`backend/m1_terrain/download.py`, new module): fetches DEM/landcover *candidates* for a
+site's far-field bbox into `data/<site_id>/raw/` — SRTM GL1 and Copernicus GLO-30 via the
+OpenTopography Global DEM API (`OPENTOPOGRAPHY_API_KEY` from `.env`), ESA WorldCover 10 m v200
+mosaicked from its public S3 COG tiles (no key), and CartoDEM mosaicked from a folder of manually
+downloaded tiles (no public bulk API). Deliberately does **not** choose a DEM — that's the M1-2
+comparison report, still to come, and the site config has no `dem.source` field for the same
+reason. Per-product `provenance.json` (dataset, source id, request bbox, native CRS/resolution/
+vertical datum, licence, sha256, fetch time); the API key is never written to provenance or
+included in a raised error. 23 new tests (`tests/m1_terrain/test_download.py`), all synthetic —
+OpenTopography via `httpx.MockTransport`, WorldCover/CartoDEM mosaicked from small local GeoTIFFs —
+no real network calls, no API key spent. Added `docs/data_sources.md` src_033–src_037; **the DOIs
+for src_033/src_034/src_036 were written from memory this session and need verifying** before
+anything cites them as `status: sourced`.
+
+**Not done yet:** the actual download hasn't been run (no API key spent, per user instruction — the
+user runs it). M1-2 (reproject each downloaded DEM onto the canonical grid, build the comparison
+report: void % per DEM, pairwise difference maps, valley-centreline elevation profiles, summary
+stats) is next, once real DEMs exist in `data/teesta/raw/`. The rest of M1 (`landcover.tif` →
+Manning's n, `hand.tif`, `domain_mask.tif`/`domain.gpkg`, `centreline.gpkg`, `chainage_samples.csv`,
+`pois.gpkg`, near-field STL) hasn't been started.

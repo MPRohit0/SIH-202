@@ -6,8 +6,8 @@ SourcedValue: {value, unit, source, status[, note]}. A value missing `unit`,
 loader warns loudly and lists them; every result built from such a config must
 set `has_placeholders: true` (docs/handoff_contract.md §0 rule 5).
 
-NOTE: this schema differs from docs/handoff_contract.md §3.1; the drift is
-recorded in docs/decisions.md as a pending contract change.
+NOTE: docs/handoff_contract.md §3.1 (contract_version 0.2.0) mirrors this schema —
+see docs/decisions.md "Site config: YAML v1 canonical, contract 0.2.0" (2026-09-25).
 """
 
 from __future__ import annotations
@@ -372,6 +372,7 @@ class Dam(_Strict):
     breach_inputs: BreachInputs
     volume_elevation: VolumeElevation | None = None
     breach_hydrograph: BreachHydrographSettings | None = None
+    initial_water_level: LengthValue | None = None  # m, at t0; reservoirs inside the Delft3D domain (contract §3.1, §3.3)
 
 
 class PointOfInterest(_Strict):

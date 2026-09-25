@@ -1,5 +1,5 @@
 {
-  "contract_version": "0.1.0",
+  "contract_version": "0.2.0",
   "scenario_id": "teesta__s007",
   "dam_id": "south_lhonak",
   "method": "breach_growth_weir",

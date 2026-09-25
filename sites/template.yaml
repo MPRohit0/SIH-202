@@ -172,6 +172,44 @@ dams:
         source: ""
         status: placeholder
 
+    # -------------------------------------------------------------------------
+    # volume_elevation - optional. Storage above the final breach invert, used by
+    # the breach_growth_weir hydrograph method (backend/m2_breach/storage.py,
+    # hydrograph.py). Without it, the hydrograph falls back to the triangular
+    # method. Two ways to give it, pick one:
+    #   surveyed_curve       - points: [[elevation_m, volume_m3], ...] (>= 2,
+    #                           strictly increasing), plus breach_invert_elevation_m.
+    #   area_volume_relation - V = a * A^b; only the exponent b (> 1) is needed
+    #                           here (a is fit from breach_inputs at run time).
+    # -------------------------------------------------------------------------
+    # volume_elevation:
+    #   method: area_volume_relation       # surveyed_curve | area_volume_relation
+    #   breach_invert_elevation_m:         # required if method: surveyed_curve
+    #     value: null
+    #     unit: m
+    #     source: ""
+    #     status: placeholder
+    #   points:                            # required if method: surveyed_curve
+    #     value: null                      # [[elevation_m, volume_m3], ...]
+    #     unit: m^3
+    #     source: ""
+    #     status: placeholder
+    #   area_volume_exponent_b:            # required if method: area_volume_relation
+    #     value: null
+    #     unit: "-"
+    #     source: ""
+    #     status: placeholder
+
+    # -------------------------------------------------------------------------
+    # initial_water_level - optional. Water level (m) at t0, for a reservoir that
+    # sits inside the Delft3D domain (contract §3.1, §3.3 emulator_inputs).
+    # -------------------------------------------------------------------------
+    # initial_water_level:
+    #   value: null
+    #   unit: m
+    #   source: ""
+    #   status: placeholder
+
 # -----------------------------------------------------------------------------
 # Cascade - only present if any dam above has triggered_by set.
 # approach: two_stage_imposed (M2-implemented: a downstream dam's hydrograph is triggered by

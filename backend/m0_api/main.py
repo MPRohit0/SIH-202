@@ -33,7 +33,7 @@ from backend.m0_api import jobs, mock_files, mocks, registry, rendering, schemas
 from backend.m0_api import compare as api_compare
 from backend.m0_api import timeline as api_timeline
 
-app = FastAPI(title="SIH26 GLOF/dam-break decision-support API", version="0.1.0")
+app = FastAPI(title="SIH26 GLOF/dam-break decision-support API", version="0.2.0")
 
 # Contract §5: "CORS allows the Vite dev server (http://localhost:5173)."
 app.add_middleware(
@@ -121,11 +121,11 @@ def get_site(site_id: SiteIdPath) -> JSONResponse:
 def create_site(body: Annotated[dict, Body(...)]) -> JSONResponse:
     _validate_request_body("site_create_request.schema.json", body)
     site_config = body["site_config"]
-    site_id = site_config.get("site_id")
+    site_id = site_config.get("site", {}).get("id") if isinstance(site_config.get("site"), dict) else None
     if not isinstance(site_id, str) or not re.match(SITE_ID_PATTERN, site_id):
         raise HTTPException(
             status_code=422,
-            detail=mocks.error("invalid_request", f"site_config.site_id must match {SITE_ID_PATTERN}.", {"field": "site_config.site_id"}),
+            detail=mocks.error("invalid_request", f"site_config.site.id must match {SITE_ID_PATTERN}.", {"field": "site_config.site.id"}),
         )
     conn = registry.connect()
     try:

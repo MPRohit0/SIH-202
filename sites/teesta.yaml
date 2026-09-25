@@ -6,7 +6,7 @@
 # end-to-end. None of them may be used for a real result. Each `source` says
 # where the real value should come from; set status: sourced only after
 # replacing the value and writing the full citation.
-# Field-object rules: see sites/_template.yaml.
+# Field-object rules: see sites/template.yaml.
 # =============================================================================
 
 schema_version: 1
@@ -21,8 +21,8 @@ crs:
   utm_epsg:
     value: 32645                   # WGS 84 / UTM zone 45N
     unit: epsg
-    source: "Placeholder: zone 45N spans 84E-90E, which contains the far-field bbox. Confirm against the DEM projection."
-    status: placeholder
+    source: "Derived: WGS 84 / UTM zone 45N covers 84E-90E (EPSG registry); the far-field bbox (88.10-88.85E) lies entirely inside it, so EPSG:32645 follows deterministically from the bbox alone. No DEM chosen yet (docs/progress.md, DEM comparison report pending) -- if a chosen DEM's native CRS differs, this stays correct since we reproject on load."
+    status: sourced
 
 domains:
   far_field:
@@ -70,6 +70,7 @@ dams:
     name: South Lhonak Lake (moraine dam)
     kind: moraine_dammed_lake
     triggered_by: null
+    equations_applicable: true       # not concrete_dam; moraine treated as HD (see dam_type below)
     location:
       value: [88.200, 27.910]
       unit: deg
@@ -122,10 +123,22 @@ dams:
         source: "Placeholder: loose moraine assumed highly erodible. Replace from: field/geotechnical description in post-event studies."
         status: placeholder
 
+    volume_elevation:
+      method: area_volume_relation
+      area_volume_exponent_b:
+        value: null
+        unit: "-"
+        source: "NOT SOURCED. Replace from: a published lake area-volume relation for moraine-dammed glacial lakes (e.g. regional GLOF studies), or a surveyed_curve if pre-event bathymetry/DEM-derived elevation-volume points exist."
+        status: placeholder
+
   - id: teesta_iii
     name: Teesta III dam (Chungthang)
     kind: embankment_dam
     triggered_by: south_lhonak
+    equations_applicable: true       # kind is embankment_dam (believed concrete-faced rockfill,
+                                      # dam_type: FD below), not concrete_dam -- the Xu & Zhang FD
+                                      # class covers CFRDs, so the equations are not blocked here
+                                      # (docs/Equations.md §7 only refuses kind: concrete_dam).
     trigger:
       type: inflow_threshold
       value:
@@ -184,6 +197,20 @@ dams:
         unit: enum
         source: "Placeholder: rockfill assumed medium. Replace from: embankment material description in project documents."
         status: placeholder
+
+    volume_elevation:
+      method: area_volume_relation
+      area_volume_exponent_b:
+        value: null
+        unit: "-"
+        source: "NOT SOURCED. Replace from: Teesta III's reservoir elevation-storage curve (project DPR / Teesta Urja Ltd) as a surveyed_curve, which is preferable to an area-volume_relation exponent for a man-made reservoir."
+        status: placeholder
+
+    initial_water_level:
+      value: null
+      unit: m
+      source: "NOT SOURCED. Replace from: Teesta III's Full Reservoir Level / Minimum Draw Down Level (project DPR / CWC), or the reported reservoir level just before the 2023-10-04 failure."
+      status: placeholder
 
 # Cascade: South Lhonak GLOF triggers Teesta III (docs/decisions.md, "M2 cascade engine").
 # approach: two_stage_imposed — M2 does not route the flood itself. Teesta III's own hydrograph

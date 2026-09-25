@@ -44,7 +44,7 @@ from . import storage as storage_mod
 from .breach_params import compute_dam
 from .weir import weir_discharge
 
-CONTRACT_VERSION = "0.1.0"
+CONTRACT_VERSION = "0.2.0"
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 _DEFAULT_DT_S = 10.0

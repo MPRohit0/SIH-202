@@ -212,7 +212,7 @@ def test_write_timeline_inputs_produces_a_contract_valid_timeline(trained_small,
     query_dir = tmp_path / "queries" / "q_test"
     tl.write_timeline_inputs(
         result, grid, query_dir, hydrographs=[hg], chainage_m=chainage_m, cell_index=cell_index,
-        pois=pois, t_end_s=trained_small.t_end_s, contract_version="0.1.0", created_at="2026-09-24T10:15:00Z",
+        pois=pois, t_end_s=trained_small.t_end_s, contract_version="0.2.0", created_at="2026-09-24T10:15:00Z",
     )
 
     for name in ("arrival_p10", "arrival_p50", "arrival_p90", "extent_class"):
