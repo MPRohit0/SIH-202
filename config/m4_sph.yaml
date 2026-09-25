@@ -1,0 +1,28 @@
+# M4 (backend/m4_sph): DualSPHysics near-field case settings.
+#
+# Project-maintained defaults, like config/manning_n.csv -- not a site fact (docs/handoff_contract.md
+# rule 3), so nothing here is a SourcedValue and none of it belongs in sites/*.yaml. The contract
+# (§4.4, line ~419) notes that M3/M4 simulation settings aren't in SiteConfig yet; this file is
+# where they live until that's decided. Every value can be overridden per call
+# (backend/m4_sph/settings.py `load_sph_settings(**overrides)`).
+
+dp_m: auto  # "auto": smallest dp within vram_budget_mib * (1 - vram_margin), via backend/m4_pilot/vram_estimator.py.
+            # A number fixes dp directly and skips the VRAM search.
+
+t_start_s: 0.0    # simulation window, seconds since t0 (docs/handoff_contract.md §1.2)
+t_end_s: null     # null = end of the inflow hydrograph
+time_out_s: 5.0   # PART output interval, seconds
+
+inlet_width_m: 20.0     # fixed inlet cross-section (W x H), perpendicular to the local centreline
+inlet_height_m: 15.0    # must exceed the expected peak flow depth at the inlet, or velocity is overestimated
+inlet_layers: 4         # DualSPHysics inlet/outlet particle layers (XML_GUIDE_INLETOUTLET.pdf default)
+
+boundary_layers: 3      # DBC boundary particle layers built from nearfield.stl (m4_pilot/vram_estimator.py
+                         # calibrated this same parameter from the 2D pilot; re-check on the first real 3D run)
+
+probe_velocity_height_m: 1.0  # height above bed for velocity gauges at each POI
+
+vram_budget_mib: 8188   # RTX 4060 8 GB VRAM (CLAUDE.md hardware budget)
+vram_margin: 0.15       # fraction of the budget left unused as headroom
+
+binaries_dir: null       # GenCase/solver executables directory; DSPH_BIN_DIR env var overrides this

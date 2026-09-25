@@ -10,7 +10,51 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
+import numpy as np
+
 from .case_xml import CaseSpec, E, SwlGauge
+
+
+class InflowUnavailable(Exception):
+    """Raised when a scenario's near-field inflow can't be evaluated yet (e.g. `inflow.from:
+    far_field` needs a far-field discharge series that only M3 can produce)."""
+
+
+def hydrograph_to_velocity(
+    t_s: np.ndarray, q_m3s: np.ndarray, area_m2: float, t_start_s: float, t_end_s: float | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Convert a discharge hydrograph `Q(t)` (contract §4.2, seconds since t0) to a uniform inlet
+    velocity `v(tau) = Q(t_start_s + tau) / area_m2` over a fixed inlet cross-section (m/s), for
+    DualSPHysics `imposevelocity mode="1"` (`velocitytimes`, `time`-tagged in solver time `tau`,
+    which starts at 0 at `t_start_s`).
+
+    `t_s` must be sorted and span `[t_start_s, t_end_s]` (or the hydrograph's own end, if
+    `t_end_s` is None); the window is clipped with linear interpolation at both ends.
+    """
+    if area_m2 <= 0:
+        raise ValueError(f"area_m2 must be positive, got {area_m2}")
+    t_s = np.asarray(t_s, dtype=float)
+    q_m3s = np.asarray(q_m3s, dtype=float)
+    if t_s.ndim != 1 or t_s.shape != q_m3s.shape or len(t_s) < 2:
+        raise ValueError("t_s and q_m3s must be 1-D, equal-length, and have at least 2 samples")
+    if np.any(np.diff(t_s) <= 0):
+        raise ValueError("t_s must be strictly increasing")
+
+    end = t_end_s if t_end_s is not None else float(t_s[-1])
+    if end <= t_start_s:
+        raise ValueError(f"t_end_s ({end}) must be greater than t_start_s ({t_start_s})")
+    if t_start_s < t_s[0] or end > t_s[-1]:
+        raise ValueError(
+            f"window [{t_start_s}, {end}] s falls outside the hydrograph's range [{t_s[0]}, {t_s[-1]}] s"
+        )
+
+    mask = (t_s > t_start_s) & (t_s < end)
+    window_t = np.concatenate(([t_start_s], t_s[mask], [end]))
+    window_q = np.interp(window_t, t_s, q_m3s)
+
+    tau_s = window_t - t_start_s
+    v_ms = window_q / area_m2
+    return tau_s, v_ms
 
 
 def pilot_case_spec() -> CaseSpec:
