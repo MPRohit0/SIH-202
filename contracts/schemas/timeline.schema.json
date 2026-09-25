@@ -1,22 +1,32 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "timeline.schema.json",
-  "title": "Timeline (contract \u00a75.5)",
+  "title": "Timeline (contract §5.5)",
+  "description": "Flood-front frames (median/HIGH/POSSIBLE, extent at time t = cells whose arrival <= t), the M2 inflow hydrograph(s), and arrival time vs chainage along the centreline with P10/P50/P90 bounds.",
   "type": "object",
   "required": [
     "query_id",
     "interval_s",
+    "t_end_s",
     "frames",
     "hydrographs",
     "arrival_profile",
-    "pois_on_profile"
+    "pois_on_profile",
+    "caveats",
+    "provenance"
   ],
   "properties": {
     "query_id": {
       "type": "string"
     },
     "interval_s": {
-      "type": "number"
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "t_end_s": {
+      "description": "The run's simulation end time; the last frame's t_s never exceeds this.",
+      "type": "number",
+      "minimum": 0
     },
     "frames": {
       "type": "array",
@@ -86,6 +96,7 @@
       }
     },
     "arrival_profile": {
+      "description": "One row per sampled chainage. arrival_p10_s/arrival_p90_s are null where that percentile never arrives within t_end_s. Rows where even the median never arrives are omitted.",
       "type": "array",
       "items": {
         "type": "object",
@@ -100,13 +111,13 @@
             "type": "number"
           },
           "arrival_p10_s": {
-            "type": "number"
+            "type": ["number", "null"]
           },
           "arrival_p50_s": {
             "type": "number"
           },
           "arrival_p90_s": {
-            "type": "number"
+            "type": ["number", "null"]
           }
         }
       }
@@ -132,6 +143,11 @@
           }
         }
       }
-    }
+    },
+    "caveats": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/Caveat" }
+    },
+    "provenance": { "$ref": "common.schema.json#/$defs/Provenance" }
   }
 }

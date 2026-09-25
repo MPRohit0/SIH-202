@@ -117,7 +117,7 @@ K-S test at 5%: every model passes except DFM 2024 for T_f (statistic 0.246 > cr
 
 ## Base equations — IMPLEMENT FROM ORIGINAL PAPER
 
-Do **not** transcribe these from the Azmi PDF. Implement each from its original source, cite the equation number in the docstring, and unit-test it against a worked example from that source. The input lists below come from the forms reproduced in the PDF, so confirm them against the originals.
+The originals weren't available, so `docs/equations.md` transcribes Azmi's reproductions of these equations, each tagged SECONDARY. Implement from that file, but replace each equation with the original as soon as you have it: cite its equation number in the docstring and unit-test it against a worked example from the original. The input lists below come from the forms reproduced in the PDF, so confirm them against the originals.
 
 | Code | Used for | Original source | Inputs (confirm) |
 |---|---|---|---|

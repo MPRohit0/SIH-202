@@ -30,6 +30,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from backend.m0_api import jobs, mock_files, mocks, registry, rendering, schemas
+from backend.m0_api import compare as api_compare
+from backend.m0_api import timeline as api_timeline
 
 app = FastAPI(title="SIH26 GLOF/dam-break decision-support API", version="0.1.0")
 
@@ -227,8 +229,16 @@ def get_flood_extent(query_id: QueryIdPath) -> JSONResponse:
 # 13. GET /flood/{query_id}/timeline
 # =============================================================================
 @app.get(f"{API}/flood/{{query_id}}/timeline")
-def get_flood_timeline(query_id: QueryIdPath) -> JSONResponse:
-    return _validated_json("timeline.schema.json", mocks.mock_response("timeline.example.json", query_id=query_id))
+def get_flood_timeline(query_id: QueryIdPath, interval_s: int = Query(300, ge=60, le=86400)) -> JSONResponse:
+    found = api_timeline.find_query_timeline_dir(query_id)
+    if found is None:
+        return _validated_json("timeline.schema.json", mocks.mock_response("timeline.example.json", query_id=query_id))
+    site_id, timeline_dir = found
+    response = api_timeline.build_response(site_id, timeline_dir, query_id, interval_s)
+    if len(response["frames"]) > api_timeline.MAX_FRAMES:
+        raise HTTPException(status_code=422, detail=mocks.error(
+            "too_many_frames", f"{len(response['frames'])} frames exceeds the {api_timeline.MAX_FRAMES} limit; increase interval_s."))
+    return _validated_json("timeline.schema.json", response)
 
 
 # =============================================================================
@@ -245,6 +255,11 @@ def get_impact(query_id: QueryIdPath) -> JSONResponse:
 @app.get(f"{API}/compare/{{site_id}}")
 def get_compare(site_id: SiteIdPath, scenario_id: str | None = Query(default=None)) -> JSONResponse:
     _require_known_site(site_id)
+    found = api_compare.find_compare_sidecar(site_id, scenario_id)
+    if found is not None:
+        model, held_out_run_id, sidecar_path = found
+        response = api_compare.build_response(site_id, scenario_id, model, held_out_run_id, sidecar_path)
+        return _validated_json("compare.schema.json", response)
     ids = {"site_id": site_id}
     if scenario_id:
         ids["scenario_id"] = scenario_id
@@ -324,11 +339,42 @@ def get_scene3d(query_id: QueryIdPath) -> JSONResponse:
     return _validated_json("scene3d.schema.json", mocks.mock_response("scene3d.example.json", query_id=query_id))
 
 
+#: A timeline frame PNG's path, anchored end to end so no other shape of
+#: `path` (in particular nothing with `..` or extra segments) can match.
+TIMELINE_FRAME_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/queries/(?P<query_id>q_\d{{8}}T\d{{6}}Z_[0-9a-f]{{6}})"
+    r"/timeline/(?P<band>median|high|possible)_t(?P<t_s>\d+)\.png$"
+)
+
+#: A Compare depth-difference PNG's path, anchored the same way (run_id
+#: restricted to id-safe characters -- no `/` or `.` -- so nothing can
+#: escape `validation/compare/`).
+COMPARE_DIFF_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/emulator/(?P<model>delft3d|sph)/validation/compare/"
+    r"(?P<run_id>[A-Za-z0-9_]+)__depth_diff\.png$"
+)
+
+
 # =============================================================================
 # 22. GET /files/{path}
 # =============================================================================
 @app.get(f"{API}/files/{{path:path}}")
 def get_file(path: str) -> Response:
+    m = TIMELINE_FRAME_PATH_RE.match(path)
+    if m is not None:
+        timeline_dir = registry.data_dir() / m["site_id"] / "queries" / m["query_id"] / "timeline"
+        if (timeline_dir / "timeline_data.json").is_file():
+            png_bytes = api_timeline.render_frame(timeline_dir, m["band"], int(m["t_s"]))
+            return Response(content=png_bytes, media_type="image/png")
+
+    m = COMPARE_DIFF_PATH_RE.match(path)
+    if m is not None:
+        sidecar_path = (
+            registry.data_dir() / m["site_id"] / "emulator" / m["model"] / "validation" / "compare" / f"{m['run_id']}.json"
+        )
+        if sidecar_path.is_file():
+            png_bytes = api_compare.render_diff_layer(sidecar_path, m["run_id"])
+            return Response(content=png_bytes, media_type="image/png")
     if path.endswith(".png"):
         return Response(content=mock_files.mock_png(), media_type="image/png")
     if path.endswith(".geojson"):

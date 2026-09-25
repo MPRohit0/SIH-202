@@ -817,15 +817,42 @@ Response (`FloodQueryResponse`):
 
 ### 5.5 Timeline
 
+`GET /flood/{query_id}/timeline?interval_s=300` (default 300 s, i.e. every 5 min; range 60-86400 s).
+Frame time `t_s = k * interval_s` for `k = 1, 2, ...`, up to `t_end_s` (the run's simulation end).
+**Extent at time t = cells whose arrival <= t.** Three PNGs per frame, all on the query's canonical
+grid, all transparent outside their extent:
+
+- `median_url`: cells where the median (P50) arrival time <= t, coloured by arrival time
+  (`arrival_p50` style).
+- `high_url`: HIGH-confidence cells (`extent_class == 2`) whose P90 arrival time <= t
+  (`extent_class` style, code 2).
+- `possible_url`: POSSIBLE-or-HIGH cells (`extent_class >= 1`) whose P10 arrival time <= t and not
+  already in `high_url` (`extent_class` style, code 1).
+
+At `t_s = t_end_s`, `high_url` + `possible_url` together reproduce the query's final `extent_class`
+layer; frames are monotone (a cell, once lit, stays lit in later frames).
+
+`arrival_profile` samples the centreline every canonical grid cell size (`chainage_samples.csv`,
+§4.1); `arrival_p10_s`/`arrival_p90_s` are `null` where that percentile never arrives within
+`t_end_s`; a chainage row is omitted entirely if even the median never arrives. Arrival and depth
+percentiles are per-cell marginals, not a true joint distribution -- flagged via
+`caveat_arrival_depth_not_joint`.
+
 ```jsonc
 {
-  "query_id": "q_20260924T101500Z_3fa9c1", "interval_s": 300,
+  "query_id": "q_20260924T101500Z_3fa9c1", "interval_s": 300, "t_end_s": 21600,
   "frames": [ { "t_s": 300, "median_url": "...png", "high_url": "...png", "possible_url": "...png", "bounds_latlng": [[0, 0], [0, 0]] } ],
   "hydrographs": [ { "dam_id": "teesta__south_lhonak", "t_offset_s": 0, "points": [ { "t_s": 0, "q_m3s": 0.0 } ] } ],
-  "arrival_profile": [ { "chainage_m": 0.0, "arrival_p10_s": 0, "arrival_p50_s": 0, "arrival_p90_s": 0 } ],
-  "pois_on_profile": [ { "poi_id": "teesta__poi__chungthang", "name": "Chungthang", "chainage_m": 0.0 } ]
+  "arrival_profile": [ { "chainage_m": 0.0, "arrival_p10_s": 0, "arrival_p50_s": 0, "arrival_p90_s": 0 },
+                        { "chainage_m": 12000.0, "arrival_p10_s": 2100, "arrival_p50_s": 2400, "arrival_p90_s": null } ],
+  "pois_on_profile": [ { "poi_id": "teesta__poi__chungthang", "name": "Chungthang", "chainage_m": 12000.0 } ],
+  "caveats": [ { "id": "clear_water", "severity": "warning", "text_key": "caveat_clear_water" } ],
+  "provenance": { "method": "gp_emulator", "contract_version": "0.1.0", "created_at": "2026-09-24T10:15:00Z" }
 }
 ```
+
+PNG URLs follow `/api/v1/files/<site_id>/queries/<query_id>/timeline/{median|high|possible}_t<t_s>.png`
+(§1.8 `queries/<query_id>/timeline/`), served by route #22 (`GET /files/{path}`).
 
 Extent at time t = cells whose arrival ≤ t.
 

@@ -101,7 +101,11 @@ def test_held_out_run_excluded_from_its_own_fold(library, specs):
             settings=settings, progress=False,
         )
     finally:
-        FloodEmulator.fit = original_fit
+        # classmethod(...), not the bare function: assigning the unwrapped
+        # function back left FloodEmulator.fit needing an explicit `cls`
+        # argument for every later test in the session (it's no longer bound
+        # automatically), which broke any test module that ran after this one.
+        FloodEmulator.fit = classmethod(original_fit)
 
     assert len(seen_X) == N_TRAIN
     for i, X_train in enumerate(seen_X):

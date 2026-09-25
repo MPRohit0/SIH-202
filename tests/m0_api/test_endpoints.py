@@ -292,6 +292,116 @@ def test_get_flood_timeline():
     assert body["query_id"] == QUERY_ID
 
 
+def _write_synthetic_timeline(data_dir, *, query_id=QUERY_ID, site_id=KNOWN_SITE, t_end_s=3600.0, width=6, height=3):
+    """Writes real timeline/*.tif + timeline_data.json under `data_dir`, the
+    way M5's `write_timeline_inputs` would after a real query -- the M0
+    tests then only exercise the route, not the M5 arithmetic (covered in
+    tests/m5_emulator/test_timeline.py)."""
+    import dataclasses
+
+    import numpy as np
+
+    from backend.m2_breach.hydrograph import triangular
+    from backend.m5_emulator import timeline as m5_timeline
+    from backend.m5_emulator.query import FloodResult
+    from backend.shared.grid import CanonicalGrid
+
+    grid = CanonicalGrid(
+        site_id=site_id, grid_id="farfield", crs_epsg=32645,
+        origin_x=500_000.0, origin_y=3_100_000.0, cell_size_m=30.0, width=width, height=height,
+    )
+    col = np.tile(np.arange(width), (height, 1)).astype(np.float32)
+    frac = col / (width - 1)  # 0 (upstream) -> 1 (downstream)
+    p50 = frac * t_end_s * 0.6
+    p10 = np.maximum(p50 - 300.0, 0.0)
+    p90 = p50 + 300.0
+    extent_class = np.where(frac < 0.7, np.uint8(2), np.uint8(1))
+
+    result = FloodResult(
+        site_id=site_id, model="synthetic", mode="scenario", resolved_inputs={},
+        p_inundation=np.ones(grid.shape, dtype=np.float32), extent_class=extent_class,
+        median={"arrival_time": p50}, p10={"arrival_time": p10}, p90={"arrival_time": p90},
+        poi_depth={}, poi_velocity={}, poi_arrival={}, poi_p_inundation={},
+        inundated_area_m2=(0.0, 0.0, 0.0), max_depth_site=(0.0, 0.0, 0.0), max_velocity_site=(0.0, 0.0, 0.0),
+        outside_trained_range=False, confidence={"overall": {"level": "MODERATE"}}, n_samples=None,
+    )
+    chainage_m, cell_index = np.arange(width) * grid.cell_size_m, np.arange(width)
+    hg = dataclasses.replace(triangular(Q_p=500.0, V=2_000_000.0, T_f=600.0), dam_id="synth_dam")
+
+    query_dir = data_dir / site_id / "queries" / query_id
+    m5_timeline.write_timeline_inputs(
+        result, grid, query_dir, hydrographs=[hg], chainage_m=chainage_m, cell_index=cell_index,
+        pois={}, t_end_s=t_end_s, contract_version="0.1.0", created_at="2026-09-24T10:15:00Z",
+    )
+    return query_dir
+
+
+def test_get_flood_timeline_real_when_written(data_dir):
+    _write_synthetic_timeline(data_dir)
+    r = client.get(f"{API}/flood/{QUERY_ID}/timeline")
+    assert r.status_code == 200
+    body = r.json()
+    assert_matches("timeline.schema.json", body)
+    assert body["interval_s"] == 300
+    assert body["t_end_s"] == 3600.0
+    assert body["frames"]
+    assert any(row["arrival_p50_s"] is not None for row in body["arrival_profile"])
+    assert body["hydrographs"][0]["dam_id"] == "synth_dam"
+    assert any(c["id"] == "arrival_depth_not_joint" for c in body["caveats"])
+
+
+def test_get_flood_timeline_interval_s_changes_frame_count(data_dir):
+    _write_synthetic_timeline(data_dir)
+    coarse = client.get(f"{API}/flood/{QUERY_ID}/timeline", params={"interval_s": 1800}).json()
+    fine = client.get(f"{API}/flood/{QUERY_ID}/timeline", params={"interval_s": 300}).json()
+    assert len(fine["frames"]) > len(coarse["frames"])
+    assert fine["frames"][-1]["t_s"] <= fine["t_end_s"]
+
+
+def test_get_flood_timeline_too_many_frames_422(data_dir):
+    _write_synthetic_timeline(data_dir, t_end_s=100_000.0)
+    r = client.get(f"{API}/flood/{QUERY_ID}/timeline", params={"interval_s": 60})
+    assert r.status_code == 422
+
+
+def test_get_flood_timeline_interval_s_out_of_range_422():
+    r = client.get(f"{API}/flood/{QUERY_ID}/timeline", params={"interval_s": 10})
+    assert r.status_code == 422
+
+
+def test_get_flood_timeline_frame_png_renders_and_caches(data_dir):
+    query_dir = _write_synthetic_timeline(data_dir)
+    r = client.get(f"{API}/files/{KNOWN_SITE}/queries/{QUERY_ID}/timeline/median_t300.png")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+    assert r.content.startswith(b"\x89PNG")
+    assert r.content != mock_files.mock_png()
+    assert (query_dir / "timeline" / "median_t300.png").is_file()
+
+
+def test_get_flood_timeline_frame_png_high_and_possible_differ(data_dir):
+    _write_synthetic_timeline(data_dir)
+    high = client.get(f"{API}/files/{KNOWN_SITE}/queries/{QUERY_ID}/timeline/high_t3600.png")
+    possible = client.get(f"{API}/files/{KNOWN_SITE}/queries/{QUERY_ID}/timeline/possible_t3600.png")
+    assert high.status_code == possible.status_code == 200
+    assert high.content != possible.content
+
+
+def test_get_flood_timeline_frame_png_falls_back_to_mock_when_no_query():
+    r = client.get(f"{API}/files/{KNOWN_SITE}/queries/{QUERY_ID}/timeline/median_t300.png")
+    assert r.status_code == 200
+    assert r.content == mock_files.mock_png()
+
+
+def test_get_flood_timeline_frame_path_rejects_traversal(data_dir):
+    _write_synthetic_timeline(data_dir)
+    r = client.get(f"{API}/files/{KNOWN_SITE}/queries/../../../etc/timeline/median_t300.png")
+    # doesn't match TIMELINE_FRAME_PATH_RE (query_id pattern fails) -> falls through to the generic mock/404 path
+    assert r.status_code in (200, 404)
+    if r.status_code == 200:
+        assert r.content == mock_files.mock_png()
+
+
 # =============================================================================
 # 14. impact
 # =============================================================================
@@ -318,6 +428,95 @@ def test_get_compare_with_scenario_id():
     body = r.json()
     assert_matches("compare.schema.json", body)
     assert body["scenario_id"] == "teesta__s009"
+
+
+def _write_synthetic_compare(data_dir, *, site_id=KNOWN_SITE, model="delft3d", scenario_id="teesta_s005"):
+    """Writes a real compare sidecar + depth_diff.tif under `data_dir`, the
+    way M5's `write_compare_inputs` would after a real LOOCV run -- a small
+    (N=6, coarse-grid, n_restarts=1) synthetic library keeps the one real GP
+    fit this triggers fast. The M0 tests then only exercise the route, not
+    the M5 arithmetic (covered in tests/m5_emulator/test_compare.py)."""
+    from backend.m5_emulator import compare as m5_compare
+    from backend.m5_emulator import library as lib
+    from backend.m5_emulator.emulator import EmulatorSettings
+    from backend.m5_emulator.inputs import make_input_specs
+    from backend.shared.grid import CanonicalGrid
+
+    grid = CanonicalGrid(
+        site_id=site_id, grid_id="farfield", crs_epsg=32645,
+        origin_x=500_000.0, origin_y=3_100_000.0, cell_size_m=250.0, width=160, height=12,
+    )
+    library = lib.build_synthetic_library(grid, n=6, seed=5)
+    ranges = {
+        name: (float(library.X_raw[:, i].min()), float(library.X_raw[:, i].max()))
+        for i, name in enumerate(lib.INPUT_ORDER)
+    }
+    specs = make_input_specs(ranges)
+    settings = EmulatorSettings(seed=5, n_restarts=1)
+    maps = {"max_depth": library.max_depth, "max_velocity": library.max_velocity, "arrival_time": library.arrival_time}
+
+    held_out_run_id = f"{scenario_id}__{model}"
+    report = {
+        "per_run": [{
+            "run_id": held_out_run_id, "iou": 0.42, "depth_rmse_wet_m": 0.11, "arrival_mae_s": 123.0,
+        }],
+        "summary": {"extent": {"iou_median": 0.42}, "arrival": {"mae_s_median": 123.0}},
+        "baseline_linear": {"extent": {"iou_median": 0.20}, "arrival": {"mae_s_median": 400.0}},
+    }
+
+    out_dir = data_dir / site_id / "emulator" / model / "validation"
+    compare_dir = m5_compare.write_compare_inputs(
+        report, library.X_raw, maps, library.grid, specs, [held_out_run_id] + library.run_ids[1:], library.t_end_s,
+        settings, held_out_run_id, out_dir, contract_version="0.1.0", created_at="2026-09-25T00:00:00Z",
+    )
+    return compare_dir
+
+
+def test_get_compare_real_when_written(data_dir):
+    _write_synthetic_compare(data_dir)
+    r = client.get(f"{API}/compare/{KNOWN_SITE}", params={"scenario_id": "teesta_s005"})
+    assert r.status_code == 200
+    body = r.json()
+    assert_matches("compare.schema.json", body)
+    assert body["emulator_vs_physics"]["held_out_run_id"] == "teesta_s005__delft3d"
+    assert body["emulator_vs_physics"]["metrics"]["iou"] == 0.42
+    assert body["gp_vs_linear"]["iou_median_gp"] == 0.42
+    assert body["gp_vs_linear"]["iou_median_linear"] == 0.20
+    assert body["emulator_vs_physics"]["layers"][0]["style_id"] == "depth_diff"
+    # sph_vs_delft3d / when_to_use_key are unaffected -- still the mock (out of scope)
+    assert body["sph_vs_delft3d"] == schemas.load_example("compare.example.json")["sph_vs_delft3d"]
+    assert any(c["id"] == "synthetic_world_not_real_physics" for c in body["caveats"])
+
+
+def test_get_compare_falls_back_to_mock_without_scenario_id(data_dir):
+    _write_synthetic_compare(data_dir)
+    r = client.get(f"{API}/compare/{KNOWN_SITE}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["emulator_vs_physics"]["held_out_run_id"] != "teesta_s005__delft3d"
+
+
+def test_get_compare_falls_back_to_mock_when_no_sidecar_written():
+    r = client.get(f"{API}/compare/{KNOWN_SITE}", params={"scenario_id": "teesta_s999"})
+    assert r.status_code == 200
+    body = r.json()
+    assert_matches("compare.schema.json", body)
+
+
+def test_get_compare_diff_png_renders_and_caches(data_dir):
+    compare_dir = _write_synthetic_compare(data_dir)
+    r = client.get(f"{API}/files/{KNOWN_SITE}/emulator/delft3d/validation/compare/teesta_s005__delft3d__depth_diff.png")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+    assert r.content.startswith(b"\x89PNG")
+    assert r.content != mock_files.mock_png()
+    assert (compare_dir / "teesta_s005__delft3d__depth_diff.png").is_file()
+
+
+def test_get_compare_diff_png_falls_back_to_mock_when_no_sidecar():
+    r = client.get(f"{API}/files/{KNOWN_SITE}/emulator/delft3d/validation/compare/nope__delft3d__depth_diff.png")
+    assert r.status_code == 200
+    assert r.content == mock_files.mock_png()
 
 
 # =============================================================================

@@ -1,6 +1,7 @@
 {
   "query_id": "q_20260924T101500Z_3fa9c1",
   "interval_s": 300,
+  "t_end_s": 21600,
   "frames": [
     {
       "t_s": 300,
@@ -41,6 +42,12 @@
       "arrival_p10_s": 0,
       "arrival_p50_s": 0,
       "arrival_p90_s": 0
+    },
+    {
+      "chainage_m": 12000.0,
+      "arrival_p10_s": 2100,
+      "arrival_p50_s": 2400,
+      "arrival_p90_s": null
     }
   ],
   "pois_on_profile": [
@@ -49,5 +56,14 @@
       "name": "Chungthang",
       "chainage_m": 12000.0
     }
-  ]
+  ],
+  "caveats": [
+    { "id": "clear_water", "severity": "warning", "text_key": "caveat_clear_water" },
+    { "id": "arrival_depth_not_joint", "severity": "info", "text_key": "caveat_arrival_depth_not_joint" }
+  ],
+  "provenance": {
+    "method": "gp_emulator",
+    "contract_version": "0.1.0",
+    "created_at": "2026-09-24T10:15:00Z"
+  }
 }

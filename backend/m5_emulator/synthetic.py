@@ -386,6 +386,18 @@ def poi_cell_index(grid: CanonicalGrid, chainage_m: float) -> int:
     return row * grid.width + col
 
 
+def centreline_samples(grid: CanonicalGrid) -> tuple[np.ndarray, np.ndarray]:
+    """`(chainage_m, cell_index)`, both `(width,)`: every centreline cell in
+    downstream order, standing in for the real `chainage_samples.csv`
+    (`docs/handoff_contract.md` §4.1, "M5 timeline") that a trained M1
+    module would produce -- same `row = height // 2` convention as
+    `poi_cell_index`, one sample per column."""
+    chainage, _ = _chainage_and_offset(grid)
+    row = grid.height // 2
+    cell_index = row * grid.width + np.arange(grid.width, dtype=np.int64)
+    return chainage, cell_index
+
+
 def write_synthetic_run(
     run_dir: str | Path,
     grid: CanonicalGrid,

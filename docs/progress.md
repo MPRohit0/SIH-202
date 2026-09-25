@@ -479,3 +479,183 @@ threshold). A6-A8 stay unevaluated rather than guessed at.
 **Out of scope this session, left for next:** Monte Carlo / unknown-breach mode, the confidence
 rule (needed for A6/A8), `get_flood()`, the empirical fallback, the real `design/scenario_design.json`,
 and loading real Delft3D/SPH runs for `loocv.py --site`.
+
+## 2026-09-25 — m5_emulator: get_flood(), Monte Carlo, confidence rule
+- `backend/m5_emulator/confidence.py`: the S (LOOCV skill) / C (query coverage) / U (prediction
+  spread) checks (`docs/m5_specs.md` §6), combined by the count rule in `docs/handoff_contract.md`
+  §2.3 (all good → HIGH; one weak → MODERATE; two+ weak, OUTSIDE, empirical fallback, or demo mode →
+  LOW), plus the placeholder-input cap. Spec only defines U for depth/arrival and doesn't define
+  extent's spread at all; documented deviations: velocity reuses depth's *relative* cutoffs, extent's
+  spread reads off the POSSIBLE-vs-HIGH fraction of the flooded area (a draft threshold, flagged as
+  such, not sourced). `per_cell_upper_bound()` bounds a GP's response over the whole trained input
+  box (via all `2^n_inputs` box corners) without assuming which direction the response grows in —
+  used by `monte_carlo.py` to size histogram bins.
+- `backend/m5_emulator/monte_carlo.py`: `sample_inputs()` (log-uniform/uniform per input scaling,
+  §5.2), `chunk_size_for()` (§5.3's formula — reproduces the spec's own "166 samples/chunk" worked
+  example once the 2 GB budget is read as decimal, not `2*1024**3`), and `run_monte_carlo()`: chunked
+  GP sampling (`z_j ~ N(mu_j, sigma_j^2)` per component per sample) into fixed-size accumulators —
+  exceedance counts, per-cell 64-bin histograms (one `np.bincount` per chunk, not a 64-iteration
+  Python loop — the loop was the dominant cost at real corridor sizes) for depth/velocity, and exact
+  stored samples for site-wide max depth/velocity, inundated area, and every point of interest
+  (depth/velocity/arrival). Full-grid arrival maps are explicitly out of scope (POIs only) — see the
+  module docstring for why.
+- `backend/m5_emulator/query.py`: `get_flood(emulator, mode, inputs, pois, ...)` — `scenario` mode is
+  one GP prediction with an *analytic* P10/P90 band and P(inundation) (`1 - Phi`, no resampling);
+  `unknown_breach` mode runs `monte_carlo.run_monte_carlo`. Both produce `p_inundation`,
+  HIGH/POSSIBLE `extent_class` (site config `high_p`/`possible_p` thresholds), depth/velocity
+  median+P10/P90 maps, arrival median+range at every POI, and per-output confidence.
+  `to_contract_response()` assembles a `FloodQueryResponse` dict (`docs/handoff_contract.md` §5.4).
+  `peak_discharge_m3s` is honestly reported as a null-valued placeholder Estimate — it's an M2
+  output, not one this emulator predicts, and CLAUDE.md rule 3 forbids inventing it.
+- Scope decisions made without asking further (all previously flagged to the user before coding):
+  `get_flood()` takes an already-fitted `FloodEmulator`, not a `site_id` (no on-disk site→emulator
+  loading convention exists yet); unknown-breach mode's default sampling ranges are the emulator's
+  own trained design box (`InputSpec.low/high`, already the widened M2 pair bounds per §2), with an
+  optional `ranges=` override for a caller that has the real unwidened M2 range; resolving the
+  request contract's `{type: exact | slider}` wrappers is left to a future M0/site-config session.
+- Found and fixed a pre-existing bug while running the full suite: `test_loocv.py`'s
+  `FloodEmulator.fit` monkeypatch restored the *bare* function instead of `classmethod(...)`,
+  breaking every `FloodEmulator.fit()` call in test modules that ran after it in the same session.
+- Tests: `tests/m5_emulator/{test_confidence,test_monte_carlo,test_query}.py` — 65 new, plus a shared
+  `conftest.py` fixture (fits on `synthetic.small_grid()`, matching `test_emulator.py`'s existing
+  convention — a coarser custom grid was tried first and rejected because `poi_cell_index`'s
+  centreline convention falls outside the corridor mask at coarse resolution in the gorge). Every
+  `to_contract_response()` output validates against `flood_query_response.schema.json`. Timing:
+  scenario mode on `synthetic.small_grid()` (500k cells) — **~0.03 s**, well under the 3 s ask;
+  unknown_breach mode, 2000 samples on the same grid — **~13 s**, under spec's own 60 s target (A7) —
+  the 3 s ask is only realistic for a single analytic scenario prediction, not a full per-cell Monte
+  Carlo histogram over a ~118k-cell corridor. `pytest -q`: **476 passed** (65 new + 1 pre-existing
+  bug fixed; full project suite, no regressions).
+
+**Out of scope this session, left for next:** wiring `get_flood()`/`fallback.py` into
+`backend.m0_api` (still fully mocked), A6/A8 acceptance-test wiring in `loocv.py` (the confidence
+rule now exists but isn't plugged into `run_acceptance()` yet), and the real
+`design/scenario_design.json`.
+
+## Session: M5 empirical fallback (`backend/m5_emulator/fallback.py`)
+
+- Implemented the fallback for sites without a trained emulator (`docs/handoff_contract.md` §4.6:
+  `method: "empirical_fallback"`, confidence always LOW): `route_discharge` takes M2's
+  `peak_q_m3s` and routes it along the centreline with **no attenuation** (a deliberate,
+  documented simplification — conservative rather than an invented decay coefficient);
+  `channel_top_width_m`/`channel_roughness` read a per-cross-section active-channel width and
+  Manning's n off the HAND/roughness rasters (HAND ≤ 2 m = "in channel", a fallback-only method
+  parameter, not a sourced fact); `manning_normal_depth`/`manning_velocity` solve Manning's
+  equation for a wide rectangular channel; cells flood where HAND < that station's depth
+  (`run_empirical_fallback`); arrival comes from a kinematic-wave celerity `c = (5/3) v`
+  (standard open-channel hydraulics, not one of `docs/Equations.md`'s breach equations — cited
+  in the docstring instead, per CLAUDE.md rule 4's spirit). `to_contract_response()` mirrors
+  `query.py`'s shape with `method: "empirical_fallback"` and the `empirical_fallback` +
+  `clear_water` caveats.
+- M1 (`backend/m1_terrain`) doesn't exist yet, so `hand.tif`/`roughness.tif`/`chainage_samples.csv`
+  don't either (CLAUDE.md rule 2: every module needs synthetic-data tests before real data
+  exists). Added `synthetic_fallback_terrain()`: a HAND/roughness/bed-elevation stand-in built
+  from the same 40 km valley geometry as `synthetic.py` (§7.1) but **not** through
+  `synthetic_flood_maps` — the fallback is tested against terrain alone, never against the
+  emulator's own "true" answer for the same scenario.
+- Confidence: always LOW with `reason_key: "conf_empirical_fallback"`, via
+  `confidence.combine(..., empirical_fallback=True)` — had to pass `query_coverage="INSIDE"`
+  (not `"OUTSIDE"`) as the dummy placeholder, since `combine` checks literal `"OUTSIDE"` before
+  the `empirical_fallback` flag and would otherwise report the wrong reason (`conf_extrapolation`).
+- Contract note: `flood_query_response.schema.json`'s `summary.first_arrival.poi_id`/`.name` are
+  non-nullable strings, so `to_contract_response()` needs at least one POI to validate on a wet
+  result — added an optional `pois=` param (same `name -> flattened cell index` convention as
+  `query.get_flood`). `query.py`'s own `to_contract_response()` has the same latent gap (returns
+  `None` when no POI ever arrives); not fixed here, out of scope for this session.
+- Tests: `tests/m5_emulator/test_fallback.py` — 18 new, covering each equation in isolation
+  (routing is constant with chainage, Manning depth grows with discharge/shrinks with slope,
+  celerity floors at a minimum, arrival is monotonic downstream and offsets correctly),
+  `run_empirical_fallback`'s flood/dry boundary and discharge monotonicity on the synthetic
+  valley, and `to_contract_response()` validating against the schema. `pytest -q`: **494 passed**
+  (full project suite, no regressions).
+
+## 2026-09-25 — Timeline (`GET /flood/{query_id}/timeline`, contract §5.5, route #13)
+
+- Contract amendment (user-approved): `timeline.schema.json`/`docs/handoff_contract.md` §5.5
+  gained `t_end_s`, `caveats`, `provenance` (required, matching `hydrograph_sidecar.schema.json`'s
+  pattern via `common.schema.json`'s `Caveat`/`Provenance` defs); `arrival_profile[].arrival_p10_s`/
+  `.arrival_p90_s` may now be `null` ("that percentile never arrives within `t_end_s`"); a chainage
+  row is omitted entirely if even the median never arrives. `contracts/examples/timeline.example.json`
+  updated to match.
+- `monte_carlo.py`: `HISTOGRAM_OUTPUTS` now includes `"arrival_time"` (was POI-only), so
+  `unknown_breach` mode gets a full-grid arrival map too. Its bin edges run `[0, t_end_s*64/63)`,
+  reserving the top bin for "never arrived" (a sample whose depth never exceeds `arrival_m` is
+  recorded as exactly `t_end_s`) — trades that bin's resolution (`t_end_s/63`) for telling "arrives
+  very late" from "doesn't arrive" without a second accumulator.
+- `query.py`: both modes now gate each arrival band (median/P10/P90) by *that band's own* depth
+  (previously scenario mode gated all three arrival bands by the median depth only, hiding arrival
+  at POSSIBLE cells outside the median-wet area). `unknown_breach` mode reads arrival percentiles
+  off the new histogram, treating a percentile near the top ("never arrived") bin as nodata via a
+  half-bin-width tolerance (floating-point-safe, not an exact `== t_end_s` check).
+  `to_contract_response()` no longer skips the `arrival_p*` layers for `unknown_breach`.
+- New `backend/m5_emulator/timeline.py` (pure numpy + one file-writing entry point):
+  `frame_times()` (default 5 min interval, capped at `t_end_s`), `frame_arrays()` (median/HIGH/
+  POSSIBLE per contract §5.5's "extent at time t = cells whose arrival <= t"; HIGH gates on P90
+  arrival, POSSIBLE on P10 arrival and not-already-HIGH — the two partition the final `extent_class`
+  exactly at `t = t_end_s`), `arrival_profile()`, `pois_on_profile()`, `hydrograph_series()` (from
+  `m2_breach.Hydrograph`), and `write_timeline_inputs()` (writes `timeline/{arrival_p10,arrival_p50,
+  arrival_p90,extent_class}.tif` + `timeline_data.json`, everything a `Timeline` needs except the
+  `interval_s`-dependent frame list, which M0 builds per request since the rasters don't change
+  with it). `synthetic.py` gained `centreline_samples()` (public wrapper on `_chainage_and_offset`,
+  same convention as `poi_cell_index`) standing in for the real, not-yet-built `chainage_samples.csv`.
+- New `backend/m0_api/timeline.py`: `find_query_timeline_dir()`, `build_response()` (assembles the
+  `Timeline` dict with frame URLs), `render_frame()` (renders one band at one `t_s` via
+  `rendering.render_layer_png`, cached beside the source rasters like `render_and_cache`). Wired
+  into `main.py`'s route #13 (`interval_s` query param, default 300 s, range [60, 86400], 422 above
+  500 frames) and route #22 (`/files/{path}`) via a strict anchored regex
+  (`TIMELINE_FRAME_PATH_RE`) matching only `<site>/queries/<query_id>/timeline/{band}_t<t>.png` —
+  falls through to the existing mock behaviour for every other path or when no query has been
+  written yet.
+- Known gap (out of scope this session, flagged in `backend/m5_emulator/__init__.py`): nothing yet
+  calls `write_timeline_inputs()` from a live `POST /flood/query` handler (still mocked); real M1
+  `centreline.gpkg`/`chainage_samples.csv` don't exist, so real sites still need `synthetic.py`'s
+  stand-in replaced once M1 lands.
+- Tests: `tests/m5_emulator/test_timeline.py` (12 new — frame monotonicity, HIGH+POSSIBLE
+  reproducing `extent_class` at `t_end_s`, arrival-profile ordering/null-handling, hydrograph
+  round-trip, both modes' `write_timeline_inputs()` output validating against the schema) and
+  `tests/m0_api/test_endpoints.py` (9 new — real timeline route with synthetic inputs written into
+  `data_dir`, `interval_s` changing frame count, the 422s, frame PNG rendering/caching, mock
+  fallback when nothing's written, and that a malformed `/files/...` path can't escape the regex).
+  `pytest -q`: **514 passed** (full project suite, no regressions).
+
+## 2026-09-25 — Compare "emulator vs physics" / "GP vs linear" (contract §5.6, route #15)
+
+- No contract change needed this session: `compare.schema.json`/`.example.json` already had
+  `emulator_vs_physics` (held-out LOOCV prediction vs physics, `iou`/`depth_rmse_wet_m`/
+  `arrival_mae_s` + diff-map `layers`) and `gp_vs_linear` (aggregate GP-vs-linear-baseline medians)
+  fully specified — `backend/m0_api/main.py`'s route just never read real data for them.
+  User-confirmed scope: build against the synthetic test world (no real Delft3D/SPH run data
+  exists yet, same as every other M5 module so far); precompute the one requested held-out fold's
+  diff raster and write it to disk rather than refitting live on every request.
+- New `backend/m5_emulator/compare.py`: `emulator_vs_physics_metrics()`/`gp_vs_linear_summary()`
+  read `loocv.build_report()`'s per-run GP metrics and baseline aggregate medians back out in the
+  Compare contract's shape (no new computation — LOOCV already scores every held-out run against
+  both A1 baselines). `fit_and_diff_held_out()` fills the one real gap: LOOCV discards each fold's
+  full-grid prediction array after scoring (CLAUDE.md rule 13), so it refits `FloodEmulator` on
+  every run but the chosen one via the public `.fit()`/`.predict()` API (not `loocv.py`'s private
+  fold internals) and returns `predicted_max_depth - true_max_depth`, reusing the existing
+  `depth_diff` diverging style (`contracts/styles.json`) already used by `sph_vs_delft3d.layers` —
+  no style/contract change needed for the diff map either. `write_compare_inputs()` writes
+  `emulator/<model>/validation/compare/<held_out_run_id>__depth_diff.tif` +
+  `<held_out_run_id>.json` (metrics, `gp_vs_linear`, `bounds_latlng`, a `synthetic_world_not_real_physics`
+  caveat — same honesty pattern as `loocv.py`'s own report caveat).
+- New `backend/m0_api/compare.py`: `find_compare_sidecar()` tries `f"{scenario_id}__{model}"` for
+  `model in (delft3d, sph)` under `data/<site>/emulator/<model>/validation/compare/`; `build_response()`
+  starts from the mock example (keeping `sph_vs_delft3d`/`when_to_use_key` mocked — no real SPH/
+  Delft3D data, out of scope) and overwrites `emulator_vs_physics`/`gp_vs_linear` plus appends the
+  sidecar's caveat; `render_diff_layer()` reuses `rendering.render_and_cache`. Wired into `main.py`'s
+  route #15 (falls back to the existing full mock when no `scenario_id` is given or no sidecar has
+  been written) and route #22 (`/files/{path}`) via a second strict anchored regex
+  (`COMPARE_DIFF_PATH_RE`, run_id restricted to id-safe characters), alongside the Timeline one.
+- Known gap (flagged in `backend/m5_emulator/__init__.py`, same shape as Timeline's): nothing yet
+  calls `compare.write_compare_inputs()` from a live LOOCV run; real M3/M4 run data and a real
+  `loocv.json` for an actual site don't exist yet either.
+- Tests: `tests/m5_emulator/test_compare.py` (8 new — metrics extraction matches the right
+  `per_run` row and returns `None` for an unknown run_id, `gp_vs_linear_summary` shape,
+  `fit_and_diff_held_out` provably excludes the held-out run from training (`FloodEmulator.fit`
+  spy) and returns a sane-shaped/signed diff array, `write_compare_inputs` output validating
+  against `compare.schema.json` once merged into a full Compare-shaped dict) and
+  `tests/m0_api/test_endpoints.py` (7 new — real compare route with a small synthetic LOOCV fold
+  written into `data_dir`, `sph_vs_delft3d` staying mocked, mock fallback with no `scenario_id` and
+  with an unwritten scenario, diff PNG rendering/caching, mock fallback for an unwritten diff PNG).
+  `pytest -q`: **527 passed** (full project suite, no regressions).
