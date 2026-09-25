@@ -306,3 +306,176 @@ before building: **`two_stage_imposed`**, not `dambreak_structure`. Full reasoni
 `equations_applicable`/`imposed_ranges` need filling from a real source. The per-dam `trigger`
 deviation from contract §3.1 is PENDING team agreement (see decisions.md); h_r (XZ9) and the
 Z20 FD/ZD mapping are still blocked from earlier sessions.
+
+## 2026-09-25 — M5: synthetic test world (`backend/m5_emulator/synthetic.py`)
+
+`backend/m5_emulator/` was completely empty before this session (no files at all). Built
+`docs/m5_specs.md` §7's synthetic test world — the fake-physics stand-in for Delft3D/SPH used to
+develop and test the rest of M5 before real runs exist.
+
+- `synthetic_flood_maps(grid, water_volume_m3, breach_width_m, failure_time_s, ...)`: pure,
+  deterministic function returning max depth [m] / max velocity [m/s] / arrival time [s since t0]
+  numpy arrays on a `CanonicalGrid`, reproducing every qualitative behaviour in §7.2 (gorge depth
+  cap, constriction backup with an upstream-biased backwater shoulder, terrace threshold overtop
+  with 0.5–1.5 m post-overtop depth, plain attenuation/spreading, arrival delay from failure time
+  fading with distance) via smoothstep-blended piecewise geometry — no discontinuities except the
+  terrace's deliberately steep (but continuous) sigmoid threshold. `write_synthetic_run()` writes
+  the same maps as GeoTIFFs at `summary/{max_depth,max_velocity,arrival_time}.tif`, matching the
+  M3/M4 run-result schema (`docs/handoff_contract.md` §4.4) exactly, via `backend.shared.grid.write_grid_raster`.
+- **Flagged, not silently changed:** §7.1 sketches non-square cells (e.g. "100 m x 50 m") sized to
+  resolve the ~50 m gorge across a valley whose fan is ~2 km wide. `CanonicalGrid` — the grid every
+  raster in this project must align to (§1.4) — only supports square cells, and no single square
+  size both resolves the narrowest feature (the 12.5 m constriction half-width) and keeps the
+  "~40k cells" small-grid target at this valley's full cross width. Resolved by keeping the spec's
+  40 km length and picking square-cell grids sized to actually resolve the constriction instead:
+  `small_grid()` = 16 m, 2500x200 (500k cells), `large_grid()` = 8 m, 5000x400 (2M cells, same
+  order of magnitude as "about 1M" and as the real far-field grids in §1.4's own example).
+- Verified monotonicity (acceptance test A3) beyond the unit tests: a 300-sample random sweep
+  across the full `DEFAULT_INPUT_RANGES` design space (V_w log-uniform 1e5–1e8, B_ave/T_f uniform
+  in their ranges) found **0% non-monotonic pairs** (target: ≤5%) for depth/velocity rising with
+  V_w, arrival falling with V_w, and arrival rising with downstream distance, over ~28M wet-cell
+  comparisons each. Large grid: 2M cells, one scenario in 0.087 s (A7 target: <2 s).
+- Tests: `tests/m5_emulator/test_synthetic.py` (24 tests) — grid presets, output shape/dtype/nodata
+  contract, determinism (with and without the noise switch), input validation, monotonic response
+  at several points, constriction backup, gorge-capped/plain-wide extent, terrace dry-then-flooded
+  threshold, and a GeoTIFF round-trip through `write_synthetic_run` (CRS/transform/nodata/values
+  match the in-memory arrays exactly).
+
+`pytest -q`: 331 passed (24 new). Ran with `/usr/bin/python3`.
+
+**Out of scope this session, left for next:** everything else in `docs/m5_specs.md` — scenario
+design (LHS over M2's ranges), the run cache, PCA + GP emulator itself, LOOCV, Monte Carlo,
+confidence rule, and the empirical fallback. `synthetic.py` only provides the test world those
+pieces will be built and tested against.
+
+## 2026-09-25 — m5_emulator: PCA + GP emulator core (fit / predict / save-load / sensitivity)
+- `transforms.py`: `log1p` for depth and velocity (docs/m5_specs.md §3 — the pasted task description
+  said "log/sqrt"; confirmed with the user to follow the spec's log1p-for-both instead), `identity`
+  for arrival; `fill_arrival` replaces dry-cell nodata with `t_end_s` and clips to `[0, t_end_s]`.
+- `inputs.py`: `InputScaler` — log10 for `water_volume_m3`, linear for `breach_width_m`/
+  `failure_time_s`, standardised to zero mean/unit std on the training design; flags per-input
+  extrapolation against the training box (§6 check C, not wired to a confidence rule yet).
+- `pca.py`: `corridor_mask` (union of cells wet >0.03 m in any training run, 3-cell 4-connected
+  dilation buffer); `fit_pca` — centred thin SVD, smallest D* reaching 99% variance capped at N−2,
+  `PCABasis.decode_std` (per-cell `sqrt(sum W_ij^2 sigma_j^2)`, emulator uncertainty only, documented
+  as excluding PCA truncation error); components stored float32 per spec.
+- `gp.py`: one `GaussianProcessRegressor` per component, `ConstantKernel * Matern(nu=1.5, ARD) +
+  WhiteKernel`, length-scale bounds [0.1, 10], `normalize_y=True` (so the spec's noise floor
+  "1e-6 x component variance" is the constant 1e-6 in the normalized-target space the optimiser
+  actually fits in — documented since it's easy to get backwards), 10 restarts.
+- `library.py`: a synthetic-only maximin-LHS training library (§2) — **not** the contract's
+  `design/scenario_design.json`; `run_ids` use `model: "synthetic"`, outside the contract's model
+  enum, and are only ever written under `tmp_path`. **Bug caught before it shipped:** widening
+  `failure_time_s` (300-10800 s) and `breach_width_m` (20-150 m) linearly by 20% of their span drove
+  the lower bound negative (`failure_time_s` -> -1800 s), since the synthetic world's illustrative
+  ranges span almost an order of magnitude unlike real M2 pair bounds; `water_volume_m3` needed the
+  same fix in log space. Fixed: log-space widening for the log10 input, and a positivity clamp
+  (`low * 0.5`) for the linear ones.
+- `emulator.py` — `FloodEmulator`: `fit` (per output: transform -> corridor-mask -> PCA -> per-
+  component GPs, with reconstruction RMSE reported both in transformed space and in physical units
+  over Omega/"had a real arrival"); `predict` (GP mean/std -> PCA decode -> inverse-transform,
+  depth/velocity clipped >= 0, **arrival explicitly clipped to `[0, t_end_s]`** — caught in testing
+  that GP extrapolation can otherwise predict arrivals past `t_end_s`, since `fill_arrival`'s own
+  clip only bounds the *training* targets — then arrival masked to nodata outside the predicted wet
+  extent, `central depth > arrival_m`); `save`/`load` in the contract §4.6 layout (`manifest.json`,
+  `pca_<output>.npz`, `gp_<output>.joblib`, short names `depth`/`velocity`/`arrival`); manifest
+  carries extra fields beyond the contract list (`t_end_s`, `grid`, `settings`,
+  `reconstruction_rmse.transformed`, `fit_warnings`) needed to reconstruct predictions — flagged as
+  additive, nothing renamed/dropped; `sensitivity_table()`/`format_sensitivity_table()` — fitted
+  length scales per (output, component) plus a variance-weighted relative-sensitivity summary.
+- Verified on the synthetic library (N=30, small grid, 500k cells, seed 42): corridor 117,954 cells
+  (23.6%); depth/velocity D*=1 (var. explained 0.996/0.995), arrival D*=10 (0.990); reconstruction
+  RMSE (physical) 0.092 m depth, 0.088 m/s velocity, 384 s arrival; fit 3.9 s, single-scenario
+  predict 27 ms (spec A7 target < 2 s), save/load round-trip matches to 1e-4. Sensitivity table:
+  `water_volume_m3` is the most sensitive input for all three outputs (relative 0.49/0.44/0.63),
+  matching the synthetic world's `V_EXP=0.55` > `B_EXP`/`T_EXP` construction.
+- Tests: `tests/m5_emulator/{test_transforms,test_inputs,test_pca,test_gp,test_library,
+  test_emulator}.py` — 59 new (transforms round-trip/clip/fill; input scaling + extrapolation
+  flagging; PCA variance target/cap/reconstruction/decode_std against a brute-force check; GP
+  recovers a known function and gives the driving input a shorter length scale than irrelevant
+  ones; LHS stratification/maximin/determinism; full fit-predict-save-load-sensitivity integration
+  on N=30, including depth beating a training-mean baseline and extent F1 >= 0.8 on 6 held-out
+  scenarios). `pytest -q`: 390 passed (59 new).
+- Setup: `scikit-learn`/`joblib` installed into the `/usr/bin/python3` user site (conda unavailable
+  on this machine, same as the existing `.local` setup); added to `requirements.txt`.
+
+**Out of scope this session, left for next:** LOOCV + `validation/loocv.json`, the full A1-A8
+acceptance suite (today's tests check a light subset — a training-mean baseline and one F1
+threshold, not the paper's two required baselines or the 90% CI coverage test), Monte Carlo /
+unknown-breach mode, the confidence rule, `get_flood()`, the empirical fallback, and the real
+`design/scenario_design.json` (today's `library.py` is synthetic-only test scaffolding).
+
+## 2026-09-25 — M5: LOOCV, A1 baselines, validation report, acceptance check
+
+Built the LOOCV pipeline `docs/m5_specs.md` §8 needed and everything before it was still missing:
+metrics, both A1 baselines, `validation/loocv.json` (`docs/handoff_contract.md` §4.6) and an honest
+A1-A8 check.
+
+- `metrics.py`: one function per metric — extent IoU/F1@{0.05,0.1,0.3}, wet-cell (Omega = depth >
+  `wet_m` in truth OR prediction) depth RMSE and velocity MAE, arrival MAE/RMSE (cells where both
+  truth and prediction have a real arrival), signed flooded-area % error, 90% interval coverage,
+  PCA-projection RMSE (the honest per-fold A5 number, not the in-sample one `pca.py` reports at fit
+  time), and terrace majority-vote classification (A4, synthetic-world only).
+- `baselines.py`: `LinearScoresBaseline` (OLS per PCA component on standardised inputs, same basis
+  as the fold's GP) and `NearestRunBaseline` (IDW power-2 blend of the 3 nearest training runs'
+  physical maps, arrival filled before blending). Neither reports an uncertainty interval.
+- `emulator.py` refactor (behaviour-preserving, guarded by the existing `test_emulator.py`):
+  extracted `FloodEmulator.maps_from_latent()` (PCA-decode -> inverse-transform -> embed -> clip ->
+  arrival-mask, used by `predict()` and the linear baseline) and
+  `maps_from_corridor_physical()` (embed -> clip -> arrival-mask only, used by the nearest-run
+  baseline, which never touches PCA) so every method — GP, both baselines — goes through the exact
+  same post-processing pipeline before scoring.
+- `synthetic.py`: added `terrace_cells()` (boolean terrace mask for A4) and `SYNTHETIC_POIS` /
+  `poi_cell_index()` (5 declared points spanning gorge/constriction/terrace/middle/plain, for A2's
+  POI coverage and A3's monotonicity check).
+- `loocv.py`: `run_loocv()` — one fold at a time (refits scaler, corridor mask, PCA **and** GPs on
+  the other N-1 runs per spec §3; only one fold's maps held in memory at once, CLAUDE.md rule 13),
+  scoring the GP and both baselines identically. `build_report()` assembles the contract's
+  `loocv.json` shape plus additive fields (**flagged, not silently added** — see
+  `docs/decisions.md` "M5 LOOCV: additive validation-report fields", pending team sign-off):
+  `baseline_nearest` (contract only has `baseline_linear`), `per_run[].extra`, `acceptance`,
+  `settings`/`caveats`/`provenance`/`notes`. `run_acceptance()` checks A1 (GP >=10% better RMSE
+  than both baselines, F1 not lower), A2 (90% coverage in [80,95]%, k-factor reported-not-applied
+  on failure), A4 (terrace), A5 (PCA projection vs emulator RMSE) from the LOOCV folds;
+  `check_monotonicity()` checks A3 separately on the synthetic world directly (300 random V_w
+  pairs). A6/A8 (confidence rule) and A7 (Monte Carlo/large-grid performance) are **not
+  implemented** this session and report `NOT_EVALUATED`, not a fake pass.
+- `validation_plots.py`: 4 PNG charts (`metrics_by_run`, `summary_vs_baselines`,
+  `coverage`, `poi_coverage`) — Okabe-Ito colorblind-safe 3-way categorical palette (GP/linear/
+  nearest), fixed order, no dual axes, target-band shading for the 80-95% coverage checks. Installed
+  `matplotlib` (pip --user --break-system-packages, same constrained setup as scikit-learn last
+  session); added to `requirements.txt`.
+- CLI: `python -m backend.m5_emulator.loocv --synthetic [--n --seed --grid --out]`. Writes to
+  `reports/m5_synthetic/validation/` (new, **gitignored** — not `data/`, since `model: "synthetic"`
+  and `m5synth_*` run_ids are outside the contract's ID/model patterns, matching `library.py`'s
+  existing rule). `--site <id>` raises `NotImplementedError` (real-run loading is future work).
+- Tests: `tests/m5_emulator/{test_metrics,test_baselines,test_loocv}.py` — 55 new (hand-built
+  arrays with known metric values incl. edge cases; baselines recover an exact linear function /
+  return the exact training map at a training point; a coarse-grid N=10 LOOCV integration suite
+  checking fold isolation via a `FloodEmulator.fit` spy, schema validation, grading, acceptance
+  table shape, and chart files being written). `pytest -q`: **435 passed** (55 new; `test_emulator.py`
+  unchanged and still green, confirming the `predict()` refactor is behaviour-preserving).
+
+**Full run on the synthetic library** (N=30, small grid, seed 42, default settings — 30 folds,
+~8 s/fold): `reports/m5_synthetic/validation/loocv.json`, `schema_valid: true` (model substituted
+to `delft3d` for the check; the substitution is recorded in the report's own `notes`).
+
+| Test | Result | Detail |
+|---|---|---|
+| A1 (GP beats both baselines) | **PASS** | depth RMSE 0.067 m (GP) vs 0.139 m (linear) vs 0.243 m (nearest); arrival RMSE 815 s vs 1622 s vs 1466 s; F1@0.3 0.993 vs 0.981 vs 0.976 |
+| A2 (90% interval calibration) | **PASS** | wet-cell coverage 87.0%, POI coverage 85.3%, both inside [80,95]% |
+| A3 (monotonic response) | **PASS** | 300/300 pairs monotonic on extent, POI depth, and POI arrival |
+| A4 (terrace threshold) | **PASS** | 27/30 folds (90.0%) classified the terrace correctly — exactly at the spec's threshold |
+| A5 (PCA not the bottleneck) | **FAIL** | median PCA-projection RMSE is NOT <= half the emulator RMSE: depth 0.047 m vs half-of-0.067=0.034 m; arrival 598 s vs half-of-815=407 s — the GP/PCA-decode step is adding more error than the PCA truncation itself, the opposite of what A5 wants |
+| A6, A8 (confidence rule) | NOT_EVALUATED | confidence rule (§6) not implemented yet |
+| A7 (performance) | NOT_EVALUATED | Monte Carlo / large-grid performance out of scope this session |
+
+**Honest bottom line:** A1-A4 pass; **A5 fails** — reported as-is, no threshold tuning. This says
+the GP+kernel/optimizer settings are contributing meaningfully more per-fold error than PCA
+truncation does, which is worth the team's attention before real runs (candidates: more GP restarts,
+loosening/retuning the Matern length-scale bounds, or accepting current settings and revisiting A5's
+threshold). A6-A8 stay unevaluated rather than guessed at.
+
+**Out of scope this session, left for next:** Monte Carlo / unknown-breach mode, the confidence
+rule (needed for A6/A8), `get_flood()`, the empirical fallback, the real `design/scenario_design.json`,
+and loading real Delft3D/SPH runs for `loocv.py --site`.

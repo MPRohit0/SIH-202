@@ -6,5 +6,6 @@ __pycache__/
 .venv/
 data/
 .pytest_cache/
+reports/
 
 # Playwright / browser cache used by frontend/visual (not committed)

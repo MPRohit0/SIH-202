@@ -382,3 +382,32 @@ tangled with placeholder-detection tests. Loader cross-checks are tested in
 `tests/shared/test_site_config.py`; `cascade_plan`/`trigger_time`/`triggered_hydrograph` (including
 a three-dam chain, an end-to-end lagged-hydrograph scenario, and the placeholder-threshold block)
 are tested in `tests/m2_breach/test_cascade.py`.
+
+## 2026-09-25 — M5 LOOCV: additive validation-report fields (NEEDS TEAM SIGN-OFF)
+
+**Status:** implemented, additive-only, not yet confirmed by the team.
+
+`docs/m5_specs.md` §8 (acceptance test A1) requires the GP be checked against **two** baselines
+("Linear-in-scores" and "Nearest-run blending"), but `docs/handoff_contract.md` §4.6's
+`validation/loocv.json` shape only has one baseline key, `baseline_linear`. Per user instruction
+this session, resolved by keeping `baseline_linear` exactly as contracted (linear-in-scores) and
+adding a sibling `baseline_nearest` key with the same shape (`extent.iou_median`,
+`depth.rmse_wet_m_median`, `arrival.mae_s_median`), extended with `extent.f1_0_3_median` and
+`arrival.rmse_s_median` since A1/A4 need those too. `contracts/schemas/validation.schema.json`
+does not `additionalProperties: false` on the top level, so this validates without a schema change.
+Also additive, for the same reason (not in the contract's `loocv.json` sketch, needed for an honest
+A1-A8 report): `per_run[].extra` (arrival RMSE, POI/by-output coverage, terrace flag, PCA
+projection RMSE, both baselines' per-run metrics), `acceptance` (the A1-A8 table),
+`settings`/`caveats`/`provenance`/`notes`.
+
+Grades: spec §6's skill-check cut-offs are only defined for extent (F1 >= 0.85/0.70) and arrival
+(RMSE <= 10%/20% of mean true arrival). Depth and velocity have no cut-off in the spec, so their
+`summary.*.grade` stays `"UNKNOWN"` rather than inventing thresholds — flagged for the team to set
+in a future session (`backend/m5_emulator/loocv.py`'s `GradeThresholds`).
+
+The synthetic-world report (`reports/m5_synthetic/validation/loocv.json`, gitignored, **not**
+under `data/`) uses `model: "synthetic"`, outside the contract's `delft3d | sph` enum — same
+reasoning as `library.py`'s existing "never write synthetic run_ids into data/". The CLI validates
+the report against `validation.schema.json` with `model` substituted to `"delft3d"` for the check
+only, and records this as a `notes` entry in the report itself so it's never silently passed off as
+real.
