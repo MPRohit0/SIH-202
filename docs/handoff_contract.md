@@ -458,7 +458,7 @@ Slider mapping: linear → `value = low + (p / 10) × (high − low)`; log → t
 
 ### 4.1 M1 — Terrain → `data/<site_id>/terrain/`
 
-**Inputs:** site config (`domains`, `dams` for burn-in), raw downloads (§3.1's "not implemented" note: the site config has no `dem`/`landcover` source field yet — M1-1's `download.py` fetches every candidate DEM/landcover product for the site's bbox; the DEM used for `dem.tif` is picked from the M1-2 comparison report, not read from config), `data/manning_table.csv`.
+**Inputs:** site config (`domains`, `dams` for burn-in), raw downloads (§3.1's "not implemented" note: the site config has no `dem`/`landcover` source field yet — M1-1's `download.py` fetches every candidate DEM/landcover product for the site's bbox; the DEM used for `dem.tif` is picked from the M1-2 comparison report, not read from config), `config/manning_n.csv`.
 
 |File|Type|Content|Consumers|
 |---|---|---|---|
@@ -469,15 +469,16 @@ Slider mapping: linear → `value = low + (p / 10) × (high − low)`; log → t
 |`roughness.tif`|float32|Manning's n|M3, M5 fallback|
 |`hand.tif`|float32, m|height above nearest drainage|M5 fallback|
 |`domain_mask.tif`|uint8|1 = model domain (valley corridor)|everyone|
+|`water_mask.tif`|uint8|0 land, 1 lake, 2 reservoir (`docs/decisions.md` 2026-09-25 "M1 water extent")|M3, M4|
 |`domain.gpkg`|polygon|model domain|M3|
 |`centreline.gpkg`|linestring|main channel, `chainage_m` measured downstream from the most upstream breach|M5, M6|
 |`chainage_samples.csv`|CSV|`chainage_m,x_m,y_m,bed_elev_m` every cell size|M5 timeline, M6|
 |`pois.gpkg`|points|POIs from site config snapped to grid: `poi_id,name,kind,chainage_m,dist_to_channel_m,row,col` — `poi_id` derived (§1.7), `kind` = the site config's `category` (§3.1)|M3, M4, M5, M6|
 |`nearfield.stl`|STL|near-field terrain in the SPH frame (§1.3)|M4|
-|`nearfield_frame.json`|JSON|`{crs_epsg, origin_x, origin_y, units: "m"}`|M4, M0-6|
+|`nearfield_frame.json`|JSON|`{crs_epsg, origin_x, origin_y, units: "m"}` — origin is the near-field grid's lower-left corner|M4, M0-6|
 |`provenance.json`|JSON|sources, versions, `vertical_datum`, processing steps, burn-in details|M6 report|
 
-`manning_table.csv`: `class_code,class_name,manning_n,manning_n_low,manning_n_high,source`.
+`config/manning_n.csv` (not `data/manning_table.csv` — `docs/decisions.md` 2026-09-25 "M1 Manning table path": the table is project-maintained, not a raw download, so it belongs in git-tracked `config/`): `worldcover_code,class,n_default,n_min,n_max,source,source_row,confidence,status,notes`.
 
 ### 4.2 M2 — Breach engine → `data/<site_id>/breach/`
 

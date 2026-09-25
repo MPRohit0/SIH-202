@@ -792,3 +792,52 @@ report: void % per DEM, pairwise difference maps, valley-centreline elevation pr
 stats) is next, once real DEMs exist in `data/teesta/raw/`. The rest of M1 (`landcover.tif` →
 Manning's n, `hand.tif`, `domain_mask.tif`/`domain.gpkg`, `centreline.gpkg`, `chainage_samples.csv`,
 `pois.gpkg`, near-field STL) hasn't been started.
+
+## 2026-09-25 — M1 terrain pipeline built end to end
+
+Implemented the rest of `backend/m1_terrain` (M1-1 `download.py` already existed): DEM/landcover
+loading + void fill, lake/reservoir extent, dam-crest + reservoir burn-in, flow routing, centreline
++ chainage + POIs, roughness, valley-corridor domain, near-field STL, and the `pipeline.py` that
+wires them into `data/<site_id>/terrain/` (`docs/handoff_contract.md` §4.1). Decisions made with
+the user before coding, logged in `docs/decisions.md` 2026-09-25 "M1 terrain pipeline: settings,
+Manning table path, water extent, flow routing":
+
+- **Manning table**: `config/manning_n.csv` (real column names), not the contract's originally
+  documented `data/manning_table.csv` — contract updated to match. Every row is
+  `status: placeholder` (Chow 1959 proxies), so `roughness.tif` always sets `has_placeholders`.
+- **Lake/reservoir extent**: ESA WorldCover's water class, restricted to the component within
+  `snap_radius_m` of each dam's `location`. New output `water_mask.tif`, added to the contract.
+- **Flow routing**: our own numpy/heapq priority-flood (Barnes et al. 2014) + an implicit D8
+  drainage tree + flow accumulation — `richdem` (CLAUDE.md's Stack) has no wheel for this
+  environment's Python 3.12/numpy 2.5. `hydro.py`'s docstring explains the method; HAND is a
+  single linear pass over the flood's visit order.
+- **Domain**: `TerrainSettings.domain_max_hand_m = 50` (m) default, a CLI-overridable setting, not
+  a site fact.
+- **DEM product**: `pipeline.py --dem` is required, no default — still the M1-2 comparison
+  report's job to choose.
+
+New modules: `settings.py`, `dem.py`, `water.py`, `burn.py`, `hydro.py`, `centreline.py`,
+`roughness.py`, `domain.py`, `stl.py` (hand-written binary STL, no `numpy-stl` dependency),
+`pipeline.py` (the orchestrator + CLI). `contracts/schemas/` was **not** extended with new schemas
+for `grid.json`/`nearfield_frame.json`/`provenance.json` as the original plan suggested —
+`contracts/README.md` scopes that directory to API request/response payloads generated from §4/§5,
+and these are internal pipeline files documented in §4.1 prose instead; `backend/shared/grid.py`'s
+`CanonicalGrid` pydantic model already validates `grid.json`'s shape.
+
+Tests: `tests/m1_terrain/synthetic_valley.py` builds a raw synthetic DEM/landcover pair from
+closed-form V-valley geometry (known down-valley/side slopes, a lake and a reservoir bowl of known
+radius/depth, a nodata void patch) over `tests/fixtures/shared/synth.yaml`'s bbox; `conftest.py`
+adds a second (embankment) dam fixture for reservoir tests. 61 new tests across 9 files (dem,
+water+burn, hydro, centreline, roughness, domain, stl, pipeline end-to-end) — all synthetic, no
+real DEM needed. Found and fixed one real bug while writing `test_dem.py`:
+`rasterio.fill.fillnodata` mutates its `image` argument in place, so `dem.fill_voids` now copies
+before calling it. `pytest -q` (full project): **640 passed**, no regressions.
+
+Smoke-tested on real Teesta data (`data/teesta/raw/`, already downloaded): far-field grid is
+5016x2534 (30 m), near-field 1011x906 (10 m) — run in the background, see the next session's notes
+for runtime/memory and whether the centreline/HAND/domain look sane on the real DEM.
+
+Not done yet: M1-2 (the DEM comparison report that should choose SRTM vs Copernicus vs CartoDEM)
+is still unwritten — this session's pipeline just takes `--dem <product>` as given. `sites/
+teesta.yaml`'s placeholder dam locations/heights (illustrative, not surveyed) mean a real Teesta
+terrain run has `has_placeholders: true` and shouldn't be treated as final.

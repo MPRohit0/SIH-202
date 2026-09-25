@@ -503,3 +503,49 @@ above — read that entry's diff table first for exactly what changed.
   `demo_mode`, `emulator_inputs` (§3.3 stays documentation-only until M2/M5 wire it up),
   `crest_elevation_m`, `reservoir_storage_m3`, `lake_area_m2`. Adding any of these later is an
   additive contract change (§9), not a silent YAML addition.
+
+## 2026-09-25 — M1 terrain pipeline: settings, Manning table path, water extent, flow routing
+
+Decided with the user while building `backend/m1_terrain` end to end (dem/water/burn/hydro/
+centreline/roughness/domain/stl/pipeline). `docs/handoff_contract.md` §4.1 updated to match
+(additive — no `contract_version` bump: the section was still unimplemented, nothing downstream
+is pinned to the old text, and the doc header already marks the contract DRAFT).
+
+- **Manning table path/columns.** The contract said `data/manning_table.csv` with
+  `class_code,class_name,manning_n,manning_n_low,manning_n_high,source`. The table that actually
+  exists is `config/manning_n.csv` (`worldcover_code,class,n_default,n_min,n_max,source,
+  source_row,confidence,status,notes`), committed to git this session. Decision: keep it at
+  `config/` (it's project-maintained, not a raw download — `data/` is gitignored per §1.8) and
+  update the contract's path/columns rather than reshaping the file or generating a second copy.
+  Every row is `status: placeholder` (Chow 1959 proxies — see the file's own `notes` column), so
+  every `roughness.tif` this pipeline produces sets `has_placeholders: true`.
+- **Lake/reservoir extent.** Neither the site config nor M7 (not built yet) provide a lake/
+  reservoir polygon. Decision: derive it from ESA WorldCover's permanent-water class (80),
+  restricted to the connected component within `TerrainSettings.snap_radius_m` (default 300 m) of
+  each dam's `location` — a moraine-dammed lake or a dam's reservoir both sit immediately against
+  the dam point by construction, so this needs no flow-direction pass. An optional vector polygon
+  (for M7's future `lake_latest.geojson`) overrides WorldCover entirely when supplied. New output
+  `water_mask.tif` (uint8: 0 land, 1 lake, 2 reservoir) records the result, added to contract §4.1.
+- **Flow routing: no richdem.** `richdem` is in CLAUDE.md's Stack list but has no wheel for this
+  environment's Python 3.12 + numpy 2.5, and building it from source wasn't worth the setup cost
+  for this session. `backend/m1_terrain/hydro.py` implements priority-flood fill (Barnes, Lehman &
+  Mulla 2014, epsilon variant) + an implicit D8 drainage tree + flow accumulation in plain numpy/
+  heapq — no new dependency. `docs/paper_*.md` don't cover this (it's terrain preprocessing, not
+  the breach/emulator methods those papers describe), so it isn't a CLAUDE.md rule 4 equation.
+- **Domain height-above-channel default: `TerrainSettings.domain_max_hand_m = 50` (m).** Generous
+  enough for GLOF flows tens of metres deep while still bounding the Delft3D mesh size; overridable
+  per run (`--domain-max-hand-m`). Every other M1 setting (snap radius, crest search distance,
+  etc.) lives in `backend/m1_terrain/settings.py` with its default and reasoning in the module
+  docstring, not invented ad hoc in `pipeline.py`.
+- **DEM product: no default.** `backend.m1_terrain.pipeline`'s `--dem` argument is required. The
+  M1-2 DEM comparison report (void %, difference maps, valley profiles — still to come) is what
+  should pick the product; this session's pipeline only consumes that choice, recorded verbatim in
+  `terrain/provenance.json`.
+- **Near-field frame origin: the near-field grid's lower-left corner** (not the dam or an
+  arbitrary point), so every mesh vertex has local x, y >= 0. Contract §4.1's `nearfield_frame.json`
+  row updated to say so explicitly.
+- **Reservoir bathymetry is unavailable from a surface DEM.** `burn.burn_reservoir` flattens a
+  reservoir's WorldCover footprint to a single water-surface elevation (median DEM value over the
+  footprint) rather than inventing a bed. Always emits caveat `placeholder_data` when it fires
+  (CLAUDE.md rule 3 — this is exactly the "missing fact, don't guess" case, at raster granularity
+  rather than a single `SourcedValue`).
