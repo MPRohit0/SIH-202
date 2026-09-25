@@ -285,7 +285,7 @@ def build_nearfield_case(
 
     draw_commands = [
         E("setmkfluid", {"mk": 0}),
-        E("setmkbound", {"mk": 10}),
+        E("setmkbound", {"mk": 0}),  # mkconfig boundcount=1 below -> only mk 0 is valid
     ]
     for layer in range(settings.boundary_layers):
         draw_commands.append(E("drawfilestl", {"file": "nearfield.stl"}, children=[
@@ -313,7 +313,15 @@ def build_nearfield_case(
         constants=[
             ("gravity", {"x": 0, "y": 0, "z": -9.81, "comment": "Gravitational acceleration", "units_comment": "m/s^2"}),
             ("rhop0", {"value": 1000, "comment": "Reference density of the fluid (clear water -- caveat clear_water)", "units_comment": "kg/m^3"}),
+            ("rhopgradient", {"value": 2, "comment": "Initial density gradient 1:Rhop0, 2:Water column, 3:Max. water height (default=2)"}),
+            ("hswl", {"value": settings.inlet_height_m, "auto": False,
+                      "comment": "Still water level for speedofsound -- fixed, not auto: the case starts with "
+                                 "no fluid (all inflow comes from the inlet zone at runtime), so GenCase's "
+                                 "auto-detected still water level would be 0", "units_comment": "metres (m)"}),
             ("gamma", {"value": 7, "comment": "Polytropic constant for water used in the state equation"}),
+            ("speedsystem", {"value": 0, "auto": True, "comment": "Maximum system speed"}),
+            ("coefsound", {"value": 20, "comment": "Coefficient to multiply speedsystem"}),
+            ("speedsound", {"value": 0, "auto": True, "comment": "Speed of sound to use in the simulation"}),
             ("coefh", {"value": 1.0, "comment": "Coefficient to calculate the smoothing length"}),
             ("cflnumber", {"value": 0.2, "comment": "Coefficient to multiply dt"}),
         ],

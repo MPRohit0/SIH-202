@@ -6,7 +6,7 @@ dam-break scenarios in Himalayan India. Users are DDMA/SDMA/NDMA/CWC officials w
 GIS layers, not hydraulic modellers. Speed and honest uncertainty matter more than
 third-decimal physical accuracy.
 
-Core idea: run expensive physics (Delft3D FM, DualSPHysics) OFFLINE over a designed scenario
+Core idea: run expensive physics (Delft3D 4 FLOW, DualSPHysics) OFFLINE over a designed scenario
 set, then answer live queries in seconds with a PCA + Gaussian Process emulator
 (Donnelly et al. 2022). Breach parameters come from empirical / data-fusion equations
 (Azmi 2026). Sites without a trained emulator fall back to empirical breach + HAND flow routing.
@@ -37,7 +37,7 @@ If a file above doesn't exist yet, say so instead of guessing its contents.
 | M0 | backend/m0_api | FastAPI orchestrator (`/api/v1`), job queue + worker, rendering, serves frontend |
 | M1 | backend/m1_terrain | DEM, land cover → Manning's n, HAND, domain, centreline, POIs, near-field STL |
 | M2 | backend/m2_breach | Breach parameters, dual-method ranges, hydrographs, cascades |
-| M3 | backend/m3_delft3d | Delft3D FM case generation, launch, post-processing to summary maps |
+| M3 | backend/m3_delft3d | Delft3D 4 FLOW (structured grid) case generation, launch, post-processing to summary maps |
 | M4 | backend/m4_sph | DualSPHysics near-field cases, launch, post-processing (same schema as M3) |
 | M5 | backend/m5_emulator | Scenario design, cache, PCA+GP emulator, LOOCV, Monte Carlo, confidence, fallback |
 | M6 | backend/m6_impact | Exposure overlay, warning table, loss, exports (.shp/.kml/.geojson/.pdf) |
@@ -76,15 +76,21 @@ M3 and M4 MUST produce outputs in the identical schema so SPH-vs-Delft3D compari
 
 ## Stack
 Python 3.11+, FastAPI, Pydantic v2, SQLite, numpy, scipy, scikit-learn (GP + PCA),
-rasterio, rioxarray, GDAL, geopandas, shapely, richdem, simplekml, hydrolib-core,
-meshkernel, dfm_tools, pytest.
+rasterio, rioxarray, GDAL, geopandas, shapely, richdem, simplekml, pytest.
+M3 writes Delft3D 4 FLOW's plain-text structured-grid files (`.grd`/`.enc`/`.dep`/`.rgh`/`.mdf`/
+`.bnd`/`.bct`/`.obs`) directly — no `hydrolib-core`/`meshkernel`/`dfm_tools` (those are D-Flow FM
+only; see `docs/decisions.md` 2026-09-25 "M3: Delft3D 4 FLOW, not FM").
 Frontend (in `frontend/`): React + Vite, Leaflet, Three.js, Recharts, Playwright.
 
 ## Simulation tools
 <!-- Fill in once installed -->
-- Delft3D FM: version <...>, executable <path>
-- DualSPHysics: version <...>, GenCase <path>, GPU solver <path>
-- Working pilot cases: `m3_pilot/`, `m4_pilot/`, `m3_cascade_pilot/`
+- Delft3D 4 FLOW: version 4.07.02 (GUIs installed; kernel `d_hydro`/`flow2d3d` path NOT STATED
+  until installed — see `docs/decisions.md` 2026-09-25)
+- DualSPHysics: v5.4.3 (GenCase v5.4.354.01, DualSPHysics5.4 v5.4.355). Windows binaries +
+  examples at `/mnt/d/APPS/DualSPHysics_v5.4/` (Linux binaries under `bin/linux/`, used by
+  `tests/m4_sph/test_gencase_smoke.py` when `DSPH_BIN_DIR` is set) — not checked into this repo.
+- Working pilot cases: `m3_pilot/`, `backend/m4_pilot/` (calibration run + VRAM estimator only —
+  see `docs/decisions.md` 2026-09-25 "M4 pilot case"), `m3_cascade_pilot/`
 
 ## Commands
 - Env: `conda env create -f environment.yml && conda activate sih26`
@@ -117,3 +123,21 @@ frontend/    React app (has its own CLAUDE.md)
 - Failure time is poorly predicted by all methods; it is a scenario variable with a wide range.
 - Models are clear-water; Himalayan events were debris/sediment-laden.
 - Rishi Ganga 2021 was a rock-ice avalanche / mass flow, not a dam breach.
+
+
+# SIH26 GLOF decision-support tool
+
+Before working on a module, read the docs that cover it:
+
+| Area | Read |
+|---|---|
+| Site config format | `sites/_template.yaml`, example `sites/teesta.yaml` |
+| M2 breach parameters | `docs/equations.md`, `docs/paper_azmi.md` |
+| M5 emulator | `docs/m5_spec.md`, `docs/paper_donnelly.md` |
+| Impact outputs (depth classes, isochrones, population) | `docs/impact_outputs.md` |
+| Manning's n by land cover (ESA WorldCover + river channel) | `config/manning_n.csv` (all rows placeholder; unsure rows flagged in `notes`) |
+
+Rules that apply everywhere:
+- Every data value in a site config is `{value, unit, source, status}`. If any input has `status: placeholder`, the output must be labelled as placeholder too.
+- Base breach equations in `docs/equations.md` are SECONDARY (copied from Azmi). Items marked UNCLEAR or NOT STATED must not be guessed; raise an error or leave a clearly marked TODO.
+- Thresholds and defaults come from config, never hard-coded.

@@ -853,3 +853,246 @@ in (193 cells raised, 33 cells long); `teesta_iii`'s reservoir wasn't found by t
 water-mask search (`teesta.yaml`'s dam locations are illustrative placeholders, not surveyed) and
 its crest search found no cells needing raising — both expected given placeholder inputs, and both
 recorded in `provenance.json` rather than silently skipped.
+
+## 2026-09-25 — M7 GEE fetch built end to end (contract §4.8)
+
+Built `backend/m7_gee/{settings,lake_area,provider,rainfall,recheck,cache,fetch}.py` on top of the
+existing `scene_search.py`. Real files now land at `data/<site_id>/gee/`: `lake_area.csv`,
+`lake_latest.geojson`, `rainfall.csv`, `gee_meta.json`, `recheck.json`. Out of scope this session:
+event imagery PNG/TIF, `observed/*.geojson` (manual digitising), and wiring M0's `GET/POST
+/gee/{site_id}` (still mocks) to this cache. Full reasoning in `docs/decisions.md` "M7 GEE fetch".
+
+- Method: Otsu threshold per monthly Sentinel-2 NDWI composite (clamped to a sane range), falling
+  back to Sentinel-1 VV when too cloudy, skipped outright when the SCL snow/ice class says the lake
+  is frozen. A connected-components labelling seeded at the dam's `location` keeps only the lake's
+  own component, dropping SAR shadow and unrelated water in the AOI buffer.
+  `lake_area.otsu_threshold`'s tie-break (middle of a run of equal-variance thresholds, not the
+  first) matters in practice: a well-separated bimodal histogram has many empty bins between the
+  clusters, and picking the first tied index put the threshold at the edge of the gap instead of
+  its centre.
+- Rainfall catchment: HydroBASINS level 12 (`WWF/HydroSHEDS/v1/Basins/hybas_12`), walked upstream
+  via `NEXT_DOWN` (`provider.walk_upstream_basin_ids`) — no basin polygon exists anywhere else in
+  the repo. Its own unit test (`tests/m7_gee/test_provider.py`) caught a real bug: a diamond-shaped
+  drainage graph (two basins both draining into a third further upstream) produced a duplicate ID
+  in the walk, because only cross-batch de-duplication was checked, not within-batch. Fixed with
+  `dict.fromkeys`.
+- `recheck.json`'s reference area comes from the trained emulator's `manifest.json` `trained_at`
+  (`backend/m5_emulator/emulator.py`), not an arbitrary baseline; an untrained site reports
+  `outdated: false, reason: "no_trained_library"` rather than guessing.
+- Widened `contracts/schemas/gee_layers.schema.json`'s `recheck.change_pct` to allow `null`
+  (additive, documented in decisions.md) so `cache.load_layers()` can represent "no trained library
+  yet" honestly instead of inventing a 0.
+- Added `docs/data_sources.md` src_038–041 (Sentinel-2 SR, Sentinel-1 GRD, CHIRPS, HydroBASINS),
+  DOIs verified by web search this session (CHIRPS: Funk et al. 2015, doi 10.1038/sdata.2015.66;
+  HydroBASINS: Lehner & Grill 2013, doi 10.1002/hyp.9740), same "verify before `status: sourced`"
+  caveat as src_033/034 for the ones with a real DOI.
+- Tests: 73 in `tests/m7_gee/` (up from 8), all synthetic (CLAUDE.md rule 2) — a
+  `provider.SyntheticProvider` (shrinking disc lake, cloudy/icy/missing months, flat rainfall)
+  drives `fetch.run()` end to end. `EarthEngineProvider`'s actual `computePixels`/HydroBASINS/CHIRPS
+  calls are untested beyond request-shape checks; **not yet run against live Earth Engine** — the
+  next session (or whoever has EE credentials) should run `python -m backend.m7_gee.fetch teesta
+  --months 24 --ee-project <proj>` and sanity-check the output against the known Oct 2023 South
+  Lhonak drainage (lake area should drop sharply across that month).
+- Full `pytest -q`: 713 passed (640 before this session), nothing else broken.
+
+## 2026-09-25 — M7 GEE event imagery + wiring the real `/gee` endpoints
+
+Picked up the "out of scope" leftovers named at the top of the previous M7 session: event
+imagery, `observed/*.geojson`, and wiring `backend/m0_api/main.py`'s real `GET/POST /gee`. Dropped
+observed-extent work this session (`data/teesta/observed/flood_extent_2023.geojson` doesn't exist
+yet — confirmed with the user, revisit once the digitized file exists).
+
+- **New `backend/m7_gee/imagery.py`**: converts the pre-/post-event RGB GeoTIFFs an operator has
+  already staged (`sites/<site_id>.yaml` `events[].imagery_pre_event/imagery_post_event.source`,
+  e.g. `cache/gee/teesta/teesta_pre_event.tif` → its `..._rgb.tif` sibling) into
+  `data/<site_id>/gee/imagery/`: full-res PNG, a ≤512px fallback PNG (`_fallback.png`, for slow
+  connections — a *different* concept from contract §4.8's `fallback/*.png` "screenshots when live
+  and cache both fail", deliberately kept in a separate location/naming so it doesn't trip
+  `cache.fallback_screenshots()`'s `source: screenshot_fallback` logic), and a `manifest.json`
+  recording each PNG's EPSG:4326 bounds. `cache.read_imagery()`/`load_layers()` read the manifest
+  into `GeeLayers.imagery` (contract §5.8; `fallback_url` added per entry — the schema doesn't
+  constrain `imagery`'s item shape, so this is additive, not a contract change).
+  - Ran it for real against `cache/gee/teesta/*_rgb.tif`: wrote
+    `data/teesta/gee/imagery/sikkim_glof_2023_{pre,post}_2023{0928,1006}{,_fallback}.png` +
+    manifest (event id/dates from `sites/teesta.yaml` — `sikkim_glof_2023`, not the
+    `teesta_2023` placeholder still in `contracts/examples/gee_layers.example.json`).
+- **New `backend/m7_gee/live_render.py`**: best-effort live re-render of the same pre-/post-event
+  composite from Sentinel-2 (least-cloudy scene within ±15 days of the event date, near-field AOI),
+  overwriting the staged `_rgb.tif`. Called by `imagery.refresh()`; any failure (no credentials, no
+  network, no usable scene) is caught and the existing cached PNGs are kept — same fallback
+  contract as `fetch.run()`. **Untested against real Earth Engine** — no service-account key exists
+  yet (see below); like `provider.EarthEngineProvider`, only its request-shape is implicitly
+  exercised via the type signature, not a real `computePixels` call.
+- **`scene_search._ee_initialize`** now also accepts a service account: `GEE_SERVICE_ACCOUNT_EMAIL`
+  / `GEE_SERVICE_ACCOUNT_KEY_PATH` from the environment or repo `.env` (same lookup pattern as
+  `m1_terrain.download.opentopography_api_key` — never logs the key file's contents, only its
+  path). Falls back to the existing `ee.Initialize(project=...)` flow when neither is set. Neither
+  var is in `.env` yet — wired up ahead of the key existing, per user decision this session.
+- **`backend/m0_api/main.py`**: `GET /gee/{site_id}` now serves `gee_cache.load_layers()` once
+  `gee_meta.json` exists for the site (i.e., `fetch.run` has actually run at least once);
+  otherwise still falls back to the contract mock, same as every other not-yet-real endpoint.
+  `POST /gee/{site_id}/refresh` tries `_ee_initialize` + `EarthEngineProvider`, falls back to
+  `gee_fetch._CacheOnlyProvider` on any init failure, runs `gee_fetch.run` + `gee_imagery.refresh`,
+  and reports `source: live` only if both actually succeeded live — never 500s over a live-fetch
+  problem (only over `site_id` not being configured). Added `GEE_IMAGERY_PATH_RE` to `GET
+  /files/{path}` to serve the new `gee/imagery/*.png` files for real, 404ing by name if a specific
+  file is missing (never silently falling through to a mock PNG for a path that matches this
+  pattern).
+  - Ran `fetch.run("teesta")` once for real (no live EE — fell back to cache as designed) so
+    `gee_meta.json` exists and `GET /gee/teesta` now serves the real imagery end to end; verified
+    over HTTP with `uvicorn` (`curl .../api/v1/gee/teesta`, `curl .../files/teesta/gee/imagery/....png`
+    → 200 image/png; a nonexistent filename → 404 naming the exact path).
+- Treated the pasted `?refresh=true` request as the contract's existing `POST
+  /gee/{site_id}/refresh` (§5 row 20) rather than adding a query param to `GET` — same behaviour,
+  already on record; flagged to the user rather than silently deviating either way.
+- Tests: new `tests/m7_gee/test_imagery.py` (9 tests, synthetic GeoTIFFs, no EE), plus
+  `TestEeInitialize` in `test_scene_search.py` (3 tests for the service-account credential path,
+  `fake_ee.FakeEE` extended with `ServiceAccountCredentials`/`Initialize(credentials=...)`), plus
+  `cache.py` imagery-wiring tests. Full `pytest -q`: 727 passed (713 before this session).
+
+## 2026-09-25 — M7: real Teesta imagery re-export, scene IDs, observed-extent loader
+
+User exported real pre-/post-event Sentinel-2 GeoTIFFs for Teesta from Earth Engine into
+`cache/gee/teesta/` (`COPERNICUS/S2_SR_HARMONIZED/20230926T.../20231026T...`, near-field AOI,
+EPSG:32645, 10 m) and asked to wire them through, plus load a hand-digitized flood outline as the
+observed-extent layer. See `docs/decisions.md` "M7: recording scene IDs, observed-extent loader"
+for the scene-ID-placement decision and the observed-extent scope decision, both made with the
+user before coding.
+
+- **`sites/teesta.yaml`**: `events[0].imagery_pre_event/post_event.value` corrected to the real
+  scene acquisition dates (`2023-09-26`/`2023-10-26`; were `2023-09-28`/`2023-10-06`, an earlier
+  arbitrary pick). `source` unchanged (already pointed at the right `cache/gee/teesta/
+  teesta_{pre,post}_event.tif` files).
+- **`backend/m7_gee/imagery.py`**: `convert()` now takes optional `scene_ids={"pre": [...],
+  "post": [...]}` and merges an `"imagery"` entry into `gee_meta.json` (dataset, scene_ids,
+  acquisition_dates, source) — the contract's per-product meta entry for imagery had never
+  actually been written before (only `lake_area`/`lake_latest`/`rainfall` were, both this session
+  and last). New CLI flags `--pre-scene-id`/`--post-scene-id` (repeatable).
+  - Ran for real: `python -m backend.m7_gee.imagery teesta --pre-scene-id
+    COPERNICUS/S2_SR_HARMONIZED/20230926T043709_20230926T045046_T45RXL --post-scene-id
+    COPERNICUS/S2_SR_HARMONIZED/20231026T043849_20231026T044734_T45RXL`. Wrote
+    `sikkim_glof_2023_{pre,post}_202309{26},202310{26}{,_fallback}.png` + manifest +
+    `gee_meta.json` `imagery` entry; deleted the now-orphaned `_20230928`/`_20231006` PNGs from the
+    earlier arbitrary dates. Verified `cache.load_layers("teesta")` end to end (source: cache,
+    imagery URLs point at the new files, validates against `gee_layers.schema.json`).
+- **New `backend/m7_gee/observed.py`**: `convert(site_id, event_id, source_geojson,
+  digitized_by, method=..., imagery_ref=..., date=...)` stamps contract §4.8's required properties
+  (`event_id, method, imagery_ref, digitized_by, date, kind: observed`) onto an operator-supplied
+  GeoJSON and writes `data/<site_id>/gee/observed/<event_id>_observed.geojson`.
+  `cache.read_observed_extents()` (new) reads every file in `gee/observed/` into
+  `GeeLayers.observed_extents` (was hardcoded `[]` in `load_layers()`). `backend/m0_api/main.py`
+  `GET /files/{path}` now serves `gee/observed/*_observed.geojson` for real
+  (`GEE_OBSERVED_PATH_RE`, same anchored-regex pattern as the imagery PNG route).
+  - **Not run against real data**: `data/teesta/observed/flood_extent_2023.geojson` (the
+    hand-digitized outline described this session) does not exist on disk yet — same blocker as
+    last session. Built and tested against a synthetic GeoJSON fixture only, per the user's
+    explicit choice. Once the file exists: `python -m backend.m7_gee.observed teesta
+    sikkim_glof_2023 data/teesta/observed/flood_extent_2023.geojson --digitized-by <name>`.
+- Tests: new `tests/m7_gee/test_observed.py` (9 tests), 3 new cases in `test_imagery.py`
+  (scene-ID → `gee_meta.json` merge), 2 new cases in `test_cache.py`
+  (`read_observed_extents`/`load_layers` wiring). **Could not run the full `pytest -q`** — this
+  session's shell has no active conda env; system `python3` lacks `shapely`, so `lake_area.py`
+  (imported by `fetch.py`, imported by `m0_api.main`) fails to import, breaking collection of
+  `test_fetch.py`, `test_lake_area.py`, `test_provider.py`, and all of `tests/m0_api`. Ran what
+  could run: `tests/m7_gee/test_imagery.py`, `test_observed.py`, `test_cache.py` — all pass (34
+  tests). Manually verified `GeeLayers` schema validation and the `GET /gee/teesta` code path by
+  calling `cache.load_layers()` directly. **Next session (with the real `sih26` env): run full
+  `pytest -q` to confirm nothing broke.**
+
+## 2026-09-25 — M0: scheduled site re-checks (lake-area + library-age)
+
+Summarised existing `backend/m0_api` state first: the job system (`registry`/`jobs`/`worker`) is
+real, but `GET /sites`, `PUT /sites/{id}/recheck` and `POST /sites/{id}/rerun` were pure mocks —
+no persistence, and nothing ever created a `recheck` job even though `jobs.STAGES["recheck"]`
+already existed. Found three real, unresolved design questions before writing anything (registry
+§4.5's frozen table list has no `sites` table; docs/decisions.md open question #4 about a lapsed
+re-check; `rerun` has no job stages defined) and got the user's decisions on all three — logged in
+`docs/decisions.md` ("M0 scheduled site re-checks" this session).
+
+Implemented:
+- **`backend/m0_api/registry.py`**: `utc_now_dt()` — the one "now" the whole module now goes
+  through (`utc_now()` formats it), so a fake-clock test only needs to monkeypatch one function.
+- **New `backend/m0_api/site_status.py`**: `data/<site_id>/site_status.json` — `frequency_days`
+  (default 90, contract §5.1's own example), `lake_area_change_threshold_pct` (default 10, matches
+  `GeeSettings.recheck_threshold_pct`), `last_checked_at`/`next_check_at`, `outdated`,
+  `status_reason_key`, `status_detail`. `set_frequency()` (recomputes `next_check_at` from the
+  last check, not from now), `record_check()` (a completed re-check's result), `is_due()`,
+  `overlay()` (patches a mocked `SiteSummary` with the real state).
+- **`backend/m7_gee/fetch.py`**: extracted `best_effort_provider()` — try live Earth Engine, fall
+  back to `_CacheOnlyProvider` — from what `POST /gee/{id}/refresh` did inline; now shared with
+  the worker.
+- **`backend/m0_api/worker.py`**: every `tick()`, `_schedule_rechecks()` queues a `recheck` job for
+  any known site with a published library (`emulator/<model>/manifest.json` exists) and no active
+  job, once its `site_status.json` schedule is due (or has never run) — no separate timer. The
+  `checking` stage is now real for `kind == "recheck"` (`_run_recheck`): M7's lake-area check via
+  `gee_fetch.run()`, reading back `gee/recheck.json`; if that's not outdated, a library-age check
+  against `site_status.DEFAULT_MAX_LIBRARY_AGE_DAYS` (365 days, new engineering knob). Either
+  outcome calls `site_status.record_check(...)`, which always advances the schedule.
+- **`backend/m0_api/main.py`**: `GET /sites`/`GET /sites/{id}` overlay `site_status.overlay()` onto
+  the mocked base response (same pattern as `_gee_layers_or_mock`); `PUT /sites/{id}/recheck` now
+  really persists via `site_status.set_frequency()`; `POST /sites/{id}/rerun` now really queues a
+  job — but an `onboarding`-kind one, honestly documented as not yet reusing terrain (that needs
+  the still-undecided `rerun` stage list).
+- Tests: new `tests/m0_api/test_site_status.py` (9 cases, fake clock via monkeypatching
+  `registry.utc_now_dt`), new `tests/m0_api/test_recheck_scheduling.py` (9 cases: no job without a
+  library, job queued when due, none when not due, no duplicate while one is active, lake-area vs.
+  library-age triggers and their priority, and the "lapsed schedule alone never flags outdated"
+  case from open question #4), plus new/extended cases in `tests/m0_api/test_endpoints.py` for the
+  real `GET /sites`, `PUT /sites/{id}/recheck` and `POST /sites/{id}/rerun` behaviour.
+- **Test environment**: installed `shapely` via `pip install --user --break-system-packages` (no
+  `sih26` conda env available in this shell) so `tests/m0_api` and `tests/m7_gee` could collect at
+  all. Ran the full `pytest -q` (minus `tests/m1_terrain`/`tests/m6_impact`, which need
+  `geopandas`, not installed here — pre-existing gap, unrelated). 652 passed, 1 pre-existing
+  failure: `tests/m0_api/test_endpoints.py::test_get_file_geojson` — confirmed via `git stash`
+  that it already failed before this session's changes (the file it requests,
+  `data/teesta/gee/observed/teesta_2023_observed.geojson`, was never written to disk; last
+  session's own notes already flag `data/teesta/observed/flood_extent_2023.geojson` as missing).
+  Left untouched — out of scope for this session, not introduced by it.
+
+**Next session**: decide and implement real `rerun` job stages if "re-run reuses terrain" needs to
+actually skip terrain; write `data/teesta/observed/flood_extent_2023.geojson` (or accept the
+mismatch and fix `test_get_file_geojson`'s fixture) to clear the one remaining failing test.
+
+## 2026-09-25 — M4: DualSPHysics near-field case generator (`backend/m4_sph/`)
+
+Found `backend/m4_pilot/` holds only calibration logs (`vram_estimator.py` + three log files),
+not a template case as the session brief assumed — the logs turned out to be from DualSPHysics
+5.4.3's own stock `01_DamBreak/CaseDambreakVal2D` example, and the real install (with Linux
+binaries) is at `/mnt/d/APPS/DualSPHysics_v5.4/` on this machine, not in the repo. Decisions
+(inlet flow source, settings location, inlet geometry) recorded in `docs/decisions.md`
+"M4 pilot case", 2026-09-25.
+
+Built, in order (one commit each):
+- `backend/m4_sph/case_xml.py`: a GenCase `_Def.xml` writer (constants, geometry, draw commands,
+  inlet/outlet zones, gauges, parameters) plus `canonicalize()`/`diff_trees()` for comparing
+  against a reference file. `generator.pilot_case_spec()` reproduces the pilot's calibration case
+  and regenerating it matches the real `CaseDambreakVal2D_Def.xml` exactly
+  (`tests/m4_sph/test_pilot_regen.py`).
+- `backend/m4_sph/settings.py` + `config/m4_sph.yaml`: SPH numerical/solver settings
+  (dp, time window, inlet size, VRAM budget), project-maintained, not a site fact.
+- `generator.hydrograph_to_velocity()`: converts an M2 discharge hydrograph to a uniform inlet
+  velocity over a fixed cross-section, mass-flux conserving.
+- `backend/shared/probes.py` + `generator.build_nearfield_case()`/`write_case()`: ties together
+  M1 terrain (`nearfield.stl`, `dem_nearfield.tif`, `centreline.gpkg`, `pois.gpkg`) and an M2
+  hydrograph into a near-field GenCase, with the inlet placed at
+  `domains.near_field.inflow.location` and oriented along the local channel tangent. Verified
+  end-to-end against a synthetic V-shaped valley (real M1 pipeline output). `far_field` inflow
+  (Teesta today) raises `InflowUnavailable` until M3 exists.
+- `tests/m4_sph/test_gencase_smoke.py` (skipped unless `DSPH_BIN_DIR` is set): actually runs the
+  real GenCase binary on both the pilot case and a generated 3D near-field case. This caught two
+  bugs schema validation alone wouldn't have — `hswl` must be set explicitly (not `auto`) because
+  the case starts with zero fluid particles, and boundary `mk` values must stay inside
+  `mkconfig`'s declared `boundcount` — both fixed.
+
+**Known gap, not yet verified**: whether the inlet's `rotateaxis` angle sign convention actually
+points the imposed flow downstream (vs. upstream) needs visual inspection of a generated case in
+a VTK viewer — out of scope this session; flagged in `InletGeometry`'s docstring and
+`docs/decisions.md`.
+
+**Out of scope this session** (per the approved plan): launching the solver as a job, post-
+processing to `summary_nearfield/*.tif`/`timeseries.csv`/`surfaces/*.glb`, `run_meta.json`,
+initial reservoir water, far-field inflow from M3, and `snap_pois`'s wrong return type
+annotation.
+
+**Next session**: visually verify the inlet rotation direction in a VTK viewer against a real
+GenCase output; then M3 (Delft3D 4 FLOW) or M4 post-processing/job wiring.

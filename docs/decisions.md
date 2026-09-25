@@ -549,3 +549,237 @@ is pinned to the old text, and the doc header already marks the contract DRAFT).
   footprint) rather than inventing a bed. Always emits caveat `placeholder_data` when it fires
   (CLAUDE.md rule 3 — this is exactly the "missing fact, don't guess" case, at raster granularity
   rather than a single `SourcedValue`).
+
+## 2026-09-25 — M7 GEE fetch: lake-area series, rainfall, cache, recheck
+
+Decided with the user while building `backend/m7_gee/{settings,lake_area,provider,rainfall,
+recheck,cache,fetch}.py` end to end (contract §4.8: `lake_area.csv`, `lake_latest.geojson`,
+`rainfall.csv`, `gee_meta.json`, `recheck.json`). Out of scope this session: event imagery PNG/TIF,
+`observed/*.geojson` (manual digitising) and wiring the real M0 `/gee` endpoints to this cache
+(`backend/m0_api/main.py`'s `GET/POST /gee/{site_id}` still serve `gee_layers.example.json`).
+
+- **Water classification: Otsu's threshold per monthly composite** (`lake_area.otsu_threshold`),
+  not one fixed NDWI/backscatter cutoff. A single global cutoff would have to be re-justified for
+  every site and season (turbid glacial water, different SAR incidence angles); Otsu adapts and
+  the threshold actually used is recorded per month in `gee_meta.json`'s `lake_area_months`. The
+  result is clamped to `GeeSettings.ndwi_threshold_clamp` / `s1_vv_threshold_clamp_db` so a
+  degenerate histogram (e.g. an almost-uniform composite) can't pick a physically nonsensical
+  threshold. Otsu's tie-breaking: when two classes are separated by empty histogram bins, every
+  threshold in the gap gives the same between-class variance; `otsu_threshold` picks the middle of
+  the tied run, not its first (leftmost) index, so the threshold sits in the gap rather than at
+  its edge.
+- **Only the lake's connected component counts** (`lake_area.seed_component`), found by seeding a
+  connected-components labelling at the dam's `location` (or the nearest labelled pixel, if the
+  seed itself isn't classified as water that month) and keeping only that component. A global
+  threshold over the AOI buffer also lights up unrelated water and, for Sentinel-1, radar shadow;
+  seeding on the known lake location drops both without a fixed distance cutoff.
+- **Frozen months are skipped, not written with a falsely small area.** Both NDWI and SAR
+  under-detect an ice-covered lake. `lake_area.choose_method` skips a month outright (no
+  `lake_area.csv` row's `area_m2` — cloud/valid data still recorded) once the Sentinel-2 SCL
+  snow/ice class covers more than `GeeSettings.max_snow_ice_pct` (default 30%) of the AOI buffer,
+  checked before the cloud/S1-fallback decision since ice degrades both products the same way. The
+  reason (`snow_ice` / `no_usable_scene`) is recorded per month.
+- **Method choice order: Sentinel-2 NDWI first, Sentinel-1 VV fallback, skip last.** S2 is used
+  when its cloud share over the buffer is at or below `GeeSettings.max_cloud_pct` (default 20%);
+  otherwise S1 is tried, used only if its pixel coverage is at least `GeeSettings.min_valid_pct`
+  (default 50%) — a month can otherwise fall in a gap in Sentinel-1's revisit schedule.
+- **Rainfall catchment: HydroBASINS level 12** (`WWF/HydroSHEDS/v1/Basins/hybas_12`), the basin
+  containing the lake plus every basin upstream of it (walked via `NEXT_DOWN`,
+  `provider.walk_upstream_basin_ids`, capped at `MAX_UPSTREAM_HOPS = 25` hops). No basin/catchment
+  polygon exists anywhere else in the repo (M1 has no basin output, and the far-field bbox likely
+  cuts off a GLOF lake's upstream glaciers), and HydroBASINS needs no M1 outputs to exist first, so
+  the recheck doesn't depend on the emulator having been trained. `rainfall.csv`'s `aggregation` is
+  `catchment_mean_daily_total`.
+- **`recheck.json`'s `reference_area_m2`** is the latest `lake_area.csv` row dated on or before the
+  trained emulator's `manifest.json` `trained_at` (`backend/m5_emulator/emulator.py`) —
+  `recheck.reference_area`. This compares against what the emulator actually saw, not an arbitrary
+  baseline. With no trained library yet (no `manifest.json`), `recheck.json` reports
+  `reference_area_m2: null`, `outdated: false`, `reason: "no_trained_library"` — an untrained site
+  is never flagged outdated. `--reference-area-m2` overrides the lookup.
+- **`recheck.json`'s `threshold_pct` default: 10%** (`GeeSettings.recheck_threshold_pct`), matching
+  the value already in `gee_layers.example.json` (§5.8). **PENDING team agreement** — the site
+  config has no `recheck` block (`docs/handoff_contract.md` §3.1's "Missing in v1" list), so this
+  is a function argument / `GeeSettings` default for now, same as M1's settings pattern
+  (`backend/m1_terrain/settings.py`), not a config field. `PUT /sites/{id}/recheck`'s
+  `lake_area_change_threshold_pct` (`recheck_request.schema.json`) will override it once M0
+  persists that per-site (not wired up yet — `set_recheck` in `backend/m0_api/main.py` is still a
+  mock that never reads its own request body's threshold back out).
+- **Caching: past finished months are never refetched**, only the two most recent
+  (`fetch.REFETCH_TRAILING_MONTHS = 2`) plus any month not already on disk
+  (`cache.merge_lake_rows`). `lake_latest.geojson` is only rewritten when the latest valid month
+  was actually refetched this run (so its raster component is in memory); otherwise the existing
+  file is left alone rather than silently going stale in a way that looks fresh.
+- **Provider failure keeps the cache.** `fetch.run` catches a failing lake-area or rainfall fetch
+  separately, logs it, returns it in `FetchResult.errors` (never swallowed), and writes
+  `gee_meta.json` `source: "cache"` for that product instead of failing the whole run — matches
+  contract §4.8 `gee_meta.json`'s documented fallback order (live → cache → screenshot_fallback).
+- **`gee_layers.schema.json`'s `recheck.change_pct` now allows `null`** (was `type: number`),
+  additive/non-breaking (contract §9: still-draft section, no existing consumer reads it as
+  non-nullable — `gee_layers.example.json`'s literal payload is unaffected). Needed for
+  `cache.load_layers()` (built for M0 to use later, not wired up this session) to represent the
+  untrained-library case honestly instead of inventing a 0.
+- **New CHIRPS/Sentinel-1/Sentinel-2/HydroBASINS `data_sources.md` entries** (`src_038`–`src_041`),
+  same "verify DOI before `status: sourced`" caveat as `src_033`/`src_034` — this session cites the
+  EE Data Catalog collection IDs (verified against the catalog directly) but not a peer-reviewed
+  citation for each dataset.
+- **`EarthEngineProvider` (the real Earth Engine calls) is not exercised by `pytest`** beyond
+  request-shape checks (`tests/m7_gee/test_provider.py`: `_pixel_grid`,
+  `walk_upstream_basin_ids`). The classification/orchestration logic (`lake_area.py`, `rainfall.py`,
+  `recheck.py`, `fetch.py`) runs end to end against `provider.SyntheticProvider`
+  (`tests/m7_gee/test_fetch.py`), matching CLAUDE.md rule 2. `EarthEngineProvider` itself needs a
+  live smoke test with real EE credentials: `python -m backend.m7_gee.fetch teesta --months 24
+  --ee-project <proj>`, not yet run this session.
+
+## 2026-09-25 — M7: recording scene IDs, observed-extent loader
+
+Two "out of scope" leftovers from the previous M7 sessions, both decided with the user this
+session.
+
+- **Satellite scene IDs are recorded in `gee_meta.json`, not `sites/<site_id>.yaml`.**
+  `Event.imagery_pre_event`/`imagery_post_event` (`site_config.py`, `contracts/schemas/
+  site_config.schema.json`) only carry `value` (a date) + `source` (a file path, parsed by
+  `imagery.raw_rgb_path`) + `status`, and the schema has `additionalProperties: false` — adding a
+  `scene_id` field there is a contract change (CLAUDE.md rule 1: never change the contract
+  silently). Asked the user; decided to put scene IDs where contract §4.8 already designed for
+  them: `gee_meta.json`'s "per product: dataset, scene_ids, acquisition_dates, cloud_pct,
+  fetched_at, source" — `imagery.py` had never actually written an `"imagery"` entry there
+  (only `lake_area`/`lake_latest`/`rainfall` were). `imagery.convert()` now takes an optional
+  `scene_ids={"pre": [...], "post": [...]}` and merges an `"imagery"` entry into `gee_meta.json`
+  without touching the other products' entries; `sites/teesta.yaml` only got its `imagery_pre_event/
+  post_event.value` dates corrected to match the actual scene acquisition dates
+  (`2023-09-26`/`2023-10-26`, from `COPERNICUS/S2_SR_HARMONIZED/20230926T.../20231026T...`) — no
+  schema change. CLI: `python -m backend.m7_gee.imagery <site_id> --pre-scene-id ID
+  --post-scene-id ID` (repeatable).
+- **New `backend/m7_gee/observed.py`**: stamps an operator-supplied GeoJSON (already EPSG:4326)
+  with the contract's required properties (`event_id, method, imagery_ref, digitized_by, date,
+  kind: observed`) and writes `data/<site_id>/gee/observed/<event_id>_observed.geojson`.
+  `cache.read_observed_extents()` now reads every file in that directory into
+  `GeeLayers.observed_extents` (was hardcoded `[]`) — wired and tested against a synthetic GeoJSON
+  fixture, per the user's choice this session. **Not run for real**:
+  `data/teesta/observed/flood_extent_2023.geojson` (the hand-digitized outline the user described)
+  still doesn't exist on disk — same blocker noted in the previous M7 session. Once it exists:
+  `python -m backend.m7_gee.observed teesta sikkim_glof_2023 data/teesta/observed/
+  flood_extent_2023.geojson --digitized-by <name>`.
+- **Test environment note**: this session's `pytest` runs used system `python3` (no `shapely`
+  installed, unlike the project's `sih26` conda env) — `tests/m7_gee/test_fetch.py`,
+  `test_lake_area.py`, `test_provider.py`, and all of `tests/m0_api` fail to collect for that
+  reason alone (`lake_area.py` imports `shapely` at module level, and `m0_api.main` imports
+  `fetch`). Unrelated to this session's changes; `tests/m7_gee/test_imagery.py`,
+  `test_observed.py`, `test_cache.py` (the files touched this session) all pass. Full `pytest -q`
+  in the real conda env not run this session — should be done before merging.
+
+## 2026-09-25 — M0 scheduled site re-checks: persistence, outdated triggers, rerun scope (DECIDED with user this session)
+
+**Status:** implemented in `backend/m0_api/site_status.py` and `backend/m0_api/worker.py`. Four
+questions were open before writing any code; the user decided all four.
+
+1. **Where site status/recheck state lives:** `data/<site_id>/site_status.json`, not a `sites`
+   table. Registry §4.5 freezes the table list at `scenarios`/`runs`/`jobs`/`queries`; adding a
+   table would be a contract change needing the §9 sign-off. A per-site JSON file needs none —
+   same pattern as `manifest.json`/`recheck.json`/`gee_meta.json`. `status` itself
+   (`onboarding`/`demo_mode`/`ready`/`failed`) is still meant to be derived from a site's jobs
+   (§2.1 below), never stored; this file only carries what a re-check can add on top
+   (`outdated`, `status_reason_key`, `status_detail`, the `recheck` schedule).
+2. **Open question #4 (a lapsed re-check date alone) is resolved: banner only, stays `ready`.**
+   A missed check-in doesn't mean the lake changed. `site_status.is_due()` makes a lapsed job
+   *eligible to be queued*; it never by itself sets `outdated`.
+3. **Library-age check:** age of the trained library (`manifest.json` `trained_at`) vs. a new
+   engineering knob, `site_status.DEFAULT_MAX_LIBRARY_AGE_DAYS = 365` (not a physical fact,
+   same class as `GeeSettings.recheck_threshold_pct`). Deliberately far above any sane
+   `frequency_days` (default 90, contract §5.1's own example value) so a merely-overdue check can
+   never look like this trigger — see point 2. New `status_reason_key`:
+   `outdated_library_age` (site_summary.schema.json leaves `status_reason_key` an unconstrained
+   string, so this needed no schema change; the existing `outdated_lake_area_change` and
+   `outdated_config_changed` table below gains a row).
+4. **`POST /sites/{id}/rerun` stays a stand-in, not fully real.** It now queues a genuine
+   `onboarding`-kind job (not a `rerun`-kind one — `jobs.STAGES` still has no `rerun` entry,
+   the open gap noted in `docs/progress.md`), so it does **not** actually skip terrain the way
+   "re-run reuses existing terrain" implies. Deciding real `rerun` stages (Part 2 above proposes
+   starting at a milestone after terrain, under stage names not yet adopted) is separate,
+   out-of-scope work.
+
+`outdated` reasons (§2.3 above), with `outdated_library_age` added by this session:
+
+| `status_reason_key` | Trigger | `status_detail` |
+|---|---|---|
+| `outdated_lake_area_change` | `recheck.json` has `change_pct` ≥ `recheck.lake_area_change_threshold_pct` | `{change_pct, threshold_pct, checked_at}` |
+| `outdated_config_changed` | A fact in `sites/<id>.yaml` used in training has changed | `{changed_fields: [...]}` |
+| `outdated_library_age` | `now - manifest.trained_at > DEFAULT_MAX_LIBRARY_AGE_DAYS` | `{trained_at, age_days, max_age_days}` |
+
+The worker schedules a `recheck` job (real `checking` stage, not the fake sleep every other
+in-process stage still uses) for any known site with a published library and no active job once
+its `site_status.json` schedule is due — no separate timer/cron, just a cheap check every
+`tick()`. The `checking` stage runs M7's lake-area check
+(`gee_fetch.best_effort_provider()` + `gee_fetch.run()`, extracted from what
+`POST /gee/{id}/refresh` already did inline, now shared) then the library-age check, and calls
+`site_status.record_check(...)`. `GET /sites`/`GET /sites/{id}` overlay this state onto the
+still-mocked base response; `PUT /sites/{id}/recheck` persists for real.
+
+## 2026-09-25 — M3: Delft3D 4 FLOW, not FM (DECIDED with user this session)
+
+`CLAUDE.md` and `environment.yml` had assumed Delft3D FM (`hydrolib-core`, `meshkernel`,
+`dfm_tools`). Checking the machine that will run it found only a GUI-only Delft3D 4.07.02
+install (`kernels/` empty, no D-Flow FM kernel anywhere on disk). Asked the user; decided:
+
+- **Solver: Delft3D 4 FLOW** (structured grid — `.grd`/`.enc`/`.dep`/`.rgh`/`.mdf`/`.bnd`/`.bct`/
+  `.obs`), not D-Flow FM. `hydrolib-core`, `meshkernel` and `dfm_tools` are FM-only and don't write
+  these formats; dropped from `environment.yml` (confirmed nothing in the repo imports them yet).
+  `CLAUDE.md`'s M3 row, Stack line and "Simulation tools" line updated to match; the FLOW kernel
+  path/version stay `NOT STATED` until the user installs `d_hydro`/`flow2d3d` (the C:\ install has
+  the GUIs — RGFGRID, QUICKIN, the FLOW GUI, QUICKPLOT — but not the compiled kernel).
+- **Kernel source:** the user installs the Windows FLOW kernels; the case is run from WSL through
+  Windows interop. Not built from Deltares' open-source Fortran source in WSL (would need
+  gfortran/MPI/netCDF-Fortran toolchain not currently set up, and a slower path with no clear
+  benefit here).
+- **Pilot build:** built by hand in the Deltares GUIs (RGFGRID/QUICKIN/FLOW GUI), from a written
+  recipe, not by a throwaway script and not by `backend/m3_delft3d/generator.py` itself — so the
+  reproduction test (`m3_spec.md`, Phase 3) compares against a reference that's independent of the
+  generator, in Deltares' own file formatting.
+- **Pilot extent:** a pilot-only site config (`m3_pilot/inputs/teesta_pilot.yaml`), not
+  `sites/teesta.yaml`. The real Teesta far-field bbox at 30 m resolution is 2534×5016 (12.7M)
+  cells — impractical for a hand-built pilot on 16 GB RAM (CLAUDE.md rule 13). The pilot uses a
+  reduced South-Lhonak-to-Chungthang reach at a coarser resolution (~90 m, to be confirmed against
+  cell count once M1 runs on it). `sites/teesta.yaml` itself is unchanged.
+- **Base flow schema:** `domains.<domain>.inflow.base_flow`, an optional `DischargeValue`
+  (`backend/shared/site_config.py:186`) alongside the existing `inflow.location`. Reuses the
+  existing SourcedValue pattern rather than adding a new top-level block; `additionalProperties:
+  false` preserved, existing site configs stay valid without it.
+
+## 2026-09-25 — M4 pilot case: `backend/m4_pilot/` is calibration logs only, not a template case
+
+Starting `backend/m4_sph/generator.py`, found `backend/m4_pilot/` holds only
+`vram_estimator.py` and three logs from a run (`gencase_output.log`, `dualsphysics_output.log`,
+`nvidia_smi.log`) — no GenCase `_Def.xml`, no STL, no launch script. The logs are from
+DualSPHysics 5.4.3's own stock example `examples/main/01_DamBreak/CaseDambreakVal2D` (found on
+the machine at `/mnt/d/APPS/DualSPHysics_v5.4/`, not checked into this repo). Decided (with user,
+same session):
+
+- **Inlet flow:** `backend/m4_sph/generator.py`'s `build_nearfield_case` accepts any
+  `(t_s, q_m3s)` hydrograph. When `near_field.inflow.from` is a dam id, it uses M2's
+  `hydrograph()`. When it's `far_field` (Teesta today), it raises `InflowUnavailable` — the SPH
+  inlet needs a routed far-field discharge series that only M3 can produce; Teesta's near-field
+  case can't be built until M3 exists.
+- **SPH settings location:** `config/m4_sph.yaml` (dp, time window, inlet size, VRAM budget/
+  margin), loaded into a validated `SphSettings` dataclass, project-maintained like
+  `config/manning_n.csv` — not a site fact, no contract change. The contract itself notes (§4.4)
+  that M3/M4 simulation settings aren't in `SiteConfig` yet.
+- **Inlet geometry:** a fixed vertical rectangle (`inlet_width_m` x `inlet_height_m`), centred on
+  `domains.near_field.inflow.location`, bottom at bed elevation from `dem_nearfield.tif`, rotated
+  to the local channel tangent (`centreline.gpkg`) via DualSPHysics's inout-zone `rotateaxis`
+  (as used in `examples/inletoutlet/05_ShapesInlet3D`). `v(t) = Q(t) / (W*H)`, free surface held
+  fixed at bed + H (caveat `fixed_area_inlet` — flow depth doesn't vary at the inlet).
+- **Regenerating the pilot case exactly** (`tests/m4_sph/test_pilot_regen.py`, diffing against a
+  copy of the real `CaseDambreakVal2D_Def.xml`) validated the XML writer (`case_xml.py`) before
+  it was trusted for real near-field cases. It's 2D with no STL/inlet, so it only checks the
+  writer, not the terrain/inlet/probe logic — that's covered separately by a synthetic 3D
+  near-field case (`tests/m4_sph/test_generator.py`) and, when `DSPH_BIN_DIR` is set, by actually
+  running GenCase on both cases (`tests/m4_sph/test_gencase_smoke.py`).
+- **GenCase caught two real bugs** the schema alone wouldn't have: a near-field case needs
+  `hswl` set explicitly (not `auto`) because it starts with zero fluid particles (all inflow
+  comes from the inlet zone at runtime) — `auto` would compute a still water level of 0 and zero
+  out the speed of sound; and boundary particles' `mk` must stay inside `mkconfig`'s declared
+  `boundcount`. Both fixed in `generator.py`.
+- **Not yet verified:** the `rotateaxis` angle's sign convention (whether the inlet's imposed
+  flow direction ends up pointing downstream or upstream) — GenCase accepts the XML, but
+  confirming the actual flow direction needs visual inspection of a generated case (VTK), out of
+  scope for this session. `InletGeometry`'s docstring flags this.
