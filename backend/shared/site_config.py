@@ -543,9 +543,12 @@ def load_site_config(path_or_id: str | Path, sites_dir: str | Path | None = None
     placeholders = cfg.placeholder_fields
     if placeholders:
         bar = "!" * 78
-        msg = (f"\n{bar}\n{path}: {len(placeholders)} PLACEHOLDER value(s) — NOT for real results.\n"
-               f"Every result built from this config must set has_placeholders=true.\n"
-               + "\n".join(f"  - {p}" for p in placeholders) + f"\n{bar}")
-        logger.warning(msg)
-        warnings.warn(msg, PlaceholderWarning, stacklevel=2)
+        banner = (f"\n{bar}\n{path}: {len(placeholders)} PLACEHOLDER value(s) — NOT for real results.\n"
+                  f"Every result built from this config must set has_placeholders=true.\n"
+                  + "\n".join(f"  - {p}" for p in placeholders) + f"\n{bar}")
+        logger.warning(banner)
+        # The full field list is already in the log banner above; the warning itself stays a
+        # single line so it doesn't get printed twice (once per sink) at full length.
+        warnings.warn(f"{path.name}: {len(placeholders)} placeholders (has_placeholders=true; "
+                       f"see log for the field list)", PlaceholderWarning, stacklevel=2)
     return cfg

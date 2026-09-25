@@ -35,7 +35,12 @@ domains:
     grid_resolution:
       value: 30
       unit: m
-      source: "Placeholder: typical for Copernicus GLO-30 / SRTM. Replace with the resolution of the DEM actually used."
+      source: "Placeholder, leaning Copernicus GLO-30 (src_034) over SRTM GL1 (src_033): both are
+        30 m, but SRTM has known voids/artefacts in steep Himalayan terrain that GLO-30 generally
+        avoids (it's derived from the newer TanDEM-X mission with radar-shadow infill). Not yet
+        decided -- backend/m1_terrain/download.py fetches both, and the M1-2 comparison report
+        (void %, difference maps, valley profiles) makes the final call, which may still be SRTM
+        or CartoDEM if the report shows otherwise for this site."
       status: placeholder
     inflow:
       from: south_lhonak

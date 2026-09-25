@@ -136,6 +136,35 @@ def test_fetch_opentopography_request_covers_grid_bounds_and_writes_provenance(t
     assert FAKE_KEY not in json.dumps(provenance)
 
 
+def test_no_log_record_contains_the_api_key(tmp_path, synth_config, monkeypatch, caplog):
+    """httpx logs 'HTTP Request: GET <url> ...' at INFO by default, and <url> carries
+    API_Key=<key> in its query string; download.py silences the httpx logger to WARNING at
+    import so that line never fires, and any URL we log ourselves is redacted (rule 12)."""
+    monkeypatch.setenv("OPENTOPOGRAPHY_API_KEY", FAKE_KEY)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        params = dict(request.url.params)
+        bbox = (float(params["west"]), float(params["south"]), float(params["east"]), float(params["north"]))
+        return httpx.Response(200, headers={"content-type": "image/tiff"}, content=_geotiff_bytes(bbox))
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    raw_dir = tmp_path / "raw"
+    with caplog.at_level(logging.DEBUG):
+        dl.fetch_opentopography(synth_config, "srtm_gl1", raw_dir, client=client)
+
+    assert caplog.records, "expected at least our own debug log line to have been emitted"
+    for record in caplog.records:
+        assert FAKE_KEY not in record.getMessage()
+
+    # The httpx logger is silenced to WARNING, so its INFO-level request-summary line (which
+    # would otherwise contain the raw key in the URL) must not have reached caplog at all.
+    assert not [r for r in caplog.records if r.name == "httpx" and r.levelno < logging.WARNING]
+
+    # Our own debug line logs the redacted URL, never the raw key.
+    own_messages = [r.getMessage() for r in caplog.records if r.name == "m1.download"]
+    assert any("API_Key=***" in m for m in own_messages)
+
+
 def test_fetch_opentopography_error_response_cleans_up_and_never_leaks_key(tmp_path, synth_config, monkeypatch):
     monkeypatch.setenv("OPENTOPOGRAPHY_API_KEY", FAKE_KEY)
 

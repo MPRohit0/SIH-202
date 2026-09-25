@@ -32,6 +32,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +44,20 @@ from rasterio.merge import merge as rio_merge
 from backend.shared.site_config import SiteConfig, load_site_config
 
 log = logging.getLogger("m1.download")
+
+# httpx logs "HTTP Request: GET <url> ..." at INFO level by default, and <url> includes
+# API_Key=... in the query string — that would leak the key into any run with INFO logging
+# enabled (this module's own CLI sets basicConfig(level=INFO)). CLAUDE.md rule 12.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+_API_KEY_RE = re.compile(r"(API_Key=)[^&]*")
+
+
+def _redact_url(url: str) -> str:
+    """`url` with any `API_Key=...` query value replaced by `***`, for the rare case we log a
+    request URL ourselves (rule 12 — the real key must never reach a log line or an exception)."""
+    return _API_KEY_RE.sub(r"\1***", url)
+
 
 CONTRACT_VERSION = "0.2.0"
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -81,7 +96,10 @@ class DownloadError(RuntimeError):
 
 def site_bbox_with_margin(cfg: SiteConfig, margin_deg: float = BBOX_MARGIN_DEG) -> Bbox:
     """The site's far-field bbox (contract §3.1 `domains.far_field.bbox`), buffered by
-    `margin_deg`. Raises if the bbox is still a placeholder."""
+    `margin_deg` and rounded to 6 decimal places (~0.11 m at the equator — far finer than any
+    DEM's resolution, so this doesn't change what's requested; it just keeps the request, its
+    logs and its provenance free of float noise like `26.639999999999997`, and reproducible run
+    to run). Raises if the bbox is still a placeholder."""
     bbox = cfg.domains.far_field.bbox.value
     if bbox is None:
         raise DownloadError(
@@ -89,7 +107,10 @@ def site_bbox_with_margin(cfg: SiteConfig, margin_deg: float = BBOX_MARGIN_DEG) 
             "fill it in before downloading DEM/landcover data"
         )
     min_lon, min_lat, max_lon, max_lat = bbox
-    return (min_lon - margin_deg, min_lat - margin_deg, max_lon + margin_deg, max_lat + margin_deg)
+    return (
+        round(min_lon - margin_deg, 6), round(min_lat - margin_deg, 6),
+        round(max_lon + margin_deg, 6), round(max_lat + margin_deg, 6),
+    )
 
 
 def opentopography_api_key() -> str:
@@ -176,7 +197,10 @@ def fetch_opentopography(cfg: SiteConfig, product: str, raw_dir: Path, *,
 
         def _download(tmp: Path) -> None:
             try:
-                with client.stream("GET", OPENTOPOGRAPHY_URL, params=params) as resp:
+                request = client.build_request("GET", OPENTOPOGRAPHY_URL, params=params)
+                log.debug("GET %s", _redact_url(str(request.url)))
+                resp = client.send(request, stream=True)
+                try:
                     content_type = resp.headers.get("content-type", "")
                     if resp.status_code != 200 or "json" in content_type or content_type.startswith("text/"):
                         body = b"".join(resp.iter_bytes())[:500]
@@ -188,6 +212,8 @@ def fetch_opentopography(cfg: SiteConfig, product: str, raw_dir: Path, *,
                     with open(tmp, "wb") as f:
                         for chunk in resp.iter_bytes(chunk_size=1 << 20):
                             f.write(chunk)
+                finally:
+                    resp.close()
             except httpx.HTTPError as e:
                 raise DownloadError(
                     f"OpenTopography request for {product} failed (params {safe_params}): "

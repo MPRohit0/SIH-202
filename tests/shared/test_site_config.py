@@ -83,16 +83,19 @@ def test_placeholder_warning_is_loud(synth_path):
         load_site_config(synth_path)
     assert len(record) == 1, "exactly one consolidated warning per load"
     msg = str(record[0].message)
-    assert "4 PLACEHOLDER" in msg
-    assert "has_placeholders" in msg
-    for field in SYNTH_PLACEHOLDERS:
-        assert field in msg
+    # The warning is a single line (the full per-field list lives in the log banner only,
+    # so it isn't printed twice) — but it still says how many and points at the log.
+    assert msg == f"{synth_path.name}: 4 placeholders (has_placeholders=true; see log for the field list)"
 
 
 def test_placeholder_warning_also_logged(synth_path, caplog):
     with pytest.warns(PlaceholderWarning), caplog.at_level("WARNING"):
         load_site_config(synth_path)
     assert any("PLACEHOLDER" in r.getMessage() for r in caplog.records)
+    log_text = "\n".join(r.getMessage() for r in caplog.records)
+    assert "has_placeholders" in log_text
+    for field in SYNTH_PLACEHOLDERS:
+        assert field in log_text
 
 
 # --------------------------------------------------------------------------- SourcedValue rules
