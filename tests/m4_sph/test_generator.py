@@ -1,0 +1,120 @@
+"""End-to-end test for `backend.m4_sph.generator.build_nearfield_case`, on the synthetic
+V-shaped valley (CLAUDE.md rule 2: every module runs end-to-end on synthetic data before real
+data exists). Terrain comes from a real M1 pipeline run (`synth_terrain_dir` fixture); the
+hydrograph is M2's triangular fallback for the synthetic dam."""
+
+from __future__ import annotations
+
+import json
+import xml.etree.ElementTree as ET
+
+import numpy as np
+import pytest
+
+from backend.m4_sph.generator import (
+    InflowUnavailable,
+    OverVramBudget,
+    build_nearfield_case,
+    write_case,
+)
+from backend.m4_sph.settings import load_sph_settings
+from backend.shared.site_config import load_site_config
+
+
+def _build(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, **overrides):
+    settings = load_sph_settings(**overrides)
+    return build_nearfield_case(
+        "synth", "synth_s001", synth_hydrograph_params, settings,
+        data_dir=synth_terrain_dir.parent.parent, sites_dir=synth_sites_dir,
+    )
+
+
+def test_build_and_write_nearfield_case(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, tmp_path):
+    spec, case_meta = _build(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, dp_m=10.0)
+
+    run_dir = tmp_path / "runs" / "synth_s001__sph"
+    case_dir = write_case(spec, case_meta, run_dir, synth_terrain_dir)
+
+    xml_path = case_dir / "synth_s001__sph_Def.xml"
+    assert xml_path.is_file()
+    assert (case_dir / "nearfield.stl").is_file()
+    assert (case_dir / "case_meta.json").is_file()
+
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    dp = float(root.find("./casedef/geometry/definition").get("dp"))
+    assert dp == pytest.approx(10.0)
+
+    time_max = next(p for p in root.findall("./execution/parameters/parameter") if p.get("key") == "TimeMax")
+    assert float(time_max.get("value")) > 0
+
+    # exactly one inlet zone, referencing nearfield.stl for the boundary
+    inout_zones = root.findall("./execution/special/inout/inoutzone")
+    assert len(inout_zones) == 1
+    stl_draws = root.findall("./casedef/geometry/commands/mainlist/drawfilestl")
+    assert len(stl_draws) == 3  # settings.boundary_layers default
+    assert all(d.get("file") == "nearfield.stl" for d in stl_draws)
+
+    saved_meta = json.loads((case_dir / "case_meta.json").read_text())
+    assert saved_meta["probes_used"] == ["synth__poi__town_a"]
+    assert saved_meta["probes_skipped"] == ["synth__poi__bridge_b"]
+    assert saved_meta["caveats"] == ["clear_water", "fixed_area_inlet"]
+
+
+def test_inlet_mass_flux_matches_hydrograph(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir):
+    spec, case_meta = _build(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, dp_m=10.0)
+    zone = spec.inout_zones[0]
+    area_m2 = case_meta["inlet"]["area_m2"]
+
+    from backend.m2_breach.hydrograph import hydrograph as m2_hydrograph
+    hydro = m2_hydrograph("synth", "synth_lake", synth_hydrograph_params, sites_dir=synth_sites_dir)
+
+    for tv in zone.velocity_times:
+        expected_q = np.interp(tv.time_s + case_meta["t_start_s"], hydro.t_s, hydro.q_m3s)
+        assert tv.v_ms * area_m2 == pytest.approx(expected_q, rel=1e-6)
+
+
+def test_gauges_present_for_every_probe_kept(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir):
+    spec, case_meta = _build(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, dp_m=10.0)
+    assert {g.name for g in spec.swl_gauges} == {"swl_synth__poi__town_a"}
+    assert {g.name for g in spec.vel_gauges} == {"vel_synth__poi__town_a"}
+
+
+def test_placeholders_and_provenance_recorded(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir):
+    _, case_meta = _build(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, dp_m=10.0)
+    cfg = load_site_config("synth", sites_dir=synth_sites_dir)
+    assert case_meta["has_placeholders"] == cfg.has_placeholders
+    assert case_meta["placeholder_fields"] == cfg.placeholder_fields
+    assert case_meta["provenance"]["hydrograph_method"] == "triangular"
+
+
+def test_far_field_inflow_raises(synth_terrain_dir, synth_hydrograph_params, tmp_path):
+    from tests.shared.conftest import fully_sourced
+    import yaml
+
+    with open("tests/fixtures/shared/synth.yaml", encoding="utf-8") as f:
+        raw = fully_sourced(yaml.safe_load(f))  # inflow.from stays "far_field"
+    sites_dir = tmp_path / "far_field_sites"
+    sites_dir.mkdir()
+    (sites_dir / "synth.yaml").write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(InflowUnavailable, match="far_field"):
+        build_nearfield_case("synth", "synth_s001", synth_hydrograph_params,
+                              data_dir=synth_terrain_dir.parent.parent, sites_dir=sites_dir)
+
+
+def test_tiny_dp_over_vram_budget_raises(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir):
+    with pytest.raises(OverVramBudget):
+        _build(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, dp_m=0.001)
+
+
+def test_auto_dp_stays_within_budget(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir):
+    settings = load_sph_settings()
+    assert settings.dp_m == "auto"
+    spec, case_meta = build_nearfield_case(
+        "synth", "synth_s001", synth_hydrograph_params, settings,
+        data_dir=synth_terrain_dir.parent.parent, sites_dir=synth_sites_dir,
+    )
+    assert spec.dp_m > 0
+    assert case_meta["vram_vram_mib"] <= case_meta["vram_budget_mib"]

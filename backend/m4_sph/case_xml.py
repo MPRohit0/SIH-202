@@ -32,6 +32,8 @@ def E(tag: str, attrib: dict | None = None, children: list[ET.Element] | None = 
 def _fmt(value) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
+    if hasattr(value, "item") and not isinstance(value, str):
+        value = value.item()  # unwrap numpy scalars (np.float64, np.int64, ...)
     if isinstance(value, float):
         return repr(value)
     return str(value)
@@ -51,10 +53,12 @@ class TimeValue:
 class InOutZone:
     """A box-shaped inlet/outlet zone (`XML_GUIDE_INLETOUTLET.pdf`).
 
-    `point`/`size` define the box in the SPH frame (§1.3); `direction` is the outward normal the
-    zone imposes velocity along. `velocity_times` gives a time-varying uniform inflow velocity
-    (`imposevelocity mode="1"`); `zsurf_m` is the fixed free-surface height imposed at the zone
-    (`imposezsurf mode="0"`).
+    `point`/`size` define the box in the SPH frame (§1.3), unrotated (`direction` along -y);
+    `rotate_deg` (about a vertical axis through `rotate_center_xy`, default the box's own centre)
+    turns the whole zone -- box and `direction` together, as in DualSPHysics's own inlet examples
+    (`examples/inletoutlet/05_ShapesInlet3D`) -- to align it with the real inlet's flow direction.
+    `velocity_times` gives a time-varying uniform inflow velocity (`imposevelocity mode="1"`);
+    `zsurf_m` is the fixed free-surface height imposed at the zone (`imposezsurf mode="0"`).
     """
 
     point_xyz: tuple[float, float, float]
@@ -65,16 +69,25 @@ class InOutZone:
     layers: int = 4
     refilling: int = 1
     inputtreatment: int = 2
+    rotate_deg: float = 0.0
+    rotate_center_xy: tuple[float, float] | None = None
 
     def to_element(self) -> ET.Element:
         px, py, pz = self.point_xyz
         sx, sy, sz = self.size_xyz
         dx, dy, dz = self.direction_xyz
-        box = E("box", children=[
+        zone_children = [
             point("point", px, py, pz),
             point("size", sx, sy, sz),
             point("direction", dx, dy, dz),
-        ])
+        ]
+        if self.rotate_deg:
+            cx, cy = self.rotate_center_xy if self.rotate_center_xy is not None else (px + sx / 2, py + sy / 2)
+            zone_children.append(E("rotateaxis", {"angle": self.rotate_deg, "anglesunits": "degrees"}, children=[
+                point("point1", cx, cy, 0.0),
+                point("point2", cx, cy, 1.0),
+            ]))
+        box = E("box", children=zone_children)
         velocitytimes = E("velocitytimes", {"comment": "Uniform inlet velocity in time"}, children=[
             E("timevalue", {"time": tv.time_s, "v": tv.v_ms}) for tv in self.velocity_times
         ])
