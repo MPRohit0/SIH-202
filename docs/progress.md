@@ -841,3 +841,15 @@ Not done yet: M1-2 (the DEM comparison report that should choose SRTM vs Coperni
 is still unwritten — this session's pipeline just takes `--dem <product>` as given. `sites/
 teesta.yaml`'s placeholder dam locations/heights (illustrative, not surveyed) mean a real Teesta
 terrain run has `has_placeholders: true` and shouldn't be treated as final.
+
+**Teesta smoke-test results** (real DEM, `--dem copernicus_glo30`): 1m41s wall clock, 1.6 GB peak
+RSS, single-threaded — well inside the RTX 4060/16 GB RAM budget, and fine for an offline M1 run.
+The centreline (6506 cells, ~239 km total chainage to the grid edge) snapped all 14 POIs in the
+**correct real-world downstream order** — Chungthang → Mangan → Teesta V/Dikchu → Singtam → Rangpo
+→ Teesta Bazaar → Teesta Low Dam IV → Coronation Bridge → Teesta Barrage — with most
+`dist_to_channel_m` in the tens-to-hundreds-of-metres range, a strong sanity check that the D8
+routing tracks the real Teesta channel, not just the synthetic valley. South Lhonak's crest burned
+in (193 cells raised, 33 cells long); `teesta_iii`'s reservoir wasn't found by the WorldCover
+water-mask search (`teesta.yaml`'s dam locations are illustrative placeholders, not surveyed) and
+its crest search found no cells needing raising — both expected given placeholder inputs, and both
+recorded in `provenance.json` rather than silently skipped.
