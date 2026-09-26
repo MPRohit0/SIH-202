@@ -8,6 +8,9 @@ data/
 .pytest_cache/
 reports/
 
+# backend/m7_gee's offline cache (screenshots/manifests) -- regenerable, not committed.
+cache/
+
 # Solver/run logs in general are not committed. Exception: backend/m4_pilot/*.log, the raw
 # DualSPHysics calibration logs vram_estimator.py reads -- those are provenance, force-added.
 *.log
