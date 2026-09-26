@@ -6,13 +6,19 @@ The API only creates jobs and reads their status from `data/registry.sqlite`.
 This process does the work, one job at a time (oldest first):
 
 - **In-process stages** (`terrain`, `breach`, `design`, `training`,
-  `validating`, `postprocessing`, `checking`) are FAKE for now. Each sleeps
+  `validating`, `postprocessing`) are FAKE for now. Each sleeps
   `SIH26_FAKE_STAGE_S` seconds and then advances. M1, M2 and M5 plug in here later.
 - **`simulating`** registers the job's runs, then launches them ONE AT A TIME
   (CLAUDE.md rule 13) as detached processes (rule 14). Each tick reads the
   running run's `log.txt`. The solver is currently `backend.m0_api.fake_solver`;
   the number of runs (`SIH26_FAKE_N_RUNS`) and its timings are fake settings,
   not design choices.
+- **`recheck`'s `checking` stage is real**: it runs M7's lake-area check
+  (`backend.m7_gee.fetch.run`) plus a library-age check against
+  `site_status.DEFAULT_MAX_LIBRARY_AGE_DAYS`, and records the result in
+  `data/<site_id>/site_status.json` (`_run_recheck`). Every tick, `_schedule_rechecks()`
+  queues a `recheck` job for any known site whose `site_status` schedule is due and has
+  no active job -- there is no separate timer/cron.
 
 `tick()` does one short, non-blocking step. A long run is never waited on; it
 is polled on the next tick. Because all state lives in SQLite and the run
@@ -33,12 +39,18 @@ import sqlite3
 import subprocess
 import sys
 import time
+from datetime import datetime
 
-from backend.m0_api import jobs, registry, runner
+from backend.m0_api import jobs, registry, runner, site_status
+from backend.m7_gee import fetch as gee_fetch
 
 log = logging.getLogger("m0.worker")
 
 SIM_STAGES = {"simulating"}
+
+#: Sites the scheduler considers for re-checks. Matches `mocks.KNOWN_SITE_IDS` -- kept as a
+#: separate constant so the worker doesn't import the API's mock layer for a list of site ids.
+KNOWN_SITE_IDS = ("teesta", "rishiganga")
 
 
 class WorkerAlreadyRunning(RuntimeError):
@@ -125,9 +137,10 @@ class Worker:
         """Advance the oldest active job by one step. Returns False when there
         was nothing to do (idle, or only waiting on a running solver)."""
         self._reap()
+        scheduled = self._schedule_rechecks()
         active = self._active_jobs()
         if not active:
-            return False
+            return scheduled
         row = active[0]
         kind, stage, job_id = row["kind"], row["stage"], row["job_id"]
         if kind not in jobs.STAGES:
@@ -141,10 +154,77 @@ class Worker:
             return True
         if stage in SIM_STAGES:
             return self._tick_simulating(row)
+        if kind == "recheck" and stage == "checking":
+            self._run_recheck(row)
+            self._advance(row)
+            return True
 
         time.sleep(_env_float("SIH26_FAKE_STAGE_S", 3.0))  # FAKE stage work
         self._advance(row)
         return True
+
+    # --- scheduled re-checks ---------------------------------------------------
+    def _has_published_library(self, site_id: str) -> bool:
+        """A re-check only makes sense once there is a library to go stale (docs/decisions.md
+        2.1/2.3: `outdated` applies to a site whose job already reached `ready`)."""
+        data_dir = registry.data_dir()
+        return any((data_dir / site_id / "emulator" / model / "manifest.json").is_file()
+                   for model in ("delft3d", "sph"))
+
+    def _schedule_rechecks(self) -> bool:
+        """Queue a `recheck` job for every known site whose schedule is due (or has never been
+        checked) and that has no active job already. Runs every tick; cheap (a handful of file
+        stats), so no separate timer is needed."""
+        queued_any = False
+        for site_id in KNOWN_SITE_IDS:
+            if jobs.find_active_job(self.conn, site_id) is not None:
+                continue
+            if not self._has_published_library(site_id):
+                continue
+            if not site_status.is_due(site_status.load(site_id)):
+                continue
+            job_id = jobs.create_job(self.conn, "recheck", site_id)
+            jobs.log_event(self.conn, job_id, f"scheduled re-check for '{site_id}'")
+            queued_any = True
+        return queued_any
+
+    def _run_recheck(self, row: sqlite3.Row) -> None:
+        """The `checking` stage's real work: M7's lake-area check plus a library-age check.
+        Never raises -- a re-check that can't complete this tick (e.g. Earth Engine and cache both
+        unavailable) just leaves the site's outdated flag as it was and tries again next schedule."""
+        site_id, job_id = row["site_id"], row["job_id"]
+        data_dir = registry.data_dir()
+        outdated, reason_key, detail = False, None, None
+
+        try:
+            provider = gee_fetch.best_effort_provider()
+            gee_fetch.run(site_id, provider=provider, data_dir=data_dir)
+            recheck = json.loads((data_dir / site_id / "gee" / "recheck.json").read_text())
+            if recheck.get("outdated"):
+                outdated, reason_key = True, "outdated_lake_area_change"
+                detail = {"change_pct": recheck["change_pct"], "threshold_pct": recheck["threshold_pct"],
+                          "checked_at": recheck["checked_at"]}
+        except Exception as e:
+            jobs.log_event(self.conn, job_id, f"lake-area check failed, skipping: {e}")
+
+        if not outdated:
+            for model in ("delft3d", "sph"):
+                manifest_path = data_dir / site_id / "emulator" / model / "manifest.json"
+                if not manifest_path.is_file():
+                    continue
+                trained_at = datetime.fromisoformat(
+                    json.loads(manifest_path.read_text())["trained_at"].replace("Z", "+00:00")
+                )
+                age_days = (registry.utc_now_dt() - trained_at).total_seconds() / 86400.0
+                if age_days > site_status.DEFAULT_MAX_LIBRARY_AGE_DAYS:
+                    outdated, reason_key = True, "outdated_library_age"
+                    detail = {"trained_at": json.loads(manifest_path.read_text())["trained_at"],
+                              "age_days": round(age_days, 1),
+                              "max_age_days": site_status.DEFAULT_MAX_LIBRARY_AGE_DAYS}
+                    break
+
+        site_status.record_check(site_id, outdated, reason_key, detail, data_dir=data_dir)
+        jobs.log_event(self.conn, job_id, f"re-check done: outdated={outdated} reason={reason_key}")
 
     # --- simulating ----------------------------------------------------------
     def _tick_simulating(self, row: sqlite3.Row) -> bool:

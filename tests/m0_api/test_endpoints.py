@@ -23,7 +23,7 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from backend.m0_api import mock_files, schemas
+from backend.m0_api import jobs, mock_files, registry, schemas, site_status
 from backend.m0_api.main import app
 from backend.m0_api.worker import Worker
 from tests.m0_api.conftest import wait_until
@@ -201,15 +201,55 @@ def test_set_recheck():
     assert body["recheck"]["frequency_days"] == 30
 
 
+def test_set_recheck_persists_and_shows_up_in_get_sites():
+    client.put(f"{API}/sites/{KNOWN_SITE}/recheck", json={"frequency_days": 45})
+    listing = client.get(f"{API}/sites").json()
+    entry = next(s for s in listing if s["site_id"] == KNOWN_SITE)
+    assert entry["recheck"]["frequency_days"] == 45
+
+
 def test_set_recheck_unknown_site_404():
     r = client.put(f"{API}/sites/{UNKNOWN_SITE}/recheck", json={"frequency_days": 30})
     assert r.status_code == 404
 
 
+def test_get_sites_reflects_outdated_flag():
+    site_status.record_check(KNOWN_SITE, outdated=True, status_reason_key="outdated_lake_area_change",
+                              status_detail={"change_pct": 12.0, "threshold_pct": 10.0})
+    listing = client.get(f"{API}/sites").json()
+    entry = next(s for s in listing if s["site_id"] == KNOWN_SITE)
+    assert entry["status"] == "outdated"
+    assert entry["status_reason_key"] == "outdated_lake_area_change"
+
+    detail = client.get(f"{API}/sites/{KNOWN_SITE}").json()
+    assert_matches("site_detail.schema.json", detail)
+    assert detail["status"] == "outdated"
+
+
 def test_rerun_site():
     r = client.post(f"{API}/sites/{KNOWN_SITE}/rerun")
     assert r.status_code == 202
-    assert_matches("job_accepted.schema.json", r.json())
+    body = r.json()
+    assert_matches("job_accepted.schema.json", body)
+    conn = registry.connect()
+    try:
+        row = jobs.get_job(conn, body["job_id"])
+    finally:
+        conn.close()
+    assert row["kind"] == "onboarding"
+    assert row["site_id"] == KNOWN_SITE
+
+
+def test_rerun_site_conflicts_with_active_job():
+    first = client.post(f"{API}/sites/{KNOWN_SITE}/rerun").json()
+    second = client.post(f"{API}/sites/{KNOWN_SITE}/rerun")
+    assert second.status_code == 409
+    assert second.json()["detail"]["error"]["details"]["job_id"] == first["job_id"]
+
+
+def test_rerun_site_unknown_site_404():
+    r = client.post(f"{API}/sites/{UNKNOWN_SITE}/rerun")
+    assert r.status_code == 404
 
 
 # =============================================================================

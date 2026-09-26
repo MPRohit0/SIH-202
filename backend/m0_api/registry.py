@@ -72,9 +72,15 @@ def db_path() -> Path:
     return data_dir() / "registry.sqlite"
 
 
+def utc_now_dt() -> datetime:
+    """The current UTC time. The one place every other "now" in m0_api goes
+    through, so tests can fake the clock by monkeypatching this function alone."""
+    return datetime.now(timezone.utc)
+
+
 def utc_now() -> str:
     """ISO 8601 UTC timestamp with `Z`, to the second (contract §1.2)."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return utc_now_dt().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def connect() -> sqlite3.Connection:

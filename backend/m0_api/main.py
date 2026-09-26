@@ -10,18 +10,25 @@ Real so far: the job system. `POST /sites` creates an onboarding job in
 `data/registry.sqlite` and `GET /jobs/{job_id}` reads it back. The API holds
 no job state of its own, so restarting it loses nothing. A separate process,
 `python -m backend.m0_api.worker`, does the work: every stage is a fake task
-for now, and solver runs are detached fake-solver processes.
+for now (except a `recheck` job's `checking` stage, which is real -- see
+`worker.py`), and solver runs are detached fake-solver processes.
 
-Still mocked: every other endpoint, including `POST /sites/{id}/rerun`
-(contract §5.3 lists no stages for `rerun` yet). `site_id` is checked only
-against a short list of sites this server "knows about"
-(`mocks.KNOWN_SITE_IDS`).
+Also real: `GET /sites`/`GET /sites/{id}` overlay `backend.m0_api.site_status`
+(the worker's scheduled lake-area + library-age re-checks) onto the mocked
+base response; `PUT /sites/{id}/recheck` persists the schedule for real.
+`POST /sites/{id}/rerun` queues a genuine job, but an `onboarding`-kind one --
+`jobs.STAGES` has no `rerun` entry yet (contract §5.3 lists no stages for it),
+so this does not actually skip terrain the way "re-run" implies.
+
+Still mocked: every other endpoint. `site_id` is checked only against a short
+list of sites this server "knows about" (`mocks.KNOWN_SITE_IDS`).
 
 Run: `uvicorn backend.m0_api.main:app --reload --port 8000`
 """
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Annotated, Any
 
@@ -29,9 +36,15 @@ from fastapi import Body, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from backend.m0_api import jobs, mock_files, mocks, registry, rendering, schemas
+from backend.m0_api import jobs, mock_files, mocks, registry, rendering, schemas, site_status
 from backend.m0_api import compare as api_compare
 from backend.m0_api import timeline as api_timeline
+from backend.m7_gee import cache as gee_cache
+from backend.m7_gee import fetch as gee_fetch
+from backend.m7_gee import imagery as gee_imagery
+from backend.shared.site_config import SiteConfigError, load_site_config
+
+log = logging.getLogger("m0.main")
 
 app = FastAPI(title="SIH26 GLOF/dam-break decision-support API", version="0.2.0")
 
@@ -105,13 +118,17 @@ def get_styles() -> JSONResponse:
 # =============================================================================
 @app.get(f"{API}/sites")
 def list_sites() -> JSONResponse:
-    return _validated_json("site_list.schema.json", mocks.mock_response("site_list.example.json"))
+    sites = mocks.mock_response("site_list.example.json")
+    sites = [site_status.overlay(s["site_id"], s) for s in sites]
+    return _validated_json("site_list.schema.json", sites)
 
 
 @app.get(f"{API}/sites/{{site_id}}")
 def get_site(site_id: SiteIdPath) -> JSONResponse:
     _require_known_site(site_id)
-    return _validated_json("site_detail.schema.json", mocks.mock_response("site_detail.example.json", site_id=site_id))
+    detail = mocks.mock_response("site_detail.example.json", site_id=site_id)
+    detail = site_status.overlay(site_id, detail)
+    return _validated_json("site_detail.schema.json", detail)
 
 
 # =============================================================================
@@ -163,8 +180,11 @@ def get_job(job_id: JobIdPath) -> JSONResponse:
 def set_recheck(site_id: SiteIdPath, body: Annotated[dict, Body(...)]) -> JSONResponse:
     _require_known_site(site_id)
     _validate_request_body("recheck_request.schema.json", body)
+    site_status.set_frequency(
+        site_id, body["frequency_days"], body.get("lake_area_change_threshold_pct")
+    )
     summary = mocks.mock_response("site_summary.example.json", site_id=site_id)
-    summary["recheck"]["frequency_days"] = body["frequency_days"]
+    summary = site_status.overlay(site_id, summary)
     return _validated_json("site_summary.schema.json", summary)
 
 
@@ -173,8 +193,30 @@ def set_recheck(site_id: SiteIdPath, body: Annotated[dict, Body(...)]) -> JSONRe
 # =============================================================================
 @app.post(f"{API}/sites/{{site_id}}/rerun", status_code=202)
 def rerun_site(site_id: SiteIdPath) -> JSONResponse:
+    """Queues a real job -- but an `onboarding`-kind one (existing contract §5.3 stages), not a
+    `rerun`-kind job: `jobs.STAGES` has no `rerun` entry yet (docs/progress.md, open gap), so this
+    does NOT skip terrain the way "re-run reuses existing terrain" implies. That needs its own
+    decision (rerun stage list + contract §5.3 change) before it can be done honestly."""
     _require_known_site(site_id)
-    return _validated_json("job_accepted.schema.json", mocks.mock_response("job_accepted.example.json"), status_code=202)
+    try:
+        cfg = load_site_config(site_id)
+    except SiteConfigError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=mocks.error("site_not_found", f"No site config for '{site_id}': {e}", {"site_id": site_id}),
+        ) from e
+    conn = registry.connect()
+    try:
+        active = jobs.find_active_job(conn, site_id)
+        if active is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=mocks.error("site_onboarding_in_progress", f"Site '{site_id}' already has an active job.", {"site_id": site_id, "job_id": active}),
+            )
+        job_id = jobs.create_job(conn, "onboarding", site_id, payload={"site_config": cfg.model_dump(mode="json"), "rerun": True})
+    finally:
+        conn.close()
+    return _validated_json("job_accepted.schema.json", {"job_id": job_id}, status_code=202)
 
 
 # =============================================================================
@@ -319,16 +361,46 @@ def export_query(query_id: QueryIdPath, format: str = Query(...)) -> Response:  
 # =============================================================================
 # 19-20. GET /gee/{site_id}, POST /gee/{site_id}/refresh
 # =============================================================================
+def _gee_layers_or_mock(site_id: str) -> dict:
+    """Real cache (`data/<site_id>/gee/`) once M7 has actually fetched something for this site
+    (`gee_meta.json` exists, so `fetched_at` is set); otherwise the contract's mock, same as every
+    other still-mocked endpoint (module docstring)."""
+    layers = gee_cache.load_layers(site_id, data_dir=registry.data_dir())
+    if layers.get("fetched_at") is None:
+        return mocks.mock_response("gee_layers.example.json", site_id=site_id)
+    return layers
+
+
 @app.get(f"{API}/gee/{{site_id}}")
 def get_gee(site_id: SiteIdPath) -> JSONResponse:
     _require_known_site(site_id)
-    return _validated_json("gee_layers.schema.json", mocks.mock_response("gee_layers.example.json", site_id=site_id))
+    return _validated_json("gee_layers.schema.json", _gee_layers_or_mock(site_id))
 
 
 @app.post(f"{API}/gee/{{site_id}}/refresh")
 def refresh_gee(site_id: SiteIdPath) -> JSONResponse:
+    """Tries a live Earth Engine fetch (lake area/rainfall via `gee_fetch.run`, event imagery via
+    `gee_imagery.refresh`); either falls back to the existing cache on its own on any failure --
+    missing/expired credentials, no network, no usable scene -- so this handler never 500s over a
+    live-fetch problem, only over `site_id` not being configured at all."""
     _require_known_site(site_id)
-    return _validated_json("gee_layers.schema.json", mocks.mock_response("gee_layers.example.json", site_id=site_id))
+    data_dir = registry.data_dir()
+    live_ok = False
+    try:
+        cfg = load_site_config(site_id)
+        provider = gee_fetch.best_effort_provider()
+        lake_result = gee_fetch.run(site_id, provider=provider, data_dir=data_dir)
+        img_result = gee_imagery.refresh(site_id, cfg=cfg, data_dir=data_dir)
+        live_ok = not lake_result.errors and img_result.source == "live"
+    except SiteConfigError as e:
+        log.warning("refresh_gee: site config error for '%s', serving existing cache: %s", site_id, e)
+    except Exception as e:  # never let a refresh attempt take the endpoint down
+        log.warning("refresh_gee: unexpected error for '%s', serving existing cache: %s", site_id, e)
+
+    payload = _gee_layers_or_mock(site_id)
+    if live_ok:
+        payload["source"] = "live"
+    return _validated_json("gee_layers.schema.json", payload)
 
 
 # =============================================================================
@@ -354,6 +426,18 @@ COMPARE_DIFF_PATH_RE = re.compile(
     r"(?P<run_id>[A-Za-z0-9_]+)__depth_diff\.png$"
 )
 
+#: An M7 event-imagery PNG under `data/<site_id>/gee/imagery/` (`gee_imagery.convert`), anchored
+#: the same way so nothing can escape that directory.
+GEE_IMAGERY_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/gee/imagery/(?P<filename>[A-Za-z0-9_]+\.png)$"
+)
+
+#: An M7 observed-extent GeoJSON under `data/<site_id>/gee/observed/` (`gee_observed.convert`),
+#: anchored the same way so nothing can escape that directory.
+GEE_OBSERVED_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/gee/observed/(?P<filename>[A-Za-z0-9_]+_observed\.geojson)$"
+)
+
 
 # =============================================================================
 # 22. GET /files/{path}
@@ -375,6 +459,26 @@ def get_file(path: str) -> Response:
         if sidecar_path.is_file():
             png_bytes = api_compare.render_diff_layer(sidecar_path, m["run_id"])
             return Response(content=png_bytes, media_type="image/png")
+
+    m = GEE_IMAGERY_PATH_RE.match(path)
+    if m is not None:
+        png_path = registry.data_dir() / m["site_id"] / "gee" / "imagery" / m["filename"]
+        if png_path.is_file():
+            return Response(content=png_path.read_bytes(), media_type="image/png")
+        raise HTTPException(
+            status_code=404,
+            detail=mocks.error("file_not_found", f"No GEE imagery file at '{png_path}'.", {"path": path}),
+        )
+
+    m = GEE_OBSERVED_PATH_RE.match(path)
+    if m is not None:
+        geojson_path = registry.data_dir() / m["site_id"] / "gee" / "observed" / m["filename"]
+        if geojson_path.is_file():
+            return Response(content=geojson_path.read_bytes(), media_type="application/geo+json")
+        raise HTTPException(
+            status_code=404,
+            detail=mocks.error("file_not_found", f"No observed-extent file at '{geojson_path}'.", {"path": path}),
+        )
     if path.endswith(".png"):
         return Response(content=mock_files.mock_png(), media_type="image/png")
     if path.endswith(".geojson"):
