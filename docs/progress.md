@@ -1096,3 +1096,22 @@ annotation.
 
 **Next session**: visually verify the inlet rotation direction in a VTK viewer against a real
 GenCase output; then M3 (Delft3D 4 FLOW) or M4 post-processing/job wiring.
+
+## 2026-09-26 — D-Flow FM kernel built in WSL (M3 prep, before M3-B housekeeping)
+
+- **Kernel works:** D-Flow FM 1.2.184 + DIMR 2.00 from the Deltares DIMRset 2026.01 source tarball,
+  built unmodified with Intel oneAPI 2024.2 (ifort) + Intel MPI 2021.13. netcdf-fortran 4.6.1 and
+  PETSc 3.21.3 were built from source with Intel. Install tree: `~/delft3d/dflowfm-2026.01/lnx64`.
+  Full record, every command, and problems/fixes: `docs/dflowfm_kernel_build.md`.
+- **Verified runs:** release example `01_dflowfm_sequential` (via `run_dimr.sh`) and D-Flow FM
+  tutorial06 (Western Scheldt, 10 days, 3.5 min, 0 errors, `_map.nc` + `_his.nc`). The 2015 tutorial input
+  needed 3 run-copy-only fixes (obsolete MDU keywords; `Discharge.bc` not covering t0..TStop).
+- **Python tools:** hydrolib-core 1.4.0 / meshkernel 8.3.0 / dfm_tools 0.47.0 in a separate venv
+  (`~/delft3d/fm-py-venv`). A hydrolib-written case ran on the kernel and dfm_tools read its output.
+  For M3: hydrolib writes `.ext` v3.00, which the kernel ignores, so set `fileversion = "2.01"`. The run
+  scripts exit 0 even when the kernel rejects the input, so M0/M3 must check the `.dia` and outputs.
+- **Tried and dropped:** GNU (gfortran 13 + OpenMPI). ≥28 errors from Intel Fortran extensions; no
+  patched Deltares source was kept.
+- **Not done, on purpose:** `CLAUDE.md`, `docs/decisions.md` and `environment.yml` are unchanged
+  (M3-B housekeeping). flow2d3d wasn't built (estimate in the build doc). `.wslconfig` is only
+  proposed. No repo code changed and no tests added this session, so `pytest` wasn't rerun.
