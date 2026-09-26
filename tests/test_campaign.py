@@ -9,6 +9,15 @@ dev environment this repo is tested in; these tests stub it out via
 before trying to import the real module), so campaign.py's own queueing/
 VRAM-refusal/job-bookkeeping logic is testable independently of M4's real
 case-building machinery.
+
+`_install_fake_generator` must patch *both* `sys.modules["backend.m4_sph.
+generator"]` and `backend.m4_sph`'s own `generator` attribute: campaign.py's
+`from backend.m4_sph import generator` resolves via `getattr(backend.m4_sph,
+"generator")` once that attribute exists (e.g. because some other, unrelated
+test in the same pytest process did `import backend.m4_sph.generator` for
+real first, which binds it as an attribute of the `backend.m4_sph` package
+object) -- at that point the import machinery never consults `sys.modules`
+again, and patching only `sys.modules` silently does nothing.
 """
 
 from __future__ import annotations
@@ -23,6 +32,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+import backend.m4_sph
 from backend.campaign import run_sph_campaign
 from backend.m0_api import jobs, registry
 
@@ -99,6 +109,9 @@ def _install_fake_generator(monkeypatch, over_budget_scenarios: set[str] = froze
     fake.build_nearfield_case = build_nearfield_case
     fake.write_case = write_case
     monkeypatch.setitem(sys.modules, "backend.m4_sph.generator", fake)
+    # Also patch the backend.m4_sph package's own `generator` attribute (see the module
+    # docstring): restores whatever it was before (unset, or the real module) on teardown.
+    monkeypatch.setattr(backend.m4_sph, "generator", fake, raising=False)
 
 
 @pytest.fixture(autouse=True)
