@@ -717,6 +717,9 @@ still-mocked base response; `PUT /sites/{id}/recheck` persists for real.
 
 ## 2026-09-25 — M3: Delft3D 4 FLOW, not FM (DECIDED with user this session)
 
+> **SUPERSEDED 2026-09-26** by "M3: ANUGA replaces Delft3D 4 FLOW" (end of this file). The
+> `inflow.base_flow` schema bullet below still stands.
+
 `CLAUDE.md` and `environment.yml` had assumed Delft3D FM (`hydrolib-core`, `meshkernel`,
 `dfm_tools`). Checking the machine that will run it found only a GUI-only Delft3D 4.07.02
 install (`kernels/` empty, no D-Flow FM kernel anywhere on disk). Asked the user; decided:
@@ -892,3 +895,41 @@ it is guessed from `-h` text or the PDF guides alone.
   `arrival_diff` yet (only `depth_diff`); and the mock's `available: true` with all-zero metrics
   should become `available: false` when no run exists, so a demo can't misread "no run yet" as
   "no flooding predicted".
+
+## 2026-09-26 — M3: ANUGA replaces Delft3D 4 FLOW (DECIDED with user this session)
+
+**Decision:** the M3 far-field flood solver is ANUGA (`anuga` 4.0.1 from PyPI, unstructured
+triangular finite-volume shallow-water solver), not Delft3D 4 FLOW.
+
+**Why**
+- The free Delft3D 4.07.02 package is GUI-only: `kernels\x64\bin\` is empty, and the README says the
+  FLOW kernel must be compiled from Deltares' source. The classic Delft3D 4 kernel source sits on
+  Deltares' registration-only SVN. No build recipe exists that targets the 4.07.02 GUIs, and the only
+  gfortran recipe found dates from 2013 (Ubuntu 12.04). Compiling it was judged out of budget.
+- ANUGA installs with `pip install anuga` in the project venv: prebuilt wheels, no compiler, about
+  12 s. It runs in WSL and is scriptable end to end from Python, with no GUI step.
+- The Phase A spike (coarse Teesta pilot, 9.7 k triangles, 30 000 s simulated) ran in 33 s wall time
+  with a 180 MB peak, far inside the hardware budget (CLAUDE.md rule 13).
+- The spike did not route the flood. It pooled below the breach, and the cause was mesh coarseness in
+  a narrow gorge, not the solver. The frozen pilot fixes this with corridor refinement
+  (`backend/m3_pilot/teesta_pilot_s001__anuga.py`, `docs/m3_spec.md`).
+
+**Consequences**
+- **Pilot:** `backend/m3_pilot/teesta_pilot_s001__anuga.py` is a hand-written, self-contained ANUGA
+  script and becomes the independent reference for the generator reproduction test. It replaces the
+  hand-built Delft3D GUI recipe. The Delft3D pilot artefacts (`.grd`, `.enc`, `.d3d`, `RECIPE.md`,
+  grid NetCDF) were deleted. The input exporter was kept as provenance at
+  `backend/m3_pilot/inputs/make_export.py`.
+- **Module:** `backend/m3_anuga/` replaces the never-written `backend/m3_delft3d/`.
+- **Contract (PENDING sign-off, not yet changed):** the run_id `model` enum (`delft3d | sph`,
+  handoff contract §1.7, `run_meta.schema.json`) needs `anuga`. The change will be shown for
+  approval before Phase 2 uses it.
+- **Arrival time in wet-channel runs (PROPOSED clarification, UNCLEAR until the contract is updated):**
+  with `inflow.base_flow` set, channel cells are already deeper than `arrival_m` = 0.1 m at t0. M3
+  therefore records arrival as the first t ≥ 0 at which depth exceeds the t0 depth by more than
+  0.1 m. For cells dry at t0 this is identical to the contract rule.
+- **Deferred:** the wider clean-up of Delft3D references (CLAUDE.md M3 row / Stack / Simulation
+  tools, handoff contract, M4 `sph_vs_delft3d` comparison names, job-state wording, the
+  `teesta_pilot.yaml` header) is a separate pass.
+- **Known limitation:** ANUGA, like Delft3D, is clear-water. Debris/sediment-laden flow is not
+  represented (CLAUDE.md "Known limitations").

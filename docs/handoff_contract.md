@@ -334,6 +334,9 @@ domains:
     inflow:
       from: south_lhonak           # a dam id, or "far_field" (only meaningful for near_field)
       location: {value: [88.200, 27.905], unit: deg, source: "...", status: placeholder}
+      # base_flow: {value: ..., unit: m^3/s, source: "...", status: placeholder}   # optional;
+      #   steady discharge already in the channel before t0 (M3 upstream boundary before the
+      #   breach hydrograph starts). Omitted entirely means "no base flow" (dry bed), not 0.
   near_field:                      # fine grid around assets needing detailed inundation
     description: "Lachen Chu approach, Teesta III dam and Chungthang town"
     bbox: {value: [88.60, 27.56, 88.69, 27.65], unit: deg, source: "...", status: placeholder}    # must sit inside far_field

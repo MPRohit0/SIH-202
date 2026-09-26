@@ -1161,3 +1161,13 @@ schema a Delft3D run would produce:
 
 Full `m4_sph` suite: 70 passed with `DSPH_BIN_DIR` set (real binaries), 64 passed / 6 skipped
 without it. Full repo suite green.
+
+## 2026-09-25 — M3 Phase 0a/0b: entries lost in doc reorganization
+
+This session's progress-log entries for "M3 Phase 0a: Delft3D 4 FLOW decided, `base_flow` schema
+addition" and "M3 Phase 0b: pilot inputs, scenario, and GUI-build recipe" were destroyed on
+2026-09-26 when an earlier reconstruction step overwrote this file without a backup. The
+decision itself is intact and unaffected: `docs/decisions.md` "M3: Delft3D 4 FLOW, not FM" (now
+marked SUPERSEDED) and the `inflow.base_flow` schema addition in `docs/handoff_contract.md`.
+What's lost is only the narrative session-log detail (what was tried, in what order, any dead
+ends) — not any decision, schema, or code.

@@ -28,8 +28,3 @@ dependencies:
   - openpyxl
   - earthengine-api
   - pytest
-  - pip
-  - pip:
-      - hydrolib-core
-      - meshkernel
-      - dfm_tools

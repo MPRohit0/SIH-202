@@ -1,0 +1,308 @@
+# =============================================================================
+# m3_pilot/inputs/teesta_pilot.yaml — PILOT-ONLY site config for the hand-built
+# Delft3D 4 FLOW reference case (docs/decisions.md 2026-09-25 "M3: Delft3D 4
+# FLOW, not FM").
+#
+# This is NOT sites/teesta.yaml and is never loaded by the real Teesta site.
+# It exists only so the pilot (built by hand in the Deltares GUIs) and its
+# later programmatic reproduction (backend/m3_delft3d/generator.py, Phase 2)
+# share one small, hand-checkable input.
+#
+# Changed vs sites/teesta.yaml (everything else — dams, POIs, event dates — is
+# an unmodified copy, still placeholder):
+#   - domains.far_field/near_field.bbox: shrunk to a South-Lhonak-to-Chungthang
+#     reach. The real far-field bbox at 30 m is 2534x5016 = 12.7M cells --
+#     impractical to hand-build (CLAUDE.md rule 13, 16 GB RAM). This reach
+#     still contains both dams' breach_location and 4 of 14 POIs.
+#   - domains.far_field/near_field.grid_resolution: coarsened (90 m / 30 m,
+#     still an even ratio) so the far-field grid is ~600x617 cells.
+#   - domains.far_field.inflow.base_flow: NEW field (docs/decisions.md
+#     2026-09-25), a placeholder order-of-magnitude guess, PILOT-ONLY value --
+#     no source found in docs/data_sources.md for a Teesta dry-season
+#     discharge at this reach. Replace once sourced.
+# Field-object rules: see sites/template.yaml.
+# =============================================================================
+
+schema_version: 1
+
+site:
+  id: teesta_pilot
+  name: Teesta basin M3 pilot - South Lhonak to Chungthang (PILOT ONLY, not the real site)
+  region: Sikkim (Mangan district)
+  river: Teesta
+
+crs:
+  utm_epsg:
+    value: 32645                   # WGS 84 / UTM zone 45N
+    unit: epsg
+    source: "Derived: WGS 84 / UTM zone 45N covers 84E-90E (EPSG registry); the pilot bbox (88.15-88.70E) lies entirely inside it. Same reasoning as sites/teesta.yaml."
+    status: sourced
+
+domains:
+  far_field:
+    description: "PILOT reach: South Lhonak Lake to Chungthang/Teesta III, buffered. Shrunk from the real far_field bbox (docs/decisions.md 2026-09-25) purely so the Delft3D 4 FLOW pilot case is hand-buildable."
+    bbox:
+      value: [88.15, 27.45, 88.70, 27.95]
+      unit: deg
+      source: "PILOT-ONLY choice: buffers both dams' breach_location ([88.200,27.905] and [88.640,27.600]) by roughly 5-6 km on every side, and keeps lachen/chungthang/sangkalang_bridge/mangan_district_hospital inside the box for .obs points. Not a replacement for the real far_field bbox's source."
+      status: placeholder
+    grid_resolution:
+      value: 90
+      unit: m
+      source: "PILOT-ONLY choice: coarsened from the real 30 m placeholder so the far-field grid is ~600x617 cells (fits comfortably in 16 GB RAM per CLAUDE.md rule 13), while still dividing near_field's 30 m evenly."
+      status: placeholder
+    inflow:
+      from: south_lhonak
+      location:
+        value: [88.200, 27.905]
+        unit: deg
+        source: "Same UNVERIFIED guess as sites/teesta.yaml (south_lhonak.breach_location)."
+        status: placeholder
+      base_flow:
+        value: 60
+        unit: m^3/s
+        source: "PILOT-ONLY, UNVERIFIED order-of-magnitude guess for a pre-monsoon Teesta discharge near Chungthang. No source found in docs/data_sources.md for this reach; needed only so the pilot's upstream boundary starts from a wetted channel instead of a dry bed. Replace from a gauged discharge record (CWC) before this value is used for anything but the pilot."
+        status: placeholder
+
+  near_field:
+    description: "PILOT reach: Teesta III dam and Chungthang town, same footprint idea as sites/teesta.yaml but must nest inside the shrunk far_field box above."
+    bbox:
+      value: [88.60, 27.58, 88.67, 27.62]
+      unit: deg
+      source: "PILOT-ONLY choice: box around Teesta III dam ([88.640,27.600]) and Chungthang, sized to nest inside the pilot far_field bbox."
+      status: placeholder
+    grid_resolution:
+      value: 30
+      unit: m
+      source: "PILOT-ONLY choice: divides the far_field's 90 m evenly (3x)."
+      status: placeholder
+    inflow:
+      from: far_field
+      location:
+        value: [88.625, 27.605]
+        unit: deg
+        source: "PILOT-ONLY choice: on the near-field upstream boundary, inside the near_field bbox above."
+        status: placeholder
+
+dams:
+  - id: south_lhonak
+    name: South Lhonak Lake (moraine dam)
+    kind: moraine_dammed_lake
+    triggered_by: null
+    equations_applicable: true
+    location:
+      value: [88.200, 27.910]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: moraine crest centre digitised on pre-event imagery. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+    breach_location:
+      value: [88.200, 27.905]
+      unit: deg
+      source: "UNVERIFIED guess. Replace from: breach channel mapped on post-event imagery. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+    breach_inputs:
+      water_volume_above_invert:
+        value: 50000000
+        unit: m^3
+        source: "UNVERIFIED order-of-magnitude guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      water_height_above_invert:
+        value: 20
+        unit: m
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      breach_height:
+        value: 20
+        unit: m
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      dam_height:
+        value: 30
+        unit: m
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      average_embankment_width:
+        value: 300
+        unit: m
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      dam_type:
+        value: HD
+        unit: enum
+        source: "Placeholder: no moraine class in the equations; HD used as the nearest analogue. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      failure_mode:
+        value: O
+        unit: enum
+        source: "Placeholder. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      erodibility:
+        value: H
+        unit: enum
+        source: "Placeholder: loose moraine assumed highly erodible. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+
+    volume_elevation:
+      method: area_volume_relation
+      area_volume_exponent_b:
+        value: null
+        unit: "-"
+        source: "NOT SOURCED. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+
+  - id: teesta_iii
+    name: Teesta III dam (Chungthang)
+    kind: embankment_dam
+    triggered_by: south_lhonak
+    equations_applicable: true
+    trigger:
+      type: inflow_threshold
+      value:
+        value: null
+        unit: m^3/s
+        source: "NOT SOURCED. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+    location:
+      value: [88.640, 27.600]
+      unit: deg
+      source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+    breach_location:
+      value: [88.640, 27.600]
+      unit: deg
+      source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+    breach_inputs:
+      water_volume_above_invert:
+        value: 5000000
+        unit: m^3
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      water_height_above_invert:
+        value: 62
+        unit: m
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      breach_height:
+        value: 60
+        unit: m
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      dam_height:
+        value: 60
+        unit: m
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      average_embankment_width:
+        value: 95
+        unit: m
+        source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      dam_type:
+        value: FD
+        unit: enum
+        source: "UNVERIFIED guess (believed concrete-faced rockfill). (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      failure_mode:
+        value: O
+        unit: enum
+        source: "Placeholder. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      erodibility:
+        value: M
+        unit: enum
+        source: "Placeholder: rockfill assumed medium. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+
+    volume_elevation:
+      method: area_volume_relation
+      area_volume_exponent_b:
+        value: null
+        unit: "-"
+        source: "NOT SOURCED. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+
+    initial_water_level:
+      value: null
+      unit: m
+      source: "NOT SOURCED. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+
+cascade:
+  approach: two_stage_imposed
+
+points_of_interest:
+  # only POIs that fall inside the pilot far_field bbox [88.15,27.45,88.70,27.95]
+  - id: lachen
+    name: Lachen
+    category: village
+    location:
+      value: [88.555, 27.717]
+      unit: deg
+      source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+  - id: chungthang
+    name: Chungthang
+    category: village
+    location:
+      value: [88.646, 27.603]
+      unit: deg
+      source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+  - id: sangkalang_bridge
+    name: Sangkalang bridge (Mangan - Dzongu)
+    category: bridge
+    location:
+      value: [88.530, 27.520]
+      unit: deg
+      source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+  - id: mangan_district_hospital
+    name: District Hospital, Mangan
+    category: hospital
+    location:
+      value: [88.530, 27.510]
+      unit: deg
+      source: "UNVERIFIED guess. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+
+events:
+  - id: sikkim_glof_2023
+    name: South Lhonak GLOF and Teesta III breach, October 2023
+    kind: historical
+    onset:
+      value: "2023-10-03T23:00:00+05:30"
+      unit: iso8601
+      source: "Placeholder, same as onset. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+    breach_times:
+      south_lhonak:
+        value: "2023-10-03T23:00:00+05:30"
+        unit: iso8601
+        source: "Placeholder, same as onset. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+      teesta_iii:
+        value: "2023-10-04T01:00:00+05:30"
+        unit: iso8601
+        source: "Placeholder. (unchanged copy of sites/teesta.yaml)"
+        status: placeholder
+    simulation_start:
+      value: "2023-10-03T21:00:00+05:30"
+      unit: iso8601
+      source: "Placeholder: 2 h before assumed onset for model warm-up. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+    simulation_end:
+      value: "2023-10-05T00:00:00+05:30"
+      unit: iso8601
+      source: "Placeholder: long enough for the flood wave to pass the downstream limit. (unchanged copy of sites/teesta.yaml)"
+      status: placeholder
+    imagery_pre_event:
+      value: "2023-09-26"
+      unit: iso8601
+      source: "cache/gee/teesta/teesta_pre_event.tif"
+      status: sourced
+    imagery_post_event:
+      value: "2023-10-26"
+      unit: iso8601
+      source: "cache/gee/teesta/teesta_post_event.tif"
+      status: sourced
