@@ -1171,3 +1171,40 @@ decision itself is intact and unaffected: `docs/decisions.md` "M3: Delft3D 4 FLO
 marked SUPERSEDED) and the `inflow.base_flow` schema addition in `docs/handoff_contract.md`.
 What's lost is only the narrative session-log detail (what was tried, in what order, any dead
 ends) — not any decision, schema, or code.
+
+## 2026-09-26 — simulation.sph.scenarios, real M5 scenario design, campaign.py (reconstructed entry)
+
+This entry documents code already merged in three commits (`00211bc`, `6c82f14`, `cf4d209`); its
+original progress-log prose was lost in the same doc-reorganization overwrite as the M3 Phase
+0a/0b entries above. Reconstructed from the commits' own messages/diffs (`git show`), not from
+memory — labeled as a reconstruction, not a session-log entry.
+
+- **`00211bc` — `site_config`: add `simulation.sph.scenarios`.** Only the `sph.scenarios` piece of
+  the `simulation` block `docs/handoff_contract.md` flagged as missing from `SiteConfig` (contract
+  §4.4: which of a site's scenarios also get a near-field DualSPHysics run). `delft3d` settings stay
+  deferred (`backend/m3_delft3d` didn't exist yet at the time); SPH solver knobs stay in
+  `config/m4_sph.yaml`, not per-site, per that module's existing "not a site fact" decision.
+- **`6c82f14` — `m5_emulator`: real `scenario_design.json` generator.** `backend/m5_emulator/
+  scenario_design.py`: a maximin-LHS training design over M2's computed `breach_width_m`/
+  `failure_time_s` pair ranges (`docs/m5_specs.md` §2), writing the real `design/
+  scenario_design.json` the contract defines (§4.3) — `library.py`'s design was synthetic-test
+  scaffolding only and never wrote this file. `water_volume_m3` stays fixed at the site config's
+  own value (M2 gives no range for it — a physical input to M2's equations, not a ranged output).
+  Raises `ScenarioDesignBlockedError` instead of guessing when a required range is blocked — not
+  hypothetical: `breach_width_m`'s M2 pair needs `XZ9`, blocked for every site pending `h_r`
+  (`docs/Equations.md` §1.2/§2.3), so no real scenario design exists for Teesta yet.
+- **`cf4d209` — `campaign.py`: build + register SPH near-field cases, no launcher yet.**
+  `backend/campaign.py`'s `run_sph_campaign()`: for every `scenario_id` in a site's
+  `simulation.sph.scenarios`, builds and validates its near-field GenCase case
+  (`m4_sph.generator.build_nearfield_case`, which already estimates VRAM and raises
+  `OverVramBudget` when no feasible `dp_m` fits the 8 GB budget — CLAUDE.md rule 13), then
+  registers a `queued` `runs` row under one shared campaign job (`backend.m0_api.jobs`, contract
+  §4.5). A scenario missing from the design file, over budget, or with no usable inflow yet is
+  reported `"refused"`, not silently dropped. Scoped to SPH only, and to build+register, not
+  launch: no DualSPHysics/GenCase launcher exists yet, and `backend.m0_api.worker`'s `simulating`
+  stage is still fake ("M1, M2 and M5 plug in here later").
+
+**Net effect:** the schema field + M5 generator + campaign.py are real and tested, but the actual
+ask (queue and run Teesta's SPH scenarios) was blocked at the very first step — no real scenario
+design exists for Teesta until `XZ9`'s `h_r` is sourced, so `simulation.sph.scenarios` stays empty
+and nothing is queued yet.
