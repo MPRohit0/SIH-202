@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "run_meta.schema.json",
+  "title": "Run metadata (contract §4.4), data/<site_id>/runs/<run_id>/run_meta.json",
+  "type": "object",
+  "required": [
+    "contract_version", "run_id", "scenario_id", "model", "status", "solver_version",
+    "resolution_m", "dp_m", "particle_count", "peak_vram_mb", "sim_duration_s", "wall_time_s",
+    "mass_balance_error_pct", "thresholds", "hydrographs", "resampling", "warnings",
+    "caveats", "started_at", "finished_at"
+  ],
+  "properties": {
+    "contract_version": { "type": "string" },
+    "run_id": { "type": "string" },
+    "scenario_id": { "type": "string" },
+    "model": { "enum": ["delft3d", "sph", "synthetic"] },
+    "status": { "enum": ["queued", "running", "completed", "postprocessed", "failed"] },
+    "solver_version": { "type": ["string", "null"] },
+    "resolution_m": { "type": ["number", "null"] },
+    "dp_m": { "type": ["number", "null"] },
+    "particle_count": { "type": ["integer", "null"] },
+    "peak_vram_mb": { "type": ["number", "null"] },
+    "sim_duration_s": { "type": "number" },
+    "wall_time_s": { "type": ["number", "null"] },
+    "mass_balance_error_pct": { "type": ["number", "null"] },
+    "thresholds": {
+      "type": "object",
+      "required": ["extent_m", "arrival_m"],
+      "properties": {
+        "extent_m": { "type": "number" },
+        "arrival_m": { "type": "number" }
+      }
+    },
+    "hydrographs": { "type": "array", "items": { "type": "string" } },
+    "resampling": { "type": "string" },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "caveats": { "type": "array", "items": { "type": "string" } },
+    "has_placeholders": { "type": "boolean" },
+    "placeholder_fields": { "type": "array", "items": { "type": "string" } },
+    "started_at": { "type": "string" },
+    "finished_at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

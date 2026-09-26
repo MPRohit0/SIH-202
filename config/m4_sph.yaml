@@ -6,7 +6,7 @@
 # where they live until that's decided. Every value can be overridden per call
 # (backend/m4_sph/settings.py `load_sph_settings(**overrides)`).
 
-dp_m: auto  # "auto": smallest dp within vram_budget_mib * (1 - vram_margin), via backend/m4_pilot/vram_estimator.py.
+dp_m: auto  # "auto": smallest dp within vram_budget_mib * (1 - vram_margin), via backend/m4_sph/vram_estimator.py.
             # A number fixes dp directly and skips the VRAM search.
 
 t_start_s: 0.0    # simulation window, seconds since t0 (docs/handoff_contract.md §1.2)
@@ -17,7 +17,7 @@ inlet_width_m: 20.0     # fixed inlet cross-section (W x H), perpendicular to th
 inlet_height_m: 15.0    # must exceed the expected peak flow depth at the inlet, or velocity is overestimated
 inlet_layers: 4         # DualSPHysics inlet/outlet particle layers (XML_GUIDE_INLETOUTLET.pdf default)
 
-boundary_layers: 3      # DBC boundary particle layers built from nearfield.stl (m4_pilot/vram_estimator.py
+boundary_layers: 3      # DBC boundary particle layers built from nearfield.stl (vram_estimator.py
                          # calibrated this same parameter from the 2D pilot; re-check on the first real 3D run)
 
 probe_velocity_height_m: 1.0  # height above bed for velocity gauges at each POI
@@ -26,3 +26,20 @@ vram_budget_mib: 8188   # RTX 4060 8 GB VRAM (CLAUDE.md hardware budget)
 vram_margin: 0.15       # fraction of the budget left unused as headroom
 
 binaries_dir: null       # GenCase/solver executables directory; DSPH_BIN_DIR env var overrides this
+
+# Post-processing (backend/m4_sph/postprocess.py, summary_nearfield/*.tif -- contract §4.4)
+elevation_dz_dp_fraction: 0.5  # vertical step between MeasureTool -elevation candidate samples,
+                           # as a fraction of the case's own dp_m (NOT an absolute metre value --
+                           # verified against the real binary, docs/decisions.md today's session:
+                           # MeasureTool only collapses a column's candidates into one elevation
+                           # reading when consecutive candidates are within the particle smoothing
+                           # length h of each other, and h scales with dp -- a fixed dz that works
+                           # for one case's dp silently stops collapsing for a coarser one).
+                           # Candidates span bed to bed + inlet_height_m (the same ceiling used
+                           # for the VRAM fluid-depth estimate above -- caveat
+                           # `sph_depth_search_capped` if the real flow depth ever exceeds it)
+velocity_levels: 3         # number of z-levels sampled per wet cell to depth-average velocity
+                           # (docs/decisions.md "SPH velocity: depth-average, not a fixed-height point")
+surface_interval_s: 300.0  # cadence for surfaces/t<seconds>.glb water-surface snapshots
+postprocess_row_chunk: 200 # near-field grid rows per MeasureTool invocation (CLAUDE.md rule 13:
+                           # never hold a full-grid points file/CSV in memory at once)

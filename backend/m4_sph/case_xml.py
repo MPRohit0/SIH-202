@@ -140,8 +140,11 @@ class VelocityGauge:
     point_xyz: tuple[float, float, float]
 
     def to_element(self) -> ET.Element:
+        # Tag is `<velocity>`, not `<vel>` -- confirmed against DualSPHysics 5.4's own
+        # `examples/others/GaugeSystem/GVel_Dam2d.xml` (docs/decisions.md, today's session);
+        # the shorter tag silently produced no `GaugesVel_*.csv` gauge output.
         x, y, z = self.point_xyz
-        return E("vel", {"name": self.name}, children=[point("point", x, y, z, units_comment="m")])
+        return E("velocity", {"name": self.name}, children=[point("point", x, y, z, units_comment="m")])
 
 
 @dataclass

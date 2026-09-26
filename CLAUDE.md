@@ -89,8 +89,9 @@ Frontend (in `frontend/`): React + Vite, Leaflet, Three.js, Recharts, Playwright
 - DualSPHysics: v5.4.3 (GenCase v5.4.354.01, DualSPHysics5.4 v5.4.355). Windows binaries +
   examples at `/mnt/d/APPS/DualSPHysics_v5.4/` (Linux binaries under `bin/linux/`, used by
   `tests/m4_sph/test_gencase_smoke.py` when `DSPH_BIN_DIR` is set) — not checked into this repo.
-- Working pilot cases: `m3_pilot/`, `backend/m4_pilot/` (calibration run + VRAM estimator only —
-  see `docs/decisions.md` 2026-09-25 "M4 pilot case"), `m3_cascade_pilot/`
+- Working pilot cases: `m3_pilot/` and `m3_cascade_pilot/` (Delft3D); M4's pilot calibration run —
+  `vram_estimator.py` (in `backend/m4_sph/`, since the real case generator imports it) reads its
+  three raw logs from `backend/m4_pilot/` — see `docs/decisions.md` 2026-09-25 "M4 pilot case"
 
 ## Commands
 - Env: `conda env create -f environment.yml && conda activate sih26`

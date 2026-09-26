@@ -1,6 +1,7 @@
 """M4: DualSPHysics near-field case generation (`docs/handoff_contract.md` §4.4).
 
-`pilot_case_spec()` reproduces `m4_pilot`'s calibration run (the stock DualSPHysics 5.4.3 example
+`pilot_case_spec()` reproduces the pilot calibration run (`vram_estimator.py`, `docs/decisions.md`
+2026-09-25 "M4 pilot case") of the stock DualSPHysics 5.4.3 example
 `examples/main/01_DamBreak/CaseDambreakVal2D_Def.xml`) as a `case_xml.CaseSpec`, to check the
 writer against a real, GenCase-validated file (`tests/m4_sph/test_pilot_regen.py`) before it is
 used to build real near-field cases.
@@ -21,7 +22,7 @@ import pyproj
 import rasterio
 
 from backend.m2_breach.hydrograph import hydrograph as m2_hydrograph
-from backend.m4_pilot import vram_estimator
+from backend.m4_sph import vram_estimator
 from backend.shared.grid import FLOAT_NODATA, CanonicalGrid, lonlat_to_rowcol
 from backend.shared.probes import Probe, load_probes
 from backend.shared.site_config import SiteConfig, load_site_config
@@ -191,7 +192,7 @@ def check_vram(
     dp_m: float, domain_x_m: float, domain_y_m: float, fluid_depth_m: float,
     settings: SphSettings, *, allow_over_budget: bool = False,
 ) -> dict:
-    """Estimate the particle count/VRAM for a case at `dp_m` (`backend/m4_pilot/vram_estimator.py`,
+    """Estimate the particle count/VRAM for a case at `dp_m` (`backend/m4_sph/vram_estimator.py`,
     calibrated from the pilot run) and raise `OverVramBudget` unless it fits `settings`'s budget."""
     cal = vram_estimator.calibrate()
     counts = vram_estimator.estimate_particle_count(

@@ -231,7 +231,7 @@ data/
 { "id": "clear_water", "severity": "warning", "text_key": "caveat_clear_water" }
 ```
 
-Standard caveat IDs: `moraine_extrapolation`, `concrete_dam_imposed`, `clear_water`, `failure_time_uncertain`, `mass_flow_approximation`, `dem_resolution`, `outside_trained_range`, `empirical_fallback`, `demo_mode`, `placeholder_data`, `library_outdated`, `observed_data_sparse`. Severity: `info` | `warning` | `critical`.
+Standard caveat IDs: `moraine_extrapolation`, `concrete_dam_imposed`, `clear_water`, `failure_time_uncertain`, `mass_flow_approximation`, `dem_resolution`, `outside_trained_range`, `empirical_fallback`, `demo_mode`, `placeholder_data`, `library_outdated`, `observed_data_sparse`, `fixed_area_inlet` (M4: the SPH inlet's free surface is imposed fixed, not computed, so flow depth at the inlet doesn't vary), `sph_arrival_below_resolution` (M4: the run's particle spacing is coarser than the 0.1 m arrival threshold), `sph_depth_search_capped` (M4: a cell's true depth may exceed `MeasureTool`'s search ceiling, `bed + inlet_height_m`). Severity: `info` | `warning` | `critical`.
 
 ### 2.5 Provenance
 
@@ -571,14 +571,15 @@ Sidecar:
 |`summary/max_depth.tif`|far-field|m (Delft3D only)|
 |`summary/max_velocity.tif`|far-field|m/s|
 |`summary/arrival_time.tif`|far-field|s since t0, nodata = never / outside|
-|`summary_nearfield/*.tif`|near-field|same three rasters; always for SPH, and for Delft3D runs listed in `simulation.sph.scenarios`|
+|`summary_nearfield/*.tif`|near-field|same three rasters; always for SPH, and for Delft3D runs listed in `simulation.sph.scenarios`, computed over the *same* `sim_duration_s` window as the matching SPH run (`docs/decisions.md`, today's session) so `sph_vs_delft3d` compares like with like|
 |`summary/depth_snapshots/depth_t<seconds>.tif`|far-field|optional, for 3D view|
 |`surfaces/t<seconds>.glb`|SPH frame|SPH water surfaces (SPH only)|
 |`timeseries.csv`|–|`poi_id,t_s,depth_m,velocity_ms,wse_m` (long format)|
 |`run_meta.json`|–|below|
 |`case/`, `raw/`, `log.txt`|–|solver inputs, raw outputs, log (kept for provenance)|
 
-`run_meta.json`
+`run_meta.json` (schema: `contracts/schemas/run_meta.schema.json`, added when M4's post-processing
+started writing real ones -- `docs/decisions.md`, today's session)
 
 ```jsonc
 {
@@ -593,6 +594,8 @@ Sidecar:
   "hydrographs": ["breach/hydrographs/teesta_s007__south_lhonak.csv"],
   "resampling": "linear interpolation from mesh cell centres",
   "warnings": [],
+  "caveats": ["clear_water"],          // caveat IDs (§2.4), not full Caveat objects
+  "has_placeholders": false, "placeholder_fields": [],
   "started_at": "2026-09-24T10:15:00Z", "finished_at": "2026-09-24T11:05:00Z"
 }
 ```

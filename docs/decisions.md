@@ -783,3 +783,112 @@ same session):
   flow direction ends up pointing downstream or upstream) — GenCase accepts the XML, but
   confirming the actual flow direction needs visual inspection of a generated case (VTK), out of
   scope for this session. `InletGeometry`'s docstring flags this.
+
+## 2026-09-25 — M4 pilot files moved into `backend/m4_sph/`; M4 post-processing added
+
+Before this session, the user moved `vram_estimator.py` and its three calibration logs from
+`backend/m4_pilot/` straight into `backend/m4_sph/` (the "M4 pilot case" decision above described
+`backend/m4_pilot/` as calibration-only, not a template case — this consolidates it into the real
+module instead of keeping a near-empty sibling folder). Fixed up the fallout: `generator.py`'s
+`from backend.m4_pilot import vram_estimator` → `from backend.m4_sph import vram_estimator`;
+`tests/m4_pilot/test_vram_estimator.py` moved to `tests/m4_sph/` with its import updated;
+`CLAUDE.md`'s "Working pilot cases" line updated. `backend/m4_pilot/`/`tests/m4_pilot/` no longer
+exist. `PILOT_DIR = Path(__file__).parent` in `vram_estimator.py` already resolved correctly
+without changes.
+
+**Update, same session:** on review, moved the three raw logs (not `vram_estimator.py`, which the
+real generator imports and which stays in `backend/m4_sph/`) back out to a recreated
+`backend/m4_pilot/`, kept as calibration provenance separate from the module's own code —
+`PILOT_DIR` in `vram_estimator.py` now points there (`Path(__file__).parent.parent / "m4_pilot"`).
+A general `*.log` `.gitignore` rule was added for everything else, with these three as an explicit
+exception. **2D-vs-3D calibration caveat:** the pilot run is `CaseDambreakVal2D` (`Data2D=[1]` in
+its own log) — a 2D case. `bytes_per_particle`/`bytes_per_cell` come straight from DualSPHysics's
+own per-run "GPU Memory" report, so those should hold regardless of dimensionality, but
+`cells_per_particle` (a 2D cell-linked-list needs far fewer cells per particle than a 3D one at
+the same spacing) is 2D-specific and likely **undercounts** a real 3D near-field domain, compounding
+the already-known boundary:fluid ratio gap. `vram_estimator.py`'s own docstring is updated with
+this. **Action for M4-1:** recalibrate `vram_estimator.py` from a real 3D `nearfield.stl` pilot run
+once one exists, rather than trusting the 2D numbers for VRAM-budget gating on real near-field
+cases.
+
+Then added M4 post-processing (contract §4.4): `summary_nearfield/*.tif`, `surfaces/*.glb`,
+`timeseries.csv`, `run_meta.json` — turning a completed near-field run's raw solver output into
+the same schema a Delft3D run would produce. New files: `backend/m4_sph/{measuretool,gauges,
+surfaces,vtk_polydata,gltf_writer,postprocess}.py`. Everything below was checked against the real
+`MeasureTool_linux64`/`IsoSurface_linux64` binaries (`/mnt/d/APPS/DualSPHysics_v5.4/bin/linux/`,
+which run fine under WSL) on the real pilot dam-break particle data before being written — none of
+it is guessed from `-h` text or the PDF guides alone.
+
+- **`VelocityGauge` tag bug fixed**: `case_xml.py` wrote `<vel name="...">`; the real tag,
+  confirmed against DualSPHysics's own `examples/others/GaugeSystem/GVel_Dam2d.xml`, is
+  `<velocity name="...">`. The wrong tag would have silently produced no `GaugesVel_*.csv` output
+  from any real solver run — worth catching now since post-processing depends on that file.
+- **Near-field domain = wherever `dem_nearfield.tif` is valid.** There's no
+  `domain_mask_nearfield.tif` in the contract; this matches the test `generator.py` already uses
+  to place probes and the inlet, so no new raster was needed.
+- **`MeasureTool -elevation` column semantics, verified against real output, not assumed from
+  `-h`:** a `POINTSENDLIST` block's z-candidates collapse into ONE elevation reading per block
+  (not one per candidate) only if consecutive candidates are within the run's particle smoothing
+  length of each other. A dry column (no fluid anywhere in its range) reports its elevation as
+  exactly `z0`, the bottom of the range — not the `-kcdummy` fallback (`-kcdummy`/`-kcusedummy`
+  turned out to have no effect in `-elevation` mode at all, only in `-vars` interpolation).
+  Anchoring `z0` at the cell's own bed elevation, and sizing the candidate step as
+  `elevation_dz_dp_fraction * dp_m` (`config/m4_sph.yaml`, default 0.5) rather than a fixed metre
+  value, gets both properties for free: a dry column's depth is exactly `0.0` with no dummy
+  handling, and the step scales with whatever the case's own smoothing length turns out to be
+  (found the hard way — a fixed `elevation_dz_m: 0.5` silently produced one output column per
+  candidate instead of one per cell, on the pilot data's real `dp=0.01 m`, `h≈0.028 m`; `dz=0.02`
+  collapsed correctly, `dz=0.05` didn't).
+- **SPH velocity: depth-average, not a fixed-height point** (approved by the user this session):
+  `summary_nearfield/max_velocity.tif` samples `velocity_levels` explicit points per wet cell,
+  evenly spaced from bed to that cell's own max depth (from the elevation pass), and at each
+  timestep averages the horizontal speed over the levels at or below that timestep's elevation —
+  so it's the same physical quantity as Delft3D's depth-averaged velocity, not a single point
+  sample at a fixed height. Comparing a depth-averaged value against a fixed-height point would
+  read as model disagreement when it's really a definition mismatch.
+- **`summary_nearfield` time window = the SPH run's own `sim_duration_s`, not the whole record**
+  (approved by the user this session): a Delft3D run's own near-field maxima should be computed
+  over the same window as the matching SPH run's `sim_duration_s` (a longer Delft3D window would
+  just have more chances to hit an extreme, biasing `sph_vs_delft3d` for no physical reason) — an
+  M3-side change for a future session; today's work makes `run_meta.json`'s existing
+  `sim_duration_s` field the thing to align on, rather than adding a new field for it.
+- **Arrival threshold stays 0.1 m** (approved by the user this session), unchanged from the
+  project-wide default — coarsening it just for SPH would desync its arrival numbers from every
+  other output keyed on the same threshold. Every near-field SPH run instead gets a new caveat,
+  `sph_arrival_below_resolution`, since particle spacing is always far coarser than 0.1 m; a
+  second new caveat, `sph_depth_search_capped`, fires only if a cell's depth comes within 1.5
+  candidate steps of the search ceiling (`bed + inlet_height_m`), flagging a likely underestimate.
+  Both added to the contract's standard caveat ID list (§2.4).
+- **Probe `timeseries.csv` comes from the solver's own real-time gauges, not MeasureTool** — the
+  `swl`/`velocity` gauges `generator.py` already places per probe write `GaugesSWL_<name>.csv`/
+  `GaugesVel_<name>.csv` themselves during the run; `gauges.py` just reads them. `GaugesSWL_*.csv`'s
+  format was checked against a real pilot run's output; no real `GaugesVel_*.csv` example existed
+  to check against (the pilot case has no velocity gauges — only fixed after this session's tag
+  fix would a real run even produce one), so its parser reads columns positionally rather than by
+  an assumed exact label.
+- **glTF written by hand, no new dependency**: `vtk_polydata.py` reads `IsoSurface -saveiso`'s
+  legacy VTK BINARY POLYDATA output (big-endian, per the legacy VTK spec — verified against a
+  real file, not assumed); `gltf_writer.py` writes a minimal one-mesh `.glb` (glTF 2.0's binary
+  container is simple enough to hand-write for a geometry-only mesh). `settings.surface_interval_s`
+  (default 300 s, approved by the user) controls how many of the run's PART-cadence surfaces get
+  kept, since keeping one glTF per PART would be far more than the 3D view's `max_payload_mb` needs.
+- **`contracts/schemas/run_meta.schema.json` added** — `run_meta.json` existed in the contract's
+  prose (§4.4) but had no schema file; formalized it now since this session is the first to write
+  real ones. Added `caveats`/`has_placeholders`/`placeholder_fields` to the contract's own
+  illustrative example alongside it, matching what `build_run_meta` actually produces (every
+  result carries caveats per CLAUDE.md rule 10; `run_meta.json`'s existing snippet just hadn't
+  shown any yet).
+- **Real-binary tests**: every new module has both offline unit tests (literal CSV/VTK fixtures,
+  no binary needed) and a real-binary test gated on `DSPH_BIN_DIR`, mirroring
+  `test_gencase_smoke.py`'s pattern — run against the pilot dam-break's own particle data (already
+  on disk, no solver run needed) rather than a hand-run near-field case, since running the actual
+  GPU solver is out of scope for a Claude session (CLAUDE.md rule 14). One test's hand-built
+  7-cell near-field grid deliberately places a cell at `x=3.8` near the dam-break box's far wall;
+  it happens to catch a real run-up wave that comes within the `sph_depth_search_capped` margin —
+  left the assertion matching that real behaviour rather than picking a ceiling that avoids it.
+- **Not done this session (next session, per the user):** `/compare`'s real `sph_vs_delft3d`
+  section is still the `compare.example.json` mock (`backend/m0_api/compare.py` only fills
+  `emulator_vs_physics`/`gp_vs_linear` today); `styles.json` doesn't have `velocity_diff`/
+  `arrival_diff` yet (only `depth_diff`); and the mock's `available: true` with all-zero metrics
+  should become `available: false` when no run exists, so a demo can't misread "no run yet" as
+  "no flooding predicted".

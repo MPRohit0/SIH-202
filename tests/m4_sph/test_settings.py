@@ -32,10 +32,24 @@ def test_unknown_setting_in_file_rejected(tmp_path):
     {"t_start_s": 10.0, "t_end_s": 5.0},
     {"vram_margin": 1.0},
     {"vram_margin": -0.1},
+    {"elevation_dz_dp_fraction": 0.0},
+    {"elevation_dz_dp_fraction": -0.5},
+    {"elevation_dz_dp_fraction": 1.5},
+    {"velocity_levels": 0},
+    {"surface_interval_s": 0.0},
+    {"postprocess_row_chunk": 0},
 ])
 def test_invalid_settings_raise(kwargs):
     with pytest.raises(ValueError):
         SphSettings(**kwargs)
+
+
+def test_postprocessing_defaults():
+    settings = load_sph_settings()
+    assert settings.elevation_dz_dp_fraction == 0.5
+    assert settings.velocity_levels == 3
+    assert settings.surface_interval_s == 300.0
+    assert settings.postprocess_row_chunk == 200
 
 
 def test_config_file_exists():

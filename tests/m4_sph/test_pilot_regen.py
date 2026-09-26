@@ -1,4 +1,4 @@
-"""Regenerate `m4_pilot`'s calibration case and diff it against the original GenCase file
+"""Regenerate the pilot calibration case and diff it against the original GenCase file
 (DualSPHysics 5.4.3 `examples/main/01_DamBreak/CaseDambreakVal2D_Def.xml`), to validate
 `case_xml`'s writer before it is trusted to build real near-field cases."""
 

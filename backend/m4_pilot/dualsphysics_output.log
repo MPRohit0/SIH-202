@@ -1,0 +1,545 @@
+
+
+ <DUALSPHYSICS5> Copyright (c) 2025 by
+ Dr Jose M. Dominguez Alonso, Prof. Alejandro Crespo,
+ Dr Georgios Fourtakas, Prof. Benedict Rogers,
+ Dr Renato Vacondio, Dr Corrado Altomare,
+ Dr Angelo Tafuni, Dr Orlando Garcia Feal,
+ Dr Ivan Martinez Estevez, Dr Joseph O'Connor,
+ Dr Aaron English, Dr Francesco Ricci,
+ Prof. Moncho Gomez Gesteira, Prof. Peter Stansby
+
+ EPHYSLAB Environmental Physics Laboratory, Universidade de Vigo
+ School of Mechanical, Aerospace and Civil Engineering, University of Manchester
+
+ DualSPHysics is free software: you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public License
+ as published by the Free Software Foundation, either version 2.1 of
+ the License, or (at your option) any later version.
+
+ DualSPHysics is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with DualSPHysics. If not, see <http://www.gnu.org/licenses/>.
+
+ Free download source files and documentation from DualSPHysics website (http://dual.sphysics.org).
+ Full list of developers and contributors is available at https://dual.sphysics.org/developers
+ Properly cite the use of DualSPHysics (Dominguez et al., 2022) (https://dual.sphysics.org/references).
+
+
+DualSPHysics5 v5.4.355 (08-04-2025)
+====================================
+LoadDsphConfig> .../bin/windows/DsphConfig.xml
+[CUDA Capable device(s)]
+  Detected 1 CUDA Capable device(s)
+  CUDA Driver Version / Runtime Version: 13.1 / 12.8
+ 
+Device 0: "NVIDIA GeForce RTX 4060 Laptop GPU"
+  CUDA Capability Major....: 8.9
+  Global memory............: 8188 MiB
+  CUDA Cores...............: 3072 (24 Multiprocessors, 128 CUDA Cores/MP)
+  GPU Max Clock rate.......: 2250 MHz (2.25 GHz)
+  Memory Clock rate........: 8001 Mhz
+  Memory Bus Width.........: 128-bit
+  L2 Cache Size............: 32768 KiB
+  Constant memory..........: 64 KiB
+  Shared memory per block..: 48 KiB
+  Registers per block......: 65536
+  Maximum threads per MP...: 1536
+  Maximum threads per block: 1024
+  Concurrent copy and kernel execution....: Yes with 1 copy engine(s)
+  Run time limit on kernels...............: Yes
+  Integrated GPU sharing Host Memory......: No
+  Support host page-locked memory mapping.: Yes
+  Device has ECC support..................: Disabled
+  CUDA Device Driver Mode (TCC or WDDM)...: WDDM (Windows Display Driver Model)
+  Device supports Unified Addressing (UVA): Yes
+  Device PCI (Domain / Bus / location)....: 0 / 1 / 0
+  Device supports P2P and RDMA............: No
+ 
+[GPU Hardware]
+Device default: 0 "NVIDIA GeForce RTX 4060 Laptop GPU"
+Compute capability: 8.9
+Memory global: 8187 MiB
+Memory shared: 49152 Bytes
+ 
+
+[Initialising JSphGpuSingle  26-09-2026 01:47:53]
+ProgramFile=".../bin/windows/DualSPHysics5.4_win64.exe"
+Available features: Project Chrono coupling, MoorDynPlus coupling, Wave generation, FlexStruc, mDBC no-slip, GPU execution, OpenMP execution.
+ExecutionDir=".../examples/main/01_DamBreak"
+XmlFile=".../01_DamBreak/CaseDambreakVal2D_out/CaseDambreakVal2D.xml"
+OutputDir=".../main/01_DamBreak/CaseDambreakVal2D_out"
+OutputDataDir=".../01_DamBreak/CaseDambreakVal2D_out/data"
+XML-App: GenCase v5.4.354.01 (07-04-2025)
+
+*** WARNING: The XML option 'PartsOutMax' is deprecated. Use 'MinFluidStop' option.
+
+**Basic case configuration is loaded
+**Special case configuration is loaded
+Loading initial state of particles...
+Loaded particles: 21,001
+MapRealPos(border)=(-0.000707107,-0.000707107,-0.000707107)-(4.00071,0.000707107,3.00071)
+MapRealPos(final)=(-0.000707107,-0.000707107,-0.000707107)-(4.00071,0.000707107,4.50141)
+**Initial state of particles is loaded
+PosCellCode="13_10_9 (8192,1024,512)"
+PosCellSize=0.028284  (1 x KernelSize)
+**2D-Simulation parameters:
+CaseName="CaseDambreakVal2D"
+RunName="CaseDambreakVal2D"
+Simulate2DPosY=0
+SavePosDouble=False
+SvExtraParts=""
+SaveFtAce=False
+SvTimers=True
+Boundary="DBC"
+StepAlgorithm="Verlet"
+  VerletSteps=40
+Kernel="Wendland"
+  Wendland.awen=2785
+  Wendland.bwenh=-6.962999e+07
+Viscosity="Artificial"
+  Visco=0.02
+  ViscoBoundFactor=1
+DensityDiffusion="Fourtakas et al 2019 (inner)"
+  DensityDiffusionValue=0.1
+Shifting="None"
+RigidAlgorithm="None"
+FloatingCount=0
+CaseNp=21,001
+CaseNbound=1,001
+CaseNfixed=1,001
+CaseNmoving=0
+CaseNfloat=0
+CaseNfluid=20,000
+PeriodicActive="None"
+Dp=0.01
+KernelH=0.014142  (CoefficientH=1; H/Dp=1.41421)
+KernelSize=0.02828427
+CteB=1115537
+Gamma=7
+RhopZero=1000
+Cs0=88.36718777351693
+CFLnumber=0.2
+DtIni=0.0001600383179076575
+DtMin=8.001916014620711e-06
+DtAllParticles=False
+MassFluid=0.1
+MassBound=0.1
+TimeMax=2
+TimePart=0.01
+Gravity=(0,0,-9.81)
+RhopOut=True
+RhopOutMin=700
+RhopOutMax=1300
+WrnPartsOut=True
+MinFluidStop=0
+NpfMinimum=0
+CellMode="Full"
+ScellDiv=1
+MapCells=(142,1,160)  (22,720 cells)
+CellDomFixed=False
+DomCells=(142,1,160)  (22,720 cells)
+DomCellCode="1+13_6_12"
+ 
+BlockSize calculation mode: Fixed.
+  BsForcesBound=128 (39 regs)
+  BsForcesFluid=128 (56 regs)
+ 
+**CellDiv: Requested gpu memory for 22,179 particles (over-allocation: 1.06X): 0.3 MiB (1 times).
+**CellDiv: Requested GPU memory for 22,720 cells (over-allocation: 8.53X): 0.3 MiB (1 times).
+ 
+RunMode="Pos-Cell - Single-GPU"
+ 
+Particle summary:
+  Fixed....: 1,001  id:(0-1000)   MKs:1 (10)
+  Moving...: 0
+  Floating.: 0
+  Fluid....: 20,000  id:(1001-21000)   MKs:1 (1)
+
+Total particles: 21,001 (bound=1001 (fx=1001 mv=0 ft=0) fluid=20000)
+Total MK blocks: 2 (bound=1 (fx=1 mv=0 ft=0) fluid=1)
+ 
+GaugeSystem configuration:
+Guage_0: 'Swl_x02'
+  Type.......: SWL
+  Compute....: 0 - 2   dt:0.01
+  Output.....: 0 - 2   dt:0.01
+  SaveVtkPart: True
+  DomainCells: (6,0,0)-(8,1,75)   mode:fixed
+  MassLimit..: 0.04
+  GaugePoints: (0.2,0,-0.05)-(0.2,0,2.1)
+  PointDp....: 0.005
+Guage_1: 'Swl_z003'
+  Type.......: SWL
+  Compute....: 0 - 2   dt:0.005
+  Output.....: 0 - 2   dt:0.005
+  SaveVtkPart: True
+  DomainCells: (0,0,0)-(144,1,2)   mode:fixed
+  MassLimit..: 0.04
+  GaugePoints: (-0.05,0,0.03)-(4.05,0,0.03)
+  PointDp....: 0.005
+ 
+
+Initial allocated memory in CPU: 1,947,690 (1.86 MiB)  (9 particle arrays)
+Initial allocated memory in GPU: 3,510,588 (3.35 MiB)  (14 particle arrays)
+Part_0000        21,001 (100.0%) particles successfully stored
+
+[WARNINGS]
+1. The XML option 'PartsOutMax' is deprecated. Use 'MinFluidStop' option.
+
+[Initialising simulation (onq6nmto)  26-09-2026 01:47:53]
+PART   PartTime   TotalSteps   Steps    Particles    Cells        Time/Sec   Finish time        
+=====  =========  ===========  =======  ===========  ===========  =========  ===================
+**Updated allocated memory in CPU: 1,947,690 (1.86 MiB)  (9 particle arrays)
+**Updated allocated memory in GPU: 3,764,136 (3.59 MiB)  (15 particle arrays)
+00001   0.010016          314      315       21,001        2,664      29.31  26-09-2026 01:48:52
+00002   0.020022          628      314       21,001        2,664      28.05  26-09-2026 01:48:50
+00003   0.030025          942      314       21,001        2,736      28.83  26-09-2026 01:48:50
+00004   0.040016        1,256      314       21,001        2,736      30.00  26-09-2026 01:48:52
+00005   0.050016        1,571      315       21,001        2,736      31.09  26-09-2026 01:48:52
+00006   0.060002        1,886      315       21,001        2,808      29.91  26-09-2026 01:48:52
+00007   0.070020        2,202      316       21,001        2,808      29.90  26-09-2026 01:48:52
+00008   0.080004        2,517      315       21,001        2,840      29.79  26-09-2026 01:48:53
+00009   0.090005        2,833      316       21,001        2,911      30.89  26-09-2026 01:48:52
+00010   0.100006        3,149      316       21,001        2,982      30.91  26-09-2026 01:48:52
+00011   0.110001        3,465      316       21,001        2,982      29.10  26-09-2026 01:48:53
+00012   0.120022        3,783      318       21,001        3,010      31.60  26-09-2026 01:48:53
+00013   0.130001        4,100      317       21,001        3,080      35.25  26-09-2026 01:48:53
+00014   0.140025        4,420      320       21,001        3,150      32.86  26-09-2026 01:48:54
+00015   0.150018        4,736      316       21,001        3,174      32.66  26-09-2026 01:48:54
+00016   0.160014        5,053      317       21,001        3,312      30.80  26-09-2026 01:48:54
+00017   0.170001        5,369      316       21,001        3,381      31.52  26-09-2026 01:48:55
+00018   0.180010        5,686      317       21,001        3,400      31.43  26-09-2026 01:48:55
+00019   0.190015        6,003      317       21,001        3,468      34.92  26-09-2026 01:48:55
+00020   0.200030        6,321      318       21,001        3,484      35.78  26-09-2026 01:48:56
+00021   0.210003        6,638      317       21,001        3,618      34.49  26-09-2026 01:48:56
+00022   0.220001        6,955      317       21,001        3,630      37.08  26-09-2026 01:48:56
+00023   0.230025        7,275      320       21,001        3,762      34.96  26-09-2026 01:48:57
+00024   0.240025        7,595      320       21,001        3,770      33.36  26-09-2026 01:48:57
+00025   0.250020        7,912      317       21,001        3,835      34.77  26-09-2026 01:48:57
+00026   0.260008        8,229      317       21,001        3,904      38.72  26-09-2026 01:48:58
+00027   0.270001        8,546      317       21,001        3,969      38.27  26-09-2026 01:48:58
+00028   0.280012        8,864      318       21,001        4,032      39.53  26-09-2026 01:48:59
+00029   0.290030        9,182      318       21,001        4,092      37.06  26-09-2026 01:48:59
+00030   0.300001        9,499      317       21,001        4,087      55.36  26-09-2026 01:49:00
+00031   0.310029        9,818      319       21,001        4,209      49.38  26-09-2026 01:49:01
+00032   0.320010       10,135      317       21,001        4,260      52.77  26-09-2026 01:49:02
+00033   0.330018       10,453      318       21,001        4,248      48.93  26-09-2026 01:49:03
+00034   0.340021       10,772      319       21,001        4,366      53.04  26-09-2026 01:49:04
+00035   0.350023       11,092      320       21,001        4,408      56.35  26-09-2026 01:49:05
+00036   0.360007       11,410      318       21,001        4,446      42.30  26-09-2026 01:49:05
+00037   0.370011       11,729      319       21,001        4,503      39.49  26-09-2026 01:49:06
+00038   0.380022       12,048      319       21,001        4,536      53.63  26-09-2026 01:49:06
+00039   0.390009       12,366      318       21,001        4,565      46.64  26-09-2026 01:49:08
+00040   0.400024       12,685      319       21,001        4,675      44.75  26-09-2026 01:49:07
+00041   0.410028       13,005      320       21,001        4,698      50.36  26-09-2026 01:49:09
+00042   0.420010       13,323      318       21,001        4,717      59.76  26-09-2026 01:49:09
+00043   0.430017       13,642      319       21,001        4,823      60.85  26-09-2026 01:49:10
+00044   0.440006       13,961      319       21,001        4,836      60.17  26-09-2026 01:49:12
+00045   0.450010       14,283      322       21,001        4,845      59.88  26-09-2026 01:49:12
+00046   0.460005       14,605      322       21,001        4,850      51.93  26-09-2026 01:49:13
+00047   0.470030       14,926      321       21,001        4,950      51.96  26-09-2026 01:49:13
+00048   0.480017       15,245      319       21,001        4,949      52.42  26-09-2026 01:49:14
+00049   0.490020       15,565      320       21,001        5,047      54.62  26-09-2026 01:49:14
+00050   0.500017       15,884      319       21,001        5,040      64.83  26-09-2026 01:49:16
+00051   0.510004       16,203      319       21,001        5,029      52.79  26-09-2026 01:49:16
+00052   0.520007       16,524      321       21,001        5,123      46.49  26-09-2026 01:49:16
+00053   0.530001       16,843      319       21,001        5,106      45.93  26-09-2026 01:49:16
+00054   0.540025       17,163      320       21,001        5,244      49.44  26-09-2026 01:49:17
+00055   0.550017       17,482      319       21,001        5,220      52.96  26-09-2026 01:49:17
+00056   0.560010       17,802      320       21,001        5,192      49.45  26-09-2026 01:49:17
+00057   0.570029       18,124      322       21,001        5,280      49.36  26-09-2026 01:49:17
+00058   0.580017       18,443      319       21,001        5,289      45.15  26-09-2026 01:49:18
+00059   0.590004       18,762      319       21,001        5,375      51.33  26-09-2026 01:49:18
+00060   0.600023       19,082      320       21,001        5,334      49.43  26-09-2026 01:49:18
+00061   0.610009       19,401      319       21,001        5,418      49.74  26-09-2026 01:49:18
+00062   0.620023       19,721      320       21,001        5,412      47.95  26-09-2026 01:49:19
+00063   0.630005       20,040      319       21,001        5,494      50.11  26-09-2026 01:49:18
+00064   0.640017       20,360      320       21,001        5,440      54.26  26-09-2026 01:49:19
+00065   0.650027       20,680      320       21,001        5,560      57.11  26-09-2026 01:49:20
+00066   0.660002       20,999      319       21,001        5,499      55.92  26-09-2026 01:49:20
+00067   0.670013       21,368      369       21,001        5,538      59.74  26-09-2026 01:49:21
+00068   0.680011       21,918      550       21,001        5,396      79.93  26-09-2026 01:49:22
+00069   0.690002       22,464      546       21,001        5,396     102.33  26-09-2026 01:49:24
+00070   0.700008       22,972      508       21,001        5,254      80.43  26-09-2026 01:49:24
+00071   0.710012       23,476      504       21,001        5,254      84.11  26-09-2026 01:49:25
+00072   0.720001       23,982      506       21,001        5,112      75.33  26-09-2026 01:49:26
+00073   0.730016       24,469      487       21,001        5,112      78.80  26-09-2026 01:49:27
+00074   0.740010       24,941      472       21,001        4,970      80.79  26-09-2026 01:49:28
+00075   0.750011       25,402      461       21,001        4,970      70.76  26-09-2026 01:49:28
+00076   0.760017       25,859      457       21,001        5,538      65.66  26-09-2026 01:49:29
+00077   0.770017       26,310      451       21,001        6,106      65.83  26-09-2026 01:49:30
+00078   0.780002       26,759      449       21,001        6,674      64.50  26-09-2026 01:49:30
+00079   0.790004       27,203      444       21,001        7,242      63.29  26-09-2026 01:49:30
+00080   0.800004       27,638      435       21,001        7,810      61.04  26-09-2026 01:49:30
+00081   0.810007       28,069      431       21,001        8,378      70.41  26-09-2026 01:49:31
+00082   0.820016       28,497      428       21,001        8,946      63.19  26-09-2026 01:49:32
+00083   0.830009       28,916      419       21,001        9,514      68.96  26-09-2026 01:49:31
+00084   0.840022       29,341      425       21,001       10,082      74.12  26-09-2026 01:49:32
+00085   0.850013       29,754      413       21,001       10,650      57.71  26-09-2026 01:49:33
+00086   0.860017       30,160      406       21,001       11,076      53.93  26-09-2026 01:49:32
+00087   0.870015       30,569      409       21,001       11,644      55.08  26-09-2026 01:49:33
+00088   0.880021       30,972      403       21,001       12,212      55.30  26-09-2026 01:49:33
+00089   0.890008       31,368      396       21,001       12,638      56.96  26-09-2026 01:49:33
+00090   0.900019       31,769      401       21,001       13,206      51.14  26-09-2026 01:49:34
+00091   0.910007       32,158      389       21,001       13,774      62.78  26-09-2026 01:49:33
+00092   0.920023       32,542      384       21,001       14,200      53.17  26-09-2026 01:49:34
+00093   0.930024       32,930      388       21,001       14,768      66.83  26-09-2026 01:49:34
+00094   0.940024       33,308      378       21,001       15,194      49.42  26-09-2026 01:49:34
+00095   0.950012       33,678      370       21,001       15,620      47.51  26-09-2026 01:49:34
+00096   0.960017       34,054      376       21,001       16,188      54.14  26-09-2026 01:49:34
+00097   0.970027       34,424      370       21,001       16,614      62.07  26-09-2026 01:49:34
+00098   0.980013       34,783      359       21,001       17,182      58.27  26-09-2026 01:49:34
+00099   0.990013       35,144      361       21,001       17,608      59.54  26-09-2026 01:49:35
+00100   1.000009       35,507      363       21,001       18,176      65.21  26-09-2026 01:49:34
+00101   1.010010       35,858      351       21,001       18,602      59.84  26-09-2026 01:49:35
+00102   1.020002       36,205      347       21,001       19,170      48.68  26-09-2026 01:49:35
+00103   1.030008       36,558      353       21,001       19,596      54.30  26-09-2026 01:49:35
+00104   1.040022       36,901      343       21,001       20,022      44.91  26-09-2026 01:49:34
+00105   1.050010       37,237      336       21,001       20,590      49.17  26-09-2026 01:49:35
+00106   1.060015       37,578      341       21,001       21,016      54.69  26-09-2026 01:49:34
+00107   1.070004       37,913      335       21,001       21,442      50.37  26-09-2026 01:49:35
+00108   1.080006       38,238      325       21,001       21,868      49.40  26-09-2026 01:49:34
+00109   1.090010       38,565      327       21,001       22,294      55.15  26-09-2026 01:49:35
+00110   1.100026       38,893      328       20,996       22,578      60.88  26-09-2026 01:49:36
+  Particles out: 5  (total out: 5)  -  Current np: 20,996
+00111   1.110012       39,211      318       20,978       22,720      63.73  26-09-2026 01:49:35
+  Particles out: 18  (total out: 23)  -  Current np: 20,978
+00112   1.120030       39,530      319       20,924       22,720      56.19  26-09-2026 01:49:36
+  Particles out: 54  (total out: 77)  -  Current np: 20,924
+00113   1.130012       39,848      318       20,890       22,294      49.27  26-09-2026 01:49:35
+  Particles out: 34  (total out: 111)  -  Current np: 20,890
+00114   1.140007       40,167      319       20,885       22,720      41.05  26-09-2026 01:49:36
+  Particles out: 5  (total out: 116)  -  Current np: 20,885
+00115   1.150018       40,485      318       20,866       22,720      41.93  26-09-2026 01:49:35
+  Particles out: 19  (total out: 135)  -  Current np: 20,866
+00116   1.160024       40,803      318       20,843       22,294      46.61  26-09-2026 01:49:35
+  Particles out: 23  (total out: 158)  -  Current np: 20,843
+00117   1.170027       41,121      318       20,843       22,578      44.70  26-09-2026 01:49:35
+00118   1.180030       41,439      318       20,837       22,578      50.15  26-09-2026 01:49:35
+  Particles out: 6  (total out: 164)  -  Current np: 20,837
+00119   1.190007       41,756      317       20,831       22,578      57.06  26-09-2026 01:49:35
+  Particles out: 6  (total out: 170)  -  Current np: 20,831
+00120   1.200008       42,074      318       20,817       22,720      64.31  26-09-2026 01:49:35
+  Particles out: 14  (total out: 184)  -  Current np: 20,817
+00121   1.210030       42,392      318       20,806       22,720      65.62  26-09-2026 01:49:35
+  Particles out: 11  (total out: 195)  -  Current np: 20,806
+00122   1.220019       42,709      317       20,793       22,720      58.93  26-09-2026 01:49:36
+  Particles out: 13  (total out: 208)  -  Current np: 20,793
+00123   1.230012       43,026      317       20,782       22,578      67.61  26-09-2026 01:49:36
+  Particles out: 11  (total out: 219)  -  Current np: 20,782
+00124   1.240014       43,344      318       20,775       22,720      65.36  26-09-2026 01:49:36
+  Particles out: 7  (total out: 226)  -  Current np: 20,775
+00125   1.250023       43,662      318       20,774       22,436      62.77  26-09-2026 01:49:36
+  Particles out: 1  (total out: 227)  -  Current np: 20,774
+00126   1.260031       43,980      318       20,770       22,720      65.95  26-09-2026 01:49:37
+  Particles out: 4  (total out: 231)  -  Current np: 20,770
+00127   1.270029       44,298      318       20,760       22,720      62.17  26-09-2026 01:49:36
+  Particles out: 10  (total out: 241)  -  Current np: 20,760
+00128   1.280022       44,615      317       20,747       22,578      59.94  26-09-2026 01:49:37
+  Particles out: 13  (total out: 254)  -  Current np: 20,747
+00129   1.290009       44,932      317       20,737       22,720      54.37  26-09-2026 01:49:36
+  Particles out: 10  (total out: 264)  -  Current np: 20,737
+00130   1.300017       45,250      318       20,727       22,720      52.19  26-09-2026 01:49:37
+  Particles out: 10  (total out: 274)  -  Current np: 20,727
+00131   1.310013       45,566      316       20,715       22,720      52.61  26-09-2026 01:49:36
+  Particles out: 12  (total out: 286)  -  Current np: 20,715
+00132   1.320008       45,882      316       20,708       22,720      49.45  26-09-2026 01:49:37
+  Particles out: 7  (total out: 293)  -  Current np: 20,708
+00133   1.330022       46,200      318       20,699       22,578      48.41  26-09-2026 01:49:36
+  Particles out: 9  (total out: 302)  -  Current np: 20,699
+00134   1.340022       46,517      317       20,691       22,720      52.54  26-09-2026 01:49:37
+  Particles out: 8  (total out: 310)  -  Current np: 20,691
+00135   1.350021       46,834      317       20,685       22,578      51.21  26-09-2026 01:49:36
+  Particles out: 6  (total out: 316)  -  Current np: 20,685
+00136   1.360028       47,151      317       20,681       22,720      57.77  26-09-2026 01:49:37
+  Particles out: 4  (total out: 320)  -  Current np: 20,681
+00137   1.370015       47,468      317       20,672       22,720      49.53  26-09-2026 01:49:37
+  Particles out: 9  (total out: 329)  -  Current np: 20,672
+00138   1.380020       47,785      317       20,661       22,720      52.31  26-09-2026 01:49:37
+  Particles out: 11  (total out: 340)  -  Current np: 20,661
+00139   1.390021       48,102      317       20,650       22,720      55.86  26-09-2026 01:49:37
+  Particles out: 11  (total out: 351)  -  Current np: 20,650
+00140   1.400013       48,419      317       20,642       22,578      61.57  26-09-2026 01:49:37
+  Particles out: 8  (total out: 359)  -  Current np: 20,642
+00141   1.410023       48,736      317       20,636       22,720      63.30  26-09-2026 01:49:37
+  Particles out: 6  (total out: 365)  -  Current np: 20,636
+00142   1.420031       49,053      317       20,629       22,720      60.12  26-09-2026 01:49:38
+  Particles out: 7  (total out: 372)  -  Current np: 20,629
+00143   1.430016       49,369      316       20,623       22,720      67.21  26-09-2026 01:49:37
+  Particles out: 6  (total out: 378)  -  Current np: 20,623
+00144   1.440004       49,685      316       20,617       22,720      53.71  26-09-2026 01:49:38
+  Particles out: 6  (total out: 384)  -  Current np: 20,617
+00145   1.450019       50,002      317       20,611       22,578      52.47  26-09-2026 01:49:37
+  Particles out: 6  (total out: 390)  -  Current np: 20,611
+00146   1.460030       50,319      317       20,606       22,720      53.07  26-09-2026 01:49:38
+  Particles out: 5  (total out: 395)  -  Current np: 20,606
+00147   1.470002       50,634      315       20,601       22,578      52.49  26-09-2026 01:49:37
+  Particles out: 5  (total out: 400)  -  Current np: 20,601
+00148   1.480007       50,950      316       20,595       22,720      52.70  26-09-2026 01:49:38
+  Particles out: 6  (total out: 406)  -  Current np: 20,595
+00149   1.490011       51,266      316       20,586       22,720      56.88  26-09-2026 01:49:37
+  Particles out: 9  (total out: 415)  -  Current np: 20,586
+00150   1.500030       51,583      317       20,580       22,720      40.56  26-09-2026 01:49:38
+  Particles out: 6  (total out: 421)  -  Current np: 20,580
+00151   1.510021       51,899      316       20,574       22,720      45.33  26-09-2026 01:49:37
+  Particles out: 6  (total out: 427)  -  Current np: 20,574
+00152   1.520013       52,215      316       20,572       22,436      47.01  26-09-2026 01:49:38
+  Particles out: 2  (total out: 429)  -  Current np: 20,572
+00153   1.530001       52,531      316       20,572       22,436      32.03  26-09-2026 01:49:37
+00154   1.540001       52,847      316       20,572       22,578      27.75  26-09-2026 01:49:36
+00155   1.550028       53,164      317       20,572       22,578      31.49  26-09-2026 01:49:37
+00156   1.560004       53,479      315       20,570       22,720      39.59  26-09-2026 01:49:36
+  Particles out: 2  (total out: 431)  -  Current np: 20,570
+00157   1.570012       53,795      316       20,567       22,578      42.81  26-09-2026 01:49:36
+  Particles out: 3  (total out: 434)  -  Current np: 20,567
+00158   1.580006       54,111      316       20,567       22,720      36.54  26-09-2026 01:49:36
+00159   1.590014       54,427      316       20,564       22,720      29.07  26-09-2026 01:49:36
+  Particles out: 3  (total out: 437)  -  Current np: 20,564
+00160   1.600029       54,743      316       20,561       22,720      23.74  26-09-2026 01:49:35
+  Particles out: 3  (total out: 440)  -  Current np: 20,561
+00161   1.610015       55,058      315       20,559       22,720      26.57  26-09-2026 01:49:35
+  Particles out: 2  (total out: 442)  -  Current np: 20,559
+00162   1.620028       55,374      316       20,556       22,720      21.42  26-09-2026 01:49:35
+  Particles out: 3  (total out: 445)  -  Current np: 20,556
+00163   1.630004       55,689      315       20,554       22,720      26.39  26-09-2026 01:49:34
+  Particles out: 2  (total out: 447)  -  Current np: 20,554
+00164   1.640024       56,005      316       20,553       22,720      21.26  26-09-2026 01:49:34
+  Particles out: 1  (total out: 448)  -  Current np: 20,553
+00165   1.650014       56,320      315       20,551       22,720      24.21  26-09-2026 01:49:34
+  Particles out: 2  (total out: 450)  -  Current np: 20,551
+00166   1.660003       56,635      315       20,550       22,720      23.43  26-09-2026 01:49:34
+  Particles out: 1  (total out: 451)  -  Current np: 20,550
+00167   1.670009       56,951      316       20,550       22,720      25.80  26-09-2026 01:49:33
+00168   1.680004       57,266      315       20,550       22,720      38.31  26-09-2026 01:49:33
+00169   1.690025       57,582      316       20,550       22,720      37.61  26-09-2026 01:49:33
+00170   1.700010       57,897      315       20,550       22,720      20.19  26-09-2026 01:49:32
+00171   1.710016       58,213      316       20,550       22,578      25.25  26-09-2026 01:49:32
+00172   1.720014       58,529      316       20,550       22,578      36.40  26-09-2026 01:49:32
+00173   1.730024       58,845      316       20,550       22,578      33.79  26-09-2026 01:49:32
+00174   1.740030       59,161      316       20,550       22,578      27.83  26-09-2026 01:49:31
+00175   1.750020       59,476      315       20,550       22,578      31.64  26-09-2026 01:49:32
+00176   1.760011       59,792      316       20,550       22,436      34.82  26-09-2026 01:49:31
+00177   1.770019       60,108      316       20,550       22,436      40.62  26-09-2026 01:49:31
+00178   1.780019       60,424      316       20,550       22,436      45.91  26-09-2026 01:49:31
+00179   1.790008       60,742      318       20,550       22,294      35.38  26-09-2026 01:49:31
+00180   1.800000       61,073      331       20,549       22,294      36.13  26-09-2026 01:49:31
+  Particles out: 1  (total out: 452)  -  Current np: 20,549
+00181   1.810015       61,395      322       20,548       22,152      41.17  26-09-2026 01:49:31
+  Particles out: 1  (total out: 453)  -  Current np: 20,548
+00182   1.820005       61,715      320       20,547       22,152      37.87  26-09-2026 01:49:30
+  Particles out: 1  (total out: 454)  -  Current np: 20,547
+00183   1.830014       62,039      324       20,545       22,010      39.55  26-09-2026 01:49:31
+  Particles out: 2  (total out: 456)  -  Current np: 20,545
+00184   1.840025       62,365      326       20,544       22,010      29.80  26-09-2026 01:49:30
+  Particles out: 1  (total out: 457)  -  Current np: 20,544
+00185   1.850019       62,684      319       20,542       21,868      25.09  26-09-2026 01:49:30
+  Particles out: 2  (total out: 459)  -  Current np: 20,542
+00186   1.860030       63,003      319       20,542       21,868      23.86  26-09-2026 01:49:29
+00187   1.870019       63,327      324       20,540       21,726      30.37  26-09-2026 01:49:30
+  Particles out: 2  (total out: 461)  -  Current np: 20,540
+00188   1.880013       63,659      332       20,535       21,584      29.20  26-09-2026 01:49:29
+  Particles out: 5  (total out: 466)  -  Current np: 20,535
+00189   1.890021       63,988      329       20,533       21,442      25.33  26-09-2026 01:49:29
+  Particles out: 2  (total out: 468)  -  Current np: 20,533
+00190   1.900006       64,310      322       20,529       21,442      24.49  26-09-2026 01:49:29
+  Particles out: 4  (total out: 472)  -  Current np: 20,529
+00191   1.910027       64,637      327       20,526       21,158      26.27  26-09-2026 01:49:29
+  Particles out: 3  (total out: 475)  -  Current np: 20,526
+00192   1.920006       64,970      333       20,521       21,158      30.92  26-09-2026 01:49:28
+  Particles out: 5  (total out: 480)  -  Current np: 20,521
+00193   1.930010       65,298      328       20,518       20,874      35.71  26-09-2026 01:49:29
+  Particles out: 3  (total out: 483)  -  Current np: 20,518
+00194   1.940028       65,645      347       20,516       20,732      23.85  26-09-2026 01:49:28
+  Particles out: 2  (total out: 485)  -  Current np: 20,516
+00195   1.950021       65,978      333       20,513       20,590      23.29  26-09-2026 01:49:28
+  Particles out: 3  (total out: 488)  -  Current np: 20,513
+00196   1.960014       66,312      334       20,512       20,448      23.24  26-09-2026 01:49:27
+  Particles out: 1  (total out: 489)  -  Current np: 20,512
+00197   1.970001       66,744      432       20,512       20,306      32.04  26-09-2026 01:49:28
+00198   1.980015       67,197      453       20,510       20,164      36.01  26-09-2026 01:49:27
+  Particles out: 2  (total out: 491)  -  Current np: 20,510
+00199   1.990013       67,630      433       20,510       20,022      53.65  26-09-2026 01:49:27
+00200   2.000011       68,061      431       20,503       19,880      37.70  26-09-2026 01:49:28
+  Particles out: 7  (total out: 498)  -  Current np: 20,503
+
+[Simulation finished  26-09-2026 01:49:28]
+Particles of simulation (initial): 21,001
+DTs adjusted to DtMin............: 0
+Excluded particles...............: 498
+Excluded particles due to Density: 8
+Total Runtime....................: 94.729248 sec.
+Simulation Runtime...............: 94.486366 sec.
+Runtime per physical second......: 47.242920 sec.
+Steps per second.................: 720.326172
+Steps of simulation..............: 68,061
+PART files.......................: 201
+Maximum number of particles......: 21,001
+Maximum number of cells..........: 22,720
+CPU Memory.......................: 1,947,690 (1.86 MiB)
+GPU Memory.......................: 3,764,136 (3.59 MiB)
+GPU Memory (for cells)...........: 363,560 (0.35 MiB)
+ 
+[GPU Timers]
+VA-Init..........................: 0.243015 sec.
+NL-Limits........................: 5.111110 sec.
+NL-PreSort.......................: 0.746794 sec.
+NL-RadixSort.....................: 40.451616 sec.
+NL-CellBegin.....................: 7.096534 sec.
+NL-SortData......................: 4.752092 sec.
+NL-OutCheck......................: 0.067604 sec.
+CF-PreForces.....................: 10.239587 sec.
+CF-PreMDBC.......................: 0 sec.
+CF-Forces........................: 19.366637 sec.
+SU-Shifting......................: 0 sec.
+SU-ComputeStep...................: 4.398774 sec.
+SU-Floating......................: 0 sec.
+SU-Motion........................: 0 sec.
+SU-Periodic......................: 0 sec.
+SU-ResizeNp......................: 0 sec.
+SU-DownData......................: 0.077496 sec.
+SU-SavePart......................: 0.477495 sec.
+SU-Chrono........................: 0 sec.
+SU-Moorings......................: 0 sec.
+SU-InOut.........................: 0 sec.
+SU-Gauges........................: 0.331321 sec.
+SU-FlexStruc.....................: 0 sec.
+ 
+[Output files]
+- CfgGauge_InitPoints.vtk...............: Saves points used for gauge calculations (by JGaugeSystem).
+- CfgInit_Domain.vtk....................: Saves the limits of the case and the simulation domain limits.
+- CfgInit_MapCells.vtk..................: Saves the cell division of the simulation domain.
+- GaugesSWL_Swl_x02.csv.................: Saves SWL data measured from fluid particles (by JGaugeSwl).
+- GaugesSWL_Swl_z003.csv................: Saves SWL data measured from fluid particles (by JGaugeSwl).
+- Run.csv...............................: One line CSV file with execution parameters and other simulation data.
+- Run.out...............................: Log file of the simulation.
+- RunPARTs.csv..........................: Saves extra information of simulated PARTs.
+- data/PartInfo.ibi4....................: Binary file with execution information for each instant (input for PartInfo program).
+- data/PartOut_???.obi4.................: Binary file with particles excluded during simulation (input for PartVtkOut program).
+- data/Part_????.bi4....................: Binary file with particle data in different instants.
+- data/Part_Head.ibi4...................: Binary file with basic information of simulation data.
+- gaugesvtks/GaugesSWL_Swl_x02_????.vtk.: Saves SWL data measured from fluid particles (by JGaugeSwl).
+- gaugesvtks/GaugesSWL_Swl_z003_????.vtk: Saves SWL data measured from fluid particles (by JGaugeSwl).
+ 
+[WARNINGS]
+1. The XML option 'PartsOutMax' is deprecated. Use 'MinFluidStop' option.
+ 
+[References]
+- Official solver reference DualSPHysics v5.0: J.M. Dominguez, G. Fourtakas,
+    C. Altomare, R.B. Canelas, A. Tafuni, O. Garcia-Feal, I. Martinez-Estevez,
+    A. Mokos, R. Vacondio, A.J.C. Crespo, B.D. Rogers, P.K. Stansby, M. Gomez-Gesteira.
+    2022. DualSPHysics: from fluid dynamics to multiphysics problems.
+    Computational Particle Mechanics, 9:867-895. doi: https://doi.org/10.1007/s40571-021-00404-2
+
+- Optimised CPU multi-core and GPU implementation (Dominguez et al., 2013  https://doi.org/10.1016/j.cpc.2012.10.015)
+- Dynamic boundary conditions (Crespo et al., 2007  https://doi.org/10.3970/cmc.2007.005.173)
+- Density diffusion Term: Fourtakas (Fourtakas et al., 2019  https://doi.org/10.1016/j.compfluid.2019.06.009)
+- Viscosity: Artificial (Monaghan, 1992  https://doi.org/10.1146/annurev.aa.30.090192.002551)
+- Kernel: Quintic Wendland (Wendland, 1995  https://doi.org/10.1007/BF02123482)
+- Time integration scheme: Verlet (Verlet, 1967  https://doi.org/10.1103/PhysRev.159.98)
+
+Finished execution (code=0).

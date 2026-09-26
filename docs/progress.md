@@ -1115,3 +1115,49 @@ GenCase output; then M3 (Delft3D 4 FLOW) or M4 post-processing/job wiring.
 - **Not done, on purpose:** `CLAUDE.md`, `docs/decisions.md` and `environment.yml` are unchanged
   (M3-B housekeeping). flow2d3d wasn't built (estimate in the build doc). `.wslconfig` is only
   proposed. No repo code changed and no tests added this session, so `pytest` wasn't rerun.
+
+## 2026-09-25 — M4: post-processing (`summary_nearfield/`, `surfaces/`, `timeseries.csv`, `run_meta.json`)
+
+Before starting: the user moved `backend/m4_pilot/`'s `vram_estimator.py` and its three
+calibration logs straight into `backend/m4_sph/` (consolidating the pilot-calibration-only
+folder into the real module). Fixed the fallout — `generator.py`'s import, `tests/m4_pilot/` ->
+`tests/m4_sph/test_vram_estimator.py`, `CLAUDE.md` — all green before starting new work
+(`docs/decisions.md` today's entry has the detail).
+
+Added the rest of contract §4.4's M4 outputs, turning a completed near-field run into the same
+schema a Delft3D run would produce:
+
+- `backend/m4_sph/measuretool.py`: wraps `MeasureTool_linux64` for `summary_nearfield/`'s three
+  rasters — column-collapsing `-elevation` search for depth/arrival, explicit multi-level points
+  for depth-averaged velocity (`docs/decisions.md` "SPH velocity: depth-average, not a
+  fixed-height point"). Every format detail (points-file syntax, CSV layout, the `-elevation`
+  column-collapse threshold, `-kcdummy`'s actual no-op behaviour) was checked against the real
+  binary on real pilot particle data, not assumed from `-h` text.
+- `backend/m4_sph/gauges.py`: `timeseries.csv` from the solver's own `GaugesSWL_*.csv`/
+  `GaugesVel_*.csv` (real-time gauges `generator.py` already places per probe) — no MeasureTool
+  involved. Fixed a real bug this surfaced: `case_xml.py`'s `VelocityGauge` wrote `<vel>` instead
+  of the real `<velocity>` tag, which would have silently produced no gauge output at all.
+- `backend/m4_sph/vtk_polydata.py` + `gltf_writer.py`: a from-scratch legacy-VTK-binary reader and
+  minimal `.glb` writer (no new dependency) for `surfaces/t<seconds>.glb`, converting
+  `IsoSurface_linux64 -saveiso` output at `settings.surface_interval_s` (default 300 s) cadence.
+- `backend/m4_sph/postprocess.py`: orchestrates all of the above into `run_meta.json` too, chunked
+  by near-field grid row (`settings.postprocess_row_chunk`, CLAUDE.md rule 13). New caveats
+  `sph_arrival_below_resolution` (always, since SPH particle spacing is far coarser than the
+  0.1 m arrival threshold) and `sph_depth_search_capped` (if a cell's depth nears the search
+  ceiling); added both plus `fixed_area_inlet` to the contract's standard caveat list (§2.4).
+  `contracts/schemas/run_meta.schema.json` + example added (didn't exist before).
+- Settings: `config/m4_sph.yaml` gained `elevation_dz_dp_fraction`, `velocity_levels`,
+  `surface_interval_s`, `postprocess_row_chunk`. `elevation_dz_dp_fraction` (not a fixed metre
+  value) exists because of a real bug caught mid-session: a flat `elevation_dz_m` silently broke
+  MeasureTool's column collapsing on a coarser case (one output column per candidate instead of
+  one per cell) — scaling the step with the case's own `dp_m` fixed it for any case, not just this
+  one (`docs/decisions.md` has the full story).
+- Every new module has offline unit tests (literal CSV/VTK fixtures) plus a real-binary
+  integration test gated on `DSPH_BIN_DIR`, run against the shipped pilot dam-break particle data
+  (already on disk — no solver run needed). All pass both with and without `DSPH_BIN_DIR` set.
+- **Approved by the user this session, not yet implemented**: `/compare`'s `sph_vs_delft3d`
+  section (still the all-zero mock), `velocity_diff`/`arrival_diff` styles, and making the mock's
+  `available: true` become `available: false` when no run exists yet.
+
+Full `m4_sph` suite: 70 passed with `DSPH_BIN_DIR` set (real binaries), 64 passed / 6 skipped
+without it. Full repo suite green.
