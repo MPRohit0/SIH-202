@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import warnings
 from datetime import date, datetime
 from pathlib import Path
@@ -28,6 +29,9 @@ SITES_DIR = Path(__file__).resolve().parents[2] / "sites"
 
 SITE_ID_PATTERN = r"^[a-z][a-z0-9_]{2,31}$"  # contract §1.7
 SLUG_PATTERN = r"^[a-z][a-z0-9_]*$"
+
+#: `docs/decisions.md` "ID naming scheme" (2026-09-25): design | demo | historical | named extra.
+SCENARIO_ID_SUFFIX_PATTERN = r"^(s\d{3}|demo_s\d{3}|hist_[a-z][a-z0-9_]*|n_[a-z][a-z0-9_]*)$"
 
 Unit = Literal["m", "m^3", "deg", "epsg", "enum", "iso8601", "-", "m^0.5/s", "m^3/s", "s"]
 Status = Literal["sourced", "placeholder"]
@@ -262,6 +266,7 @@ class Inflow(_Strict):
 
     from_: str = Field(alias="from")  # a dam id, or "far_field" for the near-field domain
     location: PointValue
+    base_flow: DischargeValue | None = None  # steady discharge already in the channel before t0
 
 
 class Domain(_Strict):
@@ -403,6 +408,25 @@ class Cascade(_Strict):
     approach: Literal["two_stage_imposed", "dambreak_structure"]
 
 
+class SphSimulation(_Strict):
+    """Which of this site's scenarios also get a near-field DualSPHysics run
+    (docs/handoff_contract.md §4.4: `simulation.sph.scenarios`), so the matching Delft3D run's
+    `summary_nearfield/*.tif` is computed over the same `sim_duration_s` window for a like-with-like
+    `sph_vs_delft3d` comparison. Solver settings themselves are NOT here — they stay project-maintained
+    in `config/m4_sph.yaml` (`backend/m4_sph/settings.py`: "none of it belongs in sites/*.yaml"),
+    since they're engineering defaults, not a site fact."""
+
+    scenarios: list[str] = []
+
+
+class Simulation(_Strict):
+    """`docs/handoff_contract.md` line ~422 flags this whole block as not yet added to
+    `SiteConfig`; only the `sph.scenarios` piece is implemented so far. `delft3d` settings are
+    deferred — `backend/m3_delft3d` doesn't exist yet, so there's nothing real to consolidate."""
+
+    sph: SphSimulation = SphSimulation()
+
+
 def _bbox_contains(outer: list[float], inner: list[float]) -> bool:
     return outer[0] <= inner[0] and outer[1] <= inner[1] and inner[2] <= outer[2] and inner[3] <= outer[3]
 
@@ -420,6 +444,7 @@ class SiteConfig(_Strict):
     cascade: Cascade | None = None
     points_of_interest: list[PointOfInterest] = []
     events: list[Event] = []
+    simulation: Simulation = Field(default_factory=Simulation)
 
     @model_validator(mode="after")
     def _cross_checks(self):
@@ -461,6 +486,17 @@ class SiteConfig(_Strict):
         for event in self.events:
             if unknown := sorted(set(event.breach_times) - set(dam_ids)):
                 raise ValueError(f"events '{event.id}' breach_times has unknown dam id(s): {', '.join(unknown)}")
+
+        scenario_prefix = f"{self.site.id}__"
+        for scenario_id in self.simulation.sph.scenarios:
+            if not scenario_id.startswith(scenario_prefix):
+                raise ValueError(f"simulation.sph.scenarios '{scenario_id}' must start with "
+                                 f"'{scenario_prefix}' (docs/decisions.md ID naming scheme)")
+            suffix = scenario_id[len(scenario_prefix):]
+            if not re.match(SCENARIO_ID_SUFFIX_PATTERN, suffix):
+                raise ValueError(f"simulation.sph.scenarios '{scenario_id}' does not match a known "
+                                 f"scenario_id shape (docs/decisions.md ID naming scheme: "
+                                 f"s<NNN> | demo_s<NNN> | hist_<event_id> | n_<slug>)")
 
         if ff.bbox.value is not None and nf.bbox.value is not None and not _bbox_contains(ff.bbox.value, nf.bbox.value):
             raise ValueError(f"near_field bbox {nf.bbox.value} must lie inside far_field bbox {ff.bbox.value}")

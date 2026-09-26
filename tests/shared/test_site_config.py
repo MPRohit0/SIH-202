@@ -212,6 +212,54 @@ def test_initial_water_level_wrong_unit_rejected(synth_raw, write_site):
         load_quiet(write_site(synth_raw))
 
 
+def test_base_flow_absent_by_default(synth_raw, write_site):
+    cfg = load_quiet(write_site(synth_raw))
+    assert cfg.domains.far_field.inflow.base_flow is None
+
+
+def test_base_flow_loads_and_lists_as_placeholder(synth_raw, write_site):
+    synth_raw["domains"]["far_field"]["inflow"]["base_flow"] = {
+        "value": None, "unit": "m^3/s", "source": "", "status": "placeholder",
+    }
+    cfg = load_quiet(write_site(synth_raw))
+    assert cfg.domains.far_field.inflow.base_flow.status == "placeholder"
+    assert "domains.far_field.inflow.base_flow" in cfg.placeholder_fields
+
+
+def test_base_flow_wrong_unit_rejected(synth_raw, write_site):
+    synth_raw["domains"]["far_field"]["inflow"]["base_flow"] = {
+        "value": 5.0, "unit": "m^3", "source": "", "status": "sourced",
+    }
+    with pytest.raises(SiteConfigError):
+        load_quiet(write_site(synth_raw))
+
+
+def test_simulation_sph_scenarios_empty_by_default(synth_raw, write_site):
+    cfg = load_quiet(write_site(synth_raw))
+    assert cfg.simulation.sph.scenarios == []
+
+
+def test_simulation_sph_scenarios_loads(synth_raw, write_site):
+    synth_raw["simulation"] = {"sph": {"scenarios": ["synth__s001", "synth__demo_s001",
+                                                       "synth__hist_synth_event", "synth__n_full_volume"]}}
+    cfg = load_quiet(write_site(synth_raw))
+    assert cfg.simulation.sph.scenarios == [
+        "synth__s001", "synth__demo_s001", "synth__hist_synth_event", "synth__n_full_volume",
+    ]
+
+
+def test_simulation_sph_scenario_wrong_site_prefix_rejected(synth_raw, write_site):
+    synth_raw["simulation"] = {"sph": {"scenarios": ["other_site__s001"]}}
+    with pytest.raises(SiteConfigError):
+        load_quiet(write_site(synth_raw))
+
+
+def test_simulation_sph_scenario_bad_shape_rejected(synth_raw, write_site):
+    synth_raw["simulation"] = {"sph": {"scenarios": ["synth__not_a_real_shape"]}}
+    with pytest.raises(SiteConfigError):
+        load_quiet(write_site(synth_raw))
+
+
 def test_volume_elevation_area_relation_placeholder_lists(synth_raw, write_site):
     synth_raw["dams"][0]["volume_elevation"] = {
         "method": "area_volume_relation",

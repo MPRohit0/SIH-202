@@ -1,7 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "site_config.schema.json",
-  "title": "SiteConfig",
   "$defs": {
     "BBoxValue": {
       "additionalProperties": false,
@@ -933,6 +932,17 @@
         },
         "location": {
           "$ref": "#/$defs/PointValue"
+        },
+        "base_flow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DischargeValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1144,6 +1154,20 @@
       "title": "PointValue",
       "type": "object"
     },
+    "Simulation": {
+      "additionalProperties": false,
+      "description": "`docs/handoff_contract.md` line ~422 flags this whole block as not yet added to\n`SiteConfig`; only the `sph.scenarios` piece is implemented so far. `delft3d` settings are\ndeferred \u2014 `backend/m3_delft3d` doesn't exist yet, so there's nothing real to consolidate.",
+      "properties": {
+        "sph": {
+          "$ref": "#/$defs/SphSimulation",
+          "default": {
+            "scenarios": []
+          }
+        }
+      },
+      "title": "Simulation",
+      "type": "object"
+    },
     "Site": {
       "additionalProperties": false,
       "properties": {
@@ -1186,6 +1210,22 @@
         "name"
       ],
       "title": "Site",
+      "type": "object"
+    },
+    "SphSimulation": {
+      "additionalProperties": false,
+      "description": "Which of this site's scenarios also get a near-field DualSPHysics run\n(docs/handoff_contract.md \u00a74.4: `simulation.sph.scenarios`), so the matching Delft3D run's\n`summary_nearfield/*.tif` is computed over the same `sim_duration_s` window for a like-with-like\n`sph_vs_delft3d` comparison. Solver settings themselves are NOT here \u2014 they stay project-maintained\nin `config/m4_sph.yaml` (`backend/m4_sph/settings.py`: \"none of it belongs in sites/*.yaml\"),\nsince they're engineering defaults, not a site fact.",
+      "properties": {
+        "scenarios": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Scenarios",
+          "type": "array"
+        }
+      },
+      "title": "SphSimulation",
       "type": "object"
     },
     "TimeRangeValue": {
@@ -1456,6 +1496,9 @@
       },
       "title": "Events",
       "type": "array"
+    },
+    "simulation": {
+      "$ref": "#/$defs/Simulation"
     }
   },
   "required": [
@@ -1465,5 +1508,6 @@
     "domains",
     "dams"
   ],
+  "title": "SiteConfig",
   "type": "object"
 }

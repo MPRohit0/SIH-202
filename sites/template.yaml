@@ -68,6 +68,11 @@ domains:
         unit: deg
         source: ""
         status: placeholder
+      # base_flow:                 # optional; steady discharge already in the channel before t0
+      #   value: null              # (M3 upstream boundary before the breach hydrograph starts)
+      #   unit: m^3/s
+      #   source: ""
+      #   status: placeholder
 
   near_field:
     description: <extent and purpose>
@@ -273,3 +278,14 @@ events:
       unit: iso8601
       source: ""
       status: placeholder
+
+# -----------------------------------------------------------------------------
+# Simulation — which scenarios also get a near-field DualSPHysics (M4) run
+# (docs/handoff_contract.md §4.4: simulation.sph.scenarios). scenario_ids must
+# start with "<site_id>__" and match the docs/decisions.md naming scheme
+# (s<NNN> | demo_s<NNN> | hist_<event_id> | n_<slug>). Solver settings are NOT
+# here — they stay in config/m4_sph.yaml, not per-site.
+# -----------------------------------------------------------------------------
+simulation:
+  sph:
+    scenarios: []

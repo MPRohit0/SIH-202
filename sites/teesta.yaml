@@ -376,12 +376,22 @@ events:
       source: "Placeholder: long enough for the flood wave to pass the downstream limit. Adjust after a first run."
       status: placeholder
     imagery_pre_event:
-      value: "2023-09-28"
+      value: "2023-09-26"
       unit: iso8601
-      source: "Placeholder. Replace with the date of the cloud-free Sentinel-1/2 scene actually used."
-      status: placeholder
+      source: "cache/gee/teesta/teesta_pre_event.tif"
+      status: sourced
     imagery_post_event:
-      value: "2023-10-06"
+      value: "2023-10-26"
       unit: iso8601
-      source: "Placeholder. Replace with the date of the cloud-free Sentinel-1/2 scene actually used."
-      status: placeholder
+      source: "cache/gee/teesta/teesta_post_event.tif"
+      status: sourced
+
+# -----------------------------------------------------------------------------
+# Simulation — which scenarios also get a near-field DualSPHysics (M4) run
+# (docs/handoff_contract.md §4.4). Empty: no scenario_design.json exists yet
+# for Teesta (breach_width_m/XZ9 is blocked on h_r, docs/Equations.md §1.2/§2.3),
+# so there is nothing real to list yet.
+# -----------------------------------------------------------------------------
+simulation:
+  sph:
+    scenarios: []
