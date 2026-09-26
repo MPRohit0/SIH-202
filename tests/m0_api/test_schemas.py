@@ -34,6 +34,8 @@ EXAMPLE_TO_SCHEMA = {
     "breach_params.example.json": "breach_params.schema.json",
     "hydrograph_sidecar.example.json": "hydrograph_sidecar.schema.json",
     "scene3d.example.json": "scene3d.schema.json",
+    "run_meta.example.json": "run_meta.schema.json",
+    "scenario_design.example.json": "scenario_design.schema.json",
 }
 
 

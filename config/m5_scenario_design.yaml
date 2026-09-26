@@ -1,0 +1,14 @@
+# M5 (backend/m5_emulator): real training-design defaults for the maximin LHS
+# scenario library (docs/m5_specs.md §2, "draft for team review" -- N is expected
+# to move once docs/run_budget.md exists from real pilot-run timings).
+#
+# Project-maintained defaults, not a site fact (docs/handoff_contract.md rule 3),
+# same convention as config/m4_sph.yaml -- nothing here belongs in sites/*.yaml.
+# Every value can be overridden per call (backend/m5_emulator/scenario_design.py
+# `load_scenario_design_settings(**overrides)`).
+
+n: 30                    # design runs (docs/m5_specs.md §2: "~10 runs per input dimension")
+n_holdout: 5              # extra held-out runs for an honest final LOOCV check (optional if compute allows)
+seed: 42                  # fixed and logged (docs/m5_specs.md §2: "the design must be reproducible")
+input_widen_fraction: 0.20  # widen each M2 pair range by this fraction on each side before sampling
+method: maximin_lhs

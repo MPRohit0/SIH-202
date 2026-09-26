@@ -1,0 +1,22 @@
+{
+  "contract_version": "0.2.0",
+  "site_id": "teesta",
+  "model": "delft3d",
+  "method": "maximin_lhs",
+  "seed": 42,
+  "n": 30,
+  "inputs": [
+    { "name": "breach_width_m", "dam_id": "teesta__south_lhonak", "low": 40.0, "high": 120.0, "unit": "m" },
+    { "name": "failure_time_s", "dam_id": "teesta__south_lhonak", "low": 600.0, "high": 7200.0, "unit": "s" }
+  ],
+  "scenarios": [
+    { "scenario_id": "teesta__s001", "kind": "design",
+      "params": { "water_volume_m3": 12500000.0, "breach_width_m": 68.4, "failure_time_s": 2150.0 } }
+  ],
+  "extra": [
+    { "scenario_id": "teesta__n_holdout001", "kind": "held_out",
+      "params": { "water_volume_m3": 12500000.0, "breach_width_m": 91.2, "failure_time_s": 4820.0 } }
+  ],
+  "has_placeholders": true,
+  "caveats": ["moraine_extrapolation"]
+}

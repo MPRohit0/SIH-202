@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scenario_design.schema.json",
+  "title": "M5 scenario design output (contract §4.3), data/<site_id>/design/scenario_design.json",
+  "description": "A maximin-LHS training design over M2's computed breach-parameter ranges for one site's target dam (docs/m5_specs.md §2). Additive to the §4.3 example: has_placeholders/caveats record that every Teesta-like input is a placeholder and that moraine/landslide dams extrapolate Azmi's equations (docs/decisions.md, this session). 'extra' may hold held-out design points (kind:'held_out', backend/m5_emulator/scenario_design.py's own naming choice, not one of docs/decisions.md's four documented scenario_id kinds) as well as historical/named scenarios.",
+  "type": "object",
+  "required": ["contract_version", "site_id", "model", "method", "seed", "n", "inputs", "scenarios", "extra", "has_placeholders", "caveats"],
+  "properties": {
+    "contract_version": { "type": "string" },
+    "site_id": { "type": "string" },
+    "model": { "enum": ["delft3d", "sph"] },
+    "method": { "const": "maximin_lhs" },
+    "seed": { "type": "integer" },
+    "n": { "type": "integer", "minimum": 1 },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "dam_id", "low", "high", "unit"],
+        "properties": {
+          "name": { "type": "string" },
+          "dam_id": { "type": "string" },
+          "low": { "type": "number" },
+          "high": { "type": "number" },
+          "unit": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ScenarioPoint" }
+    },
+    "extra": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ScenarioPoint" }
+    },
+    "has_placeholders": { "type": "boolean" },
+    "caveats": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "ScenarioPoint": {
+      "type": "object",
+      "required": ["scenario_id", "kind", "params"],
+      "properties": {
+        "scenario_id": { "type": "string" },
+        "kind": { "enum": ["design", "held_out", "historical", "named"] },
+        "params": {
+          "type": "object",
+          "required": ["water_volume_m3", "breach_width_m", "failure_time_s"],
+          "properties": {
+            "water_volume_m3": { "type": "number" },
+            "breach_width_m": { "type": "number" },
+            "failure_time_s": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "source": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
