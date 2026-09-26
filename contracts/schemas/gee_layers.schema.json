@@ -55,7 +55,7 @@
           "type": "boolean"
         },
         "change_pct": {
-          "type": "number"
+          "type": ["number", "null"]
         },
         "threshold_pct": {
           "type": "number"

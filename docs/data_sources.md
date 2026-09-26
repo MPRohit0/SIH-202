@@ -82,3 +82,53 @@ this entry until both are filled in here (contract §1.3: "check CartoDEM's docu
 
 Used for: the highest-resolution DEM candidate where available, mosaicked by
 `backend/m1_terrain/download.py --cartodem-dir`.
+
+## src_038 — Sentinel-2 MSI Level-2A (surface reflectance), Copernicus / ESA
+
+Copernicus Sentinel-2 (processed by ESA). *MSI Level-2A BOA Reflectance Product.* European Space
+Agency. Accessed via Google Earth Engine `COPERNICUS/S2_SR_HARMONIZED`. No single DOI — ESA's
+recommended citation form is dataset + processor + agency, not a versioned paper. **Verify the
+current recommended citation wording on sentinels.copernicus.eu before setting `status: sourced`**
+— it has changed collection-to-collection (Collection 1 vs earlier).
+
+Used for: `backend/m7_gee/provider.py` `s2_month` — monthly cloud-masked NDWI composites for
+`lake_area.csv` (`method: s2_water_index`), masked by the SCL band's cloud/cloud-shadow/cirrus
+classes (3, 8, 9, 10) and its snow/ice class (11).
+
+## src_039 — Sentinel-1 GRD (C-band SAR), Copernicus / ESA
+
+ESA/Copernicus. *Sentinel-1 Level-1 Ground Range Detected (GRD).* Accessed via Google Earth Engine
+`COPERNICUS/S1_GRD`. No single citable DOI (a mission/processor citation, not a dataset paper) —
+same caveat as src_038.
+
+Used for: `backend/m7_gee/scene_search.py` (scene browsing) and `backend/m7_gee/provider.py`
+`s1_month` — the cloud-free fallback for monthly lake-area classification (`method:
+s1_threshold`), VV backscatter thresholded.
+
+## src_040 — CHIRPS Daily (rainfall), Climate Hazards Center / UCSB
+
+Funk, C. et al. (2015). *The climate hazards infrared precipitation with stations—a new
+environmental record for monitoring extremes.* Scientific Data, 2, 150066. doi:
+[10.1038/sdata.2015.66](https://doi.org/10.1038/sdata.2015.66). Accessed via Google Earth Engine
+`UCSB-CHG/CHIRPS/DAILY`. **Verify this DOI before setting `status: sourced`** — same caveat as
+src_033. Known limitation (CLAUDE.md "Known limitations"): satellite-IR-based rainfall estimates
+like CHIRPS tend to underestimate orographic (high-mountain) precipitation in steep Himalayan
+terrain — flagged as caveat `chirps_mountain_underestimate` wherever CHIRPS is used.
+
+Used for: `backend/m7_gee/provider.py` `rainfall_daily` (default dataset, `GeeSettings.
+rain_dataset = "chirps"`) — catchment-mean daily rainfall for `rainfall.csv`. `GPM_IMERG`
+(`NASA/GPM_L3/IMERG_V07`, no separate entry here — a NASA, not ESA/UCSB, product) is the
+alternative (`--rain-dataset gpm_imerg`).
+
+## src_041 — HydroBASINS level 12, HydroSHEDS / WWF
+
+Lehner, B., Grill, G. (2013). *Global river hydrography and network routing: baseline data and new
+approaches to study the world's large river systems.* Hydrological Processes, 27(15), 2171–2186.
+doi: [10.1002/hyp.9740](https://doi.org/10.1002/hyp.9740). Accessed via Google Earth Engine
+`WWF/HydroSHEDS/v1/Basins/hybas_12`. **Verify this DOI before setting `status: sourced`** — same
+caveat as src_033.
+
+Used for: `backend/m7_gee/provider.py` `catchment` — the rainfall catchment (the HydroBASINS
+level-12 basin containing the lake, plus every basin upstream of it via `NEXT_DOWN`) that
+`rainfall.csv` is averaged over. `docs/decisions.md` "M7 GEE fetch" has the reasoning for why
+HydroBASINS was picked over an M1-derived flow-accumulation catchment.
