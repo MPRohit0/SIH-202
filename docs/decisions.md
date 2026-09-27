@@ -209,30 +209,31 @@ are set (contract §0.5).
    banner (as proposed)?
 5. Accept the two new job endpoints (cancel, resume)?
 
-## 2026-09-24 — M2 breach engine: XZ9/h_r blocker, Z20 dam-type mapping, breach_params.json additions (DECIDED with user this session)
+## 2026-09-24 — M2 breach engine: XZ9/h_r blocker, Z20 dam-type mapping, breach_params.json additions (historical; XZ9 width blocker superseded)
 
-**Status:** implemented in `backend/m2_breach/`. Two things are blocked pending real sources, not
-worked around; one contract addition was made.
+**Historical status:** the XZ9 blocker described below was removed after the fixed Xu & Zhang
+reference height was provided as 15.0 m. XZ9 breach width is implemented in
+`backend/m2_breach/xz9.py`; the peak-discharge path remains unavailable. The Z20 mapping block
+and contract additions described here remain in effect.
 
 ### XZ9 blocked (`backend/m2_breach/xz9.py`)
 
-`docs/Equations.md` §1.2/§2.3 marks Xu & Zhang (2009)'s reference height `h_r` "NOT STATED —
-UNCLEAR", and §7's checklist says: "Block XZ9 (both Q_p and B_ave) until h_r is sourced; don't
-hard-code a guess." Both `peak_discharge_xz9()` and `breach_width_xz9()` raise
-`BlockedEquationError` unconditionally; the coefficient tables are transcribed in the docstring
-so implementation is a one-line change once h_r has a source.
+The initial implementation blocked both XZ9 outputs because `h_r` was undocumented in the
+equation transcription. The fixed model constant is now `h_r = 15.0 m` per Xu & Zhang (2009).
+The breach-width equation is active; peak discharge remains unavailable independently of this
+reference-height decision.
 
 **Consequence for the recommended method pairs** (`docs/paper_azmi.md`): XZ9 feeds the updated
 DFM for Q_p and B_ave, and DFM 2024 for Q_p (`Q_p(DFM2024) = 1.23·F16 − 0.84·H14 + 0.26·XZ9`). So:
 
 | Output | Recommended pair | Status today |
 |---|---|---|
-| Q_p | DFM_updated + DFM_2024 | **blocked** (both members need XZ9) — F16, Z20 still reported individually |
-| B_ave | DFM_updated + XZ9 | **blocked** (both members need XZ9) — F95, F8 still reported individually |
+| Q_p | DFM_updated + DFM_2024 | **blocked** (peak-discharge XZ9 remains unavailable) — F16, Z20 still reported individually |
+| B_ave | DFM_updated + XZ9 | computable when required physical inputs are present |
 | T_f | DFM_updated + F8 | **computable** — neither needs XZ9 |
 
-Only T_f gets a real dual-method range until h_r is sourced. Confirmed with the user before
-building rather than guessing a value for h_r.
+The former decision only allowed T_f a range; breach width now uses the documented fixed model
+reference height and its existing recommended pair.
 
 ### Z20 blocked outside HD/CD (`backend/m2_breach/z20.py`)
 
@@ -290,8 +291,8 @@ no caveat.
 
 ### `peak_within_m2_range` when the Q_p range is blocked
 
-The M2 Q_p range (`DFM_updated`+`DFM_2024`) is blocked for every dam today (XZ9 pending h_r — see
-the XZ9 decision above), so the synthetic test dam's weir-routed peak (~1500 m³/s at
+The M2 Q_p range (`DFM_updated`+`DFM_2024`) remains blocked while the XZ9 peak-discharge path is
+unavailable, so the synthetic test dam's weir-routed peak (~1500 m³/s at
 V_w=1e6, B_ave=40m) can't be checked against it. Agreed: `peak_within_m2_range` is `null` (not
 `False`) with caveat `m2_qp_range_blocked` when the range is blocked, and tests check the flag is
 correctly `null`/`true`/`false` rather than picking inputs to force `true`.

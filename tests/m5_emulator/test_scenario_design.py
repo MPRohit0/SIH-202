@@ -1,10 +1,8 @@
 """Tests for backend.m5_emulator.scenario_design (docs/handoff_contract.md
 §4.3, docs/m5_specs.md §2).
 
-`design_from_ranges` is tested directly against synthetic ranges: every real
-site's `breach_width_m` M2 range is blocked today (XZ9 pending `h_r`,
-docs/Equations.md §1.2/§2.3), so `build_scenario_design` can never reach a
-happy path yet -- its own tests only check that it raises the honest block.
+`design_from_ranges` is tested directly against synthetic ranges, and
+`build_scenario_design` exercises the real M2 breach-width range.
 """
 
 from __future__ import annotations
@@ -130,16 +128,18 @@ def test_design_from_ranges_caveats_passed_through():
 # --------------------------------------------------------------------------- build_scenario_design (real M2)
 
 
-def test_build_scenario_design_blocked_on_breach_width_xz9(tmp_path):
+def test_build_scenario_design_uses_computed_breach_width_range(tmp_path):
     cfg = _load(_fully_sourced_synth_raw(), tmp_path)
-    with pytest.raises(ScenarioDesignBlockedError) as exc_info:
-        build_scenario_design(cfg, "synth_lake", SETTINGS)
-    assert exc_info.value.param == "breach_width_m"
-    assert "h_r" in exc_info.value.reason or "XZ9" in str(exc_info.value)
+    payload = build_scenario_design(cfg, "synth_lake", SETTINGS)
+    width = next(item for item in payload["inputs"] if item["name"] == "breach_width_m")
+    assert width["low"] > 0
+    assert width["high"] > width["low"]
+    assert payload["scenarios"]
+    assert all(item["params"]["breach_width_m"] > 0 for item in payload["scenarios"])
 
 
 def test_build_scenario_design_blocked_on_placeholder_water_volume(tmp_path):
-    raw = _fully_sourced_synth_raw()  # breach_width_m would block first anyway; this checks the water_volume gate itself
+    raw = _fully_sourced_synth_raw()
     cfg = _load(raw, tmp_path)
     assert cfg.dams[0].breach_inputs.water_volume_above_invert.value == 1_000_000
 
@@ -159,7 +159,11 @@ def test_build_scenario_design_unknown_dam_raises(tmp_path):
 
 
 def test_write_scenario_design_propagates_block(tmp_path):
-    cfg = _load(_fully_sourced_synth_raw(), tmp_path)
+    raw = _fully_sourced_synth_raw()
+    raw["dams"][0]["breach_inputs"]["water_volume_above_invert"] = {
+        "value": None, "unit": "m^3", "source": "", "status": "placeholder",
+    }
+    cfg = _load(raw, tmp_path)
     with pytest.raises(ScenarioDesignBlockedError):
         write_scenario_design(cfg, "synth_lake", data_dir=tmp_path / "data", settings=SETTINGS)
     assert not (tmp_path / "data").exists()

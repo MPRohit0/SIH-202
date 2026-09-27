@@ -22,11 +22,12 @@ def test_fully_sourced_hd_moraine_dam(make_config):
     assert entry["equations_applicable"] is True
     params = entry["parameters"]
 
-    # Qp/Bave are blocked (both need XZ9); Tf is fully computable.
+    # Qp remains blocked; Bave and Tf are computable with the fixed XZ9 h_r.
     assert params["peak_discharge_m3s"]["low"] is None
     assert params["peak_discharge_m3s"]["status"] == "blocked"
-    assert params["breach_width_m"]["low"] is None
-    assert params["breach_width_m"]["status"] == "blocked"
+    assert params["breach_width_m"]["low"] is not None
+    assert params["breach_width_m"]["high"] is not None
+    assert "status" not in params["breach_width_m"]
 
     tf = params["failure_time_s"]
     assert tf["low"] is not None and tf["high"] is not None
@@ -37,11 +38,10 @@ def test_fully_sourced_hd_moraine_dam(make_config):
     # F16 and Z20 (HD) are individually computable even though DFM/pair is blocked.
     assert params["peak_discharge_m3s"]["methods"]["F16"]["value"] is not None
     assert params["peak_discharge_m3s"]["methods"]["Z20"]["value"] is not None
-    assert params["peak_discharge_m3s"]["methods"]["XZ9"]["status"] == "blocked"
+    assert params["breach_width_m"]["methods"]["XZ9"]["value"] > 0
 
     assert "moraine_extrapolation" in entry["warnings"]
     assert "failure_time_uncertain" in entry["warnings"]
-    assert "xz9_blocked_h_r" in entry["warnings"]
 
 
 def test_concrete_dam_without_equations_applicable_false_rejected_by_loader(make_config):

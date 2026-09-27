@@ -3,8 +3,8 @@ method, over `tests/data/breach_cases.csv`.
 
 PE% = 100*(model-observed)/observed, exactly as Azmi defines it
 (`docs/paper_azmi.md` "What the paper does"). XZ9, DFM_2024 and the Qp/Bave
-DFM_updated outputs are not reproduced here — they are blocked pending h_r
-(see `xz9.py`), same as in `breach_params.py`.
+DFM_updated outputs are not reproduced here because this case table lacks the
+physical inputs needed by XZ9.
 
 Pass rule, fixed here before running, not adjusted afterwards: the computed
 median PE must fall within the paper's own reported MAD of the paper's

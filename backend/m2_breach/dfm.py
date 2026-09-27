@@ -21,7 +21,7 @@ module uses **1.0021**, the equation-column value (the difference is
 
 Fusion is done component-by-component: every DFM function takes the already
 -computed `MethodResult`s for its inputs rather than raw physical inputs, so
-a blocked component (XZ9 today) propagates as a blocked DFM result instead
+a blocked component propagates as a blocked DFM result instead
 of silently being skipped or defaulted.
 
 T_f unit handling: Table 5's T_f coefficients are calibrated with T_f in

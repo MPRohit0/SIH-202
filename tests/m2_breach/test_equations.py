@@ -14,7 +14,7 @@ from backend.m2_breach.f95 import breach_width_f95, failure_time_f95
 from backend.m2_breach.h14 import peak_discharge_h14
 from backend.m2_breach.mclm import failure_time_mclm
 from backend.m2_breach.result import BlockedEquationError
-from backend.m2_breach.xz9 import breach_width_xz9, peak_discharge_xz9
+from backend.m2_breach.xz9 import XZ9_REFERENCE_HEIGHT_M, breach_width_xz9, peak_discharge_xz9
 from backend.m2_breach.z20 import peak_discharge_z20
 
 G = 9.81
@@ -64,16 +64,52 @@ def test_f16_rejects_bad_failure_mode():
 
 # ---------------------------------------------------------------- XZ9 ----
 
-def test_xz9_peak_discharge_blocked():
+def test_xz9_reference_height_is_model_constant():
+    assert XZ9_REFERENCE_HEIGHT_M == 15.0
+
+
+def test_xz9_peak_discharge_remains_blocked():
     with pytest.raises(BlockedEquationError):
         peak_discharge_xz9(V_w=1e6, h_w=10, h_b=5, h_d=15, dam_type="HD",
                             failure_mode="O", erodibility="M")
 
 
-def test_xz9_breach_width_blocked():
-    with pytest.raises(BlockedEquationError):
-        breach_width_xz9(V_w=1e6, h_w=10, h_b=5, h_d=15, dam_type="HD",
-                          failure_mode="O", erodibility="M")
+def test_xz9_breach_width_calculates_without_site_reference_height():
+    r = breach_width_xz9(V_w=1e6, h_w=10, h_b=5, h_d=15, dam_type="HD",
+                         failure_mode="O", erodibility="M")
+    assert r.value == pytest.approx(14.213558919371463)
+    assert r.value > 0
+    assert r.coefficients["h_r_m"] == 15.0
+    assert r.verified is False
+
+
+@pytest.mark.parametrize("dam_type,b3", [("CD", -0.041), ("FD", 0.026), ("HD", -0.226), ("ZD", -0.226)])
+def test_xz9_width_dam_type_coefficients(dam_type, b3):
+    r = breach_width_xz9(1e6, 10, 5, 15, dam_type, "O", "M")
+    assert r.coefficients["b3_dam_type"] == b3
+
+
+@pytest.mark.parametrize("failure_mode,b4", [("O", 0.149), ("P", -0.389)])
+def test_xz9_width_failure_mode_coefficients(failure_mode, b4):
+    r = breach_width_xz9(1e6, 10, 5, 15, "HD", failure_mode, "M")
+    assert r.coefficients["b4_failure_mode"] == b4
+
+
+@pytest.mark.parametrize("erodibility,b5", [("H", 0.291), ("M", -0.140), ("L", -0.391)])
+def test_xz9_width_erodibility_coefficients(erodibility, b5):
+    r = breach_width_xz9(1e6, 10, 5, 15, "HD", "O", erodibility)
+    assert r.coefficients["b5_erodibility"] == b5
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"V_w": 0}, {"h_w": 0}, {"h_b": 0}, {"h_d": 0},
+    {"dam_type": "X"}, {"failure_mode": "X"}, {"erodibility": "X"},
+])
+def test_xz9_width_rejects_invalid_inputs(kwargs):
+    values = dict(V_w=1e6, h_w=10, h_b=5, h_d=15, dam_type="HD", failure_mode="O", erodibility="M")
+    values.update(kwargs)
+    with pytest.raises(ValueError):
+        breach_width_xz9(**values)
 
 
 # ---------------------------------------------------------------- Z20 ----

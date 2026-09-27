@@ -28,7 +28,7 @@
 | W_ave | average embankment width | m |
 | S | reservoir storage (only for equations not used here) | m³ |
 | g | gravitational acceleration: **NOT STATED**; SI units imply 9.81 m/s² | m/s² |
-| h_r | reference height in Xu & Zhang: **NOT STATED — UNCLEAR**, take from the original | m |
+| h_r | Xu & Zhang model reference height: **15.0** (fixed model constant) | m |
 
 Categorical inputs (Azmi p.4): dam type **HD** homogeneous, **CD** core wall, **FD** concrete-faced,
 **ZD** zoned-fill; failure mode **O** overtopping, **P** piping; erodibility **H / M / L**.
@@ -83,7 +83,7 @@ B4  = b3 + b4 + b5
 | b5 | low (L) | −1.362 |
 
 - Units check: √g · V_w^(5/6) = m^0.5/s · m^2.5 = m³/s ✓. The remaining factors are dimensionless.
-- **h_r: NOT STATED — UNCLEAR.** The equation can't be evaluated until h_r is taken from the original.
+- `h_r` is the fixed Xu & Zhang model constant, 15.0 m.
 - Valid range: NOT AVAILABLE.
 
 ### 1.3 Zhong et al. (2020) — code Z20
@@ -171,7 +171,8 @@ B3    = b3 + b4 + b5
   (CD = core wall, FD = concrete-faced). The table maps by the *words*: core walls → CD,
   concrete-faced → FD.
 - The 0.333 exponent is printed offset above V_w, but it clearly belongs to V_w.
-- **h_r: NOT STATED — UNCLEAR** (same as §1.2).
+- `h_r = 15.0 m` is a fixed Xu & Zhang model constant, not a site input.
+- Source: PRIMARY (Xu & Zhang 2009), doi:10.1061/(asce)gt.1943-5606.0000162.
 - Valid range: NOT AVAILABLE.
 
 ---
@@ -292,7 +293,6 @@ F8 (§3.2).
 
 - [ ] One function per base equation. Put its `SECONDARY` tag in the docstring and return
       `verified=False` until it has been checked against the original.
-- [ ] Block XZ9 (both Q_p and B_ave) until h_r is sourced; don't hard-code a guess.
 - [ ] Z20: raise for dam types other than HD/CD until the mapping is sourced (Teesta III is FD).
 - [ ] Unit tests: dimension checks for Q_p (F16, XZ9, Z20); continuity of k_h at h_b = 6.1 m;
       F8 T_f in seconds ÷ 3600; each DFM equation equals its weighted sum.

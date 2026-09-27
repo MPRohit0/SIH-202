@@ -16,10 +16,9 @@ the low/high bounds of that output's scenario range" — i.e. low = min(pair),
 high = max(pair). This module implements that interpretation, not something
 stated by Azmi.
 
-Because XZ9 is blocked (`xz9.py`), Q_p's pair (DFM_updated needs XZ9;
-DFM_2024 needs XZ9) and B_ave's pair (DFM_updated needs XZ9; XZ9 itself) are
-both blocked today. Only T_f's pair (DFM_updated needs F95/F8/MCLM, no XZ9;
-F8 alone) is computable.
+The Q_p pair remains blocked because the XZ9 peak-discharge equation is not
+available in the project transcription. B_ave is computable when its inputs
+are present; T_f's pair does not depend on XZ9.
 """
 
 from __future__ import annotations

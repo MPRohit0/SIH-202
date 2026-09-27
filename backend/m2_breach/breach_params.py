@@ -95,7 +95,16 @@ def _compute_breach_width(v: dict, missing: list[str]) -> dict[str, MethodResult
         out["F95"] = _blocked_missing("F95", "m", needed)
         out["F8"] = _blocked_missing("F8", "m", needed)
 
-    out["XZ9"] = xz9.xz9_result("breach_width_m")
+    xz9_needed = {"V_w", "h_w", "h_b", "h_d", "dam_type", "failure_mode", "erodibility"}
+    if not (xz9_needed & set(missing)):
+        out["XZ9"] = xz9.breach_width_xz9(
+            v["V_w"], v["h_w"], v["h_b"], v["h_d"], v["dam_type"],
+            v["failure_mode"], v["erodibility"],
+        )
+    else:
+        out["XZ9"] = _blocked_missing("XZ9", "m", [name for name in
+            ("V_w", "h_w", "h_b", "h_d", "dam_type", "failure_mode", "erodibility")
+            if name in missing])
     out["DFM_updated"] = dfm.breach_width_dfm_updated(out["F95"], out["F8"], out["XZ9"])
     return out
 
@@ -177,8 +186,6 @@ def compute_dam(dam: Dam) -> dict:
     bw = _compute_breach_width(v, missing)
     tf = _compute_failure_time(v, missing)
 
-    if any(r.code == "XZ9" for group in (qp, bw) for r in group.values() if r.is_blocked):
-        warnings.append("xz9_blocked_h_r")
     if qp["Z20"].is_blocked and "dam_type" not in missing and v["dam_type"] not in ("HD", "CD"):
         warnings.append("z20_dam_type_unmapped")
 

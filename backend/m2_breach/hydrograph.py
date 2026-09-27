@@ -117,8 +117,9 @@ class Hydrograph:
 def _qp_range_check(peak_q_m3s: float, dam: Dam) -> tuple[bool | None, list[dict]]:
     """Compare `peak_q_m3s` against the M2 dual-method Q_p range (`breach_params.compute_dam`).
 
-    Returns `(None, [caveat])` when that range is blocked (e.g. XZ9 pending h_r), rather than
-    guessing — a `None` flag, not `False`, so callers don't read "blocked" as "outside range".
+    Returns `(None, [caveat])` when that range is blocked (for example, because XZ9 inputs are
+    placeholders), rather than guessing — a `None` flag, not `False`, so callers don't read
+    "blocked" as "outside range".
     """
     qp = compute_dam(dam)["parameters"]["peak_discharge_m3s"]
     if qp.get("status") == "blocked":

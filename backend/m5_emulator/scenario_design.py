@@ -12,8 +12,7 @@ fixed at the site config's own value for every scenario in the design (team
 decision, this session -- docs/m5_specs.md §1 loosely calls all three
 emulator inputs "breach outputs M2 produces", which is imprecise for V_w).
 
-If a required range is blocked (e.g. `breach_width_m`'s pair needs XZ9, which
-is itself blocked pending `h_r` -- docs/Equations.md §1.2/§2.3), this module
+If a required range is blocked, this module
 raises `ScenarioDesignBlockedError` rather than inventing a range (CLAUDE.md
 rule 3; `docs/decisions.md` "never guess").
 """
@@ -134,9 +133,7 @@ def design_from_ranges(site_id: str, dam_id: str, water_volume_m3: float,
     already-resolved `ranges` (`{"breach_width_m": (low, high), "failure_time_s": (low, high)}`,
     M2's raw pair range, not yet widened). Pure function, independent of
     `SiteConfig`/M2, so the LHS/writing logic is testable without going
-    through M2's equations (`breach_width_m`'s M2 range is blocked for every
-    real site today -- XZ9 pending `h_r`, docs/Equations.md §1.2/§2.3 -- so
-    `build_scenario_design` below can never reach a happy path yet)."""
+    through M2's equations."""
     widened = {
         name: _widen(*ranges[name], DEFAULT_SCALING[name], settings.input_widen_fraction)
         for name in RANGED_INPUTS

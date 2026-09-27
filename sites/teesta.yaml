@@ -394,8 +394,7 @@ events:
 # -----------------------------------------------------------------------------
 # Simulation — which scenarios also get a near-field DualSPHysics (M4) run
 # (docs/handoff_contract.md §4.4). Empty: no scenario_design.json exists yet
-# for Teesta (breach_width_m/XZ9 is blocked on h_r, docs/Equations.md §1.2/§2.3),
-# so there is nothing real to list yet.
+# for Teesta, so there is nothing real to list yet.
 # -----------------------------------------------------------------------------
 simulation:
   sph:

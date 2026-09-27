@@ -203,14 +203,10 @@ equation (`f16.py`, `xz9.py`, `z20.py`, `f95.py`, `f8.py`, `mclm.py`, `h14.py`),
 2024 fusion (`dfm.py`), the dual-method range logic (`ranges.py`) and the per-site orchestrator
 (`breach_params.py`) that writes `data/<site_id>/breach/breach_params.json`.
 
-**Blocker surfaced and confirmed with the user before writing any code:** `docs/Equations.md`
-itself says to block Xu & Zhang (2009) (code XZ9) until its reference height `h_r` is sourced
-from the original paper — Azmi's reproduction never defines it. XZ9 feeds the updated-DFM fusion
-for both Q_p and B_ave, and DFM 2024 for Q_p, so today **only the failure-time (T_f) dual-method
-range is computable**; Q_p and B_ave report their individually-computable base methods (F16, Z20;
-F95, F8) but their recommended-pair range is `status: "blocked"`. Z20 is also blocked outside
-HD/CD dam types (Teesta III is FD) — the FD/ZD mapping isn't in Azmi's reproduction either.
-Full writeup: `docs/decisions.md` "M2 breach engine: XZ9/h_r blocker...".
+Historical note: the original XZ9 reference-height blocker was resolved with a fixed model
+constant `h_r = 15.0 m`. XZ9 breach width and its recommended pair are now computable when their
+physical inputs are present. The XZ9 peak-discharge path and its dependent Q_p ranges remain
+unavailable. Z20 remains blocked outside HD/CD dam types.
 
 Added `contracts/schemas/breach_params.schema.json` and `contracts/examples/
 breach_params.example.json` (generated from `sites/teesta.yaml`, so it shows a real blocked-XZ9
@@ -1204,9 +1200,8 @@ memory — labeled as a reconstruction, not a session-log entry.
   scenario_design.json` the contract defines (§4.3) — `library.py`'s design was synthetic-test
   scaffolding only and never wrote this file. `water_volume_m3` stays fixed at the site config's
   own value (M2 gives no range for it — a physical input to M2's equations, not a ranged output).
-  Raises `ScenarioDesignBlockedError` instead of guessing when a required range is blocked — not
-  hypothetical: `breach_width_m`'s M2 pair needs `XZ9`, blocked for every site pending `h_r`
-  (`docs/Equations.md` §1.2/§2.3), so no real scenario design exists for Teesta yet.
+  Raises `ScenarioDesignBlockedError` instead of guessing when a required range or fixed physical
+  input is blocked. The previous XZ9 reference-height blocker on `breach_width_m` is resolved.
 - **`cf4d209` — `campaign.py`: build + register SPH near-field cases, no launcher yet.**
   `backend/campaign.py`'s `run_sph_campaign()`: for every `scenario_id` in a site's
   `simulation.sph.scenarios`, builds and validates its near-field GenCase case
@@ -1422,11 +1417,29 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Verified:** synthetic fake-solver campaign tests retry then post-process/cache successfully;
   targeted M0/M3/campaign tests pass. A real D-Flow FM demo completed end-to-end on synthetic M1
   terrain (14 faces, 9,000 s simulated, 0.14 s solver runtime; placeholder caveats retained).
-- **Blocked for production campaigns:** Teesta's M5 design is blocked by the unresolved XZ9
-  `h_r` input. `sites/rishiganga.yaml` and its terrain are absent, so a Chamoli campaign cannot
+- **Blocked for production campaigns:** Teesta's M5 design can still be blocked by placeholder
+  breach-width inputs in `sites/teesta.yaml`. `sites/rishiganga.yaml` and its terrain are absent, so a Chamoli campaign cannot
   yet be configured without sourced inputs.
 - **Still stubbed or placeholder:** M5 training, validation, and emulator publication do not run
   after a campaign; the new M5 cache is a run index, not a trained library. SPH campaigns still
   only generate/queue cases. Synthetic-demo outputs retain placeholder caveats.
 - **Next step:** source the missing M2/site inputs and Chamoli configuration, then run each real
   campaign. Wire successful campaign caches into M5 training and publication afterward.
+
+## 2026-09-27 — XZ9 breach-width range and scenario-design path
+
+- **Built:** repaired the existing XZ9 B_ave implementation with the fixed model constant
+  `XZ9_REFERENCE_HEIGHT_M = 15.0` m. M2 now computes XZ9 and Updated DFM breach widths and combines
+  them using the existing `min/max` method-range policy. No site-level `h_r` field or parallel
+  implementation was added. M5 scenario-design generation consumes this M2 width range.
+- **Verified:** the focused M2, schema, and scenario-design suite passed (173 tests). The synthetic
+  integration path produced XZ9 B_ave = 53.913732 m, Updated DFM B_ave = 63.205150 m, and a valid
+  width range [53.913732, 63.205150] m; scenario design generated 8 scenarios without an `h_r` site
+  input.
+- **Still stubbed or placeholder:** XZ9 peak discharge remains unavailable, so dependent Q_p fusion
+  ranges remain blocked. Teesta still has placeholder breach inputs, including water volume needed
+  to build its scenario design. M5 training, validation, and emulator publication remain unwired
+  after campaign runs; SPH campaigns still only generate and queue cases.
+- **Next step:** source the missing Teesta M2 physical inputs, then generate and validate its real
+  scenario design before launching a campaign. Separately, resolve and implement the XZ9 peak-
+  discharge path if Q_p ranges are required, and wire campaign outputs into M5 training/publication.

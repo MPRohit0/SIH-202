@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "breach_params.schema.json",
   "title": "M2 breach engine output (contract §4.2), data/<site_id>/breach/breach_params.json",
-  "description": "Additive to the §4.2 example: each method result and each output's range may carry status:'blocked'/reason instead of a value, when docs/Equations.md itself blocks an equation (e.g. XZ9 pending h_r). An output range may also have interval:'imposed' (source, no selected_pair) for a dam with equations_applicable:false (e.g. concrete dams, per Azmi 2026 / docs/Equations.md §7). See docs/decisions.md for these additions.",
+  "description": "Additive to the §4.2 example: each method result and each output's range may carry status:'blocked'/reason instead of a value, when docs/Equations.md itself blocks an equation. An output range may also have interval:'imposed' (source, no selected_pair) for a dam with equations_applicable:false (e.g. concrete dams, per Azmi 2026 / docs/Equations.md §7). See docs/decisions.md for these additions.",
   "type": "object",
   "required": ["contract_version", "site_id", "has_placeholders", "placeholder_fields", "dams", "provenance"],
   "properties": {

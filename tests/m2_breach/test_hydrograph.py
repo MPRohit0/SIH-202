@@ -181,7 +181,7 @@ def test_hydrograph_for_dam_explicit_triangular_request(make_config):
 
 
 def test_hydrograph_for_dam_qp_range_blocked_for_synthetic_dam(make_config):
-    """dams[0] in synth.yaml is HD/moraine: Qp's DFM pair needs XZ9, which is always blocked
+    """dams[0] in synth.yaml is HD/moraine: Qp's DFM pair needs unavailable XZ9 peak discharge
     (backend/m2_breach/xz9.py) — so peak_within_m2_range must be None, not a tuned True/False."""
     cfg = make_config(volume_elevation=SYNTH_VOLUME_ELEVATION_RELATION,
                        breach_hydrograph=SYNTH_BREACH_HYDROGRAPH)

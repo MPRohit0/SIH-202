@@ -49,7 +49,7 @@
             "XZ9": {
               "value": null,
               "status": "blocked",
-              "reason": "XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "reason": "XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2"
             },
             "H14": {
               "value": 4362.084874212117,
@@ -58,12 +58,12 @@
             "DFM_updated": {
               "value": null,
               "status": "blocked",
-              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2"
             },
             "DFM_2024": {
               "value": null,
               "status": "blocked",
-              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2"
             }
           },
           "low": null,
@@ -75,7 +75,7 @@
             "DFM_2024"
           ],
           "status": "blocked",
-          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; DFM_2024: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2; DFM_2024: blocked because a component is blocked \u2014 XZ9: XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2"
         },
         "breach_width_m": {
           "methods": {
@@ -88,26 +88,22 @@
               "in_valid_range": null
             },
             "XZ9": {
-              "value": null,
-              "status": "blocked",
-              "reason": "XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "value": 142.8736019238407,
+              "in_valid_range": null
             },
             "DFM_updated": {
-              "value": null,
-              "status": "blocked",
-              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "value": 166.30490036620566,
+              "in_valid_range": null
             }
           },
-          "low": null,
-          "high": null,
+          "low": 142.8736019238407,
+          "high": 166.30490036620566,
           "unit": "m",
           "interval": "method_range",
           "selected_pair": [
             "DFM_updated",
             "XZ9"
-          ],
-          "status": "blocked",
-          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+          ]
         },
         "failure_time_s": {
           "methods": {
@@ -139,7 +135,6 @@
         }
       },
       "warnings": [
-        "xz9_blocked_h_r",
         "failure_time_uncertain",
         "clear_water",
         "moraine_extrapolation"
@@ -173,7 +168,7 @@
             "XZ9": {
               "value": null,
               "status": "blocked",
-              "reason": "XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "reason": "XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2"
             },
             "H14": {
               "value": 3349.0185674791173,
@@ -182,12 +177,12 @@
             "DFM_updated": {
               "value": null,
               "status": "blocked",
-              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; Z20: Z20 has no branch for dam_type='FD'; only HD/CD are given by Azmi (docs/Equations.md \u00a71.3), and the FD/ZD mapping is NOT STATED \u2014 blocked per \u00a77."
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2; Z20: Z20 has no branch for dam_type='FD'; only HD/CD are given by Azmi (docs/Equations.md \u00a71.3), and the FD/ZD mapping is NOT STATED \u2014 blocked per \u00a77."
             },
             "DFM_2024": {
               "value": null,
               "status": "blocked",
-              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2"
             }
           },
           "low": null,
@@ -199,7 +194,7 @@
             "DFM_2024"
           ],
           "status": "blocked",
-          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; Z20: Z20 has no branch for dam_type='FD'; only HD/CD are given by Azmi (docs/Equations.md \u00a71.3), and the FD/ZD mapping is NOT STATED \u2014 blocked per \u00a77.; DFM_2024: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2; Z20: Z20 has no branch for dam_type='FD'; only HD/CD are given by Azmi (docs/Equations.md \u00a71.3), and the FD/ZD mapping is NOT STATED \u2014 blocked per \u00a77.; DFM_2024: blocked because a component is blocked \u2014 XZ9: XZ9 peak-discharge equation remains unavailable; see docs/Equations.md \u00a71.2"
         },
         "breach_width_m": {
           "methods": {
@@ -212,26 +207,22 @@
               "in_valid_range": null
             },
             "XZ9": {
-              "value": null,
-              "status": "blocked",
-              "reason": "XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "value": 113.93846593939983,
+              "in_valid_range": null
             },
             "DFM_updated": {
-              "value": null,
-              "status": "blocked",
-              "reason": "blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+              "value": 120.48379460715196,
+              "in_valid_range": null
             }
           },
-          "low": null,
-          "high": null,
+          "low": 113.93846593939983,
+          "high": 120.48379460715196,
           "unit": "m",
           "interval": "method_range",
           "selected_pair": [
             "DFM_updated",
             "XZ9"
-          ],
-          "status": "blocked",
-          "reason": "DFM_updated: blocked because a component is blocked \u2014 XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper.; XZ9: XZ9 needs h_r (Xu & Zhang reference height), which docs/Equations.md marks NOT STATED/UNCLEAR; blocked per \u00a77 until sourced from the original paper."
+          ]
         },
         "failure_time_s": {
           "methods": {
@@ -263,7 +254,6 @@
         }
       },
       "warnings": [
-        "xz9_blocked_h_r",
         "z20_dam_type_unmapped",
         "failure_time_uncertain",
         "clear_water"
@@ -272,7 +262,7 @@
   ],
   "provenance": {
     "method": "empirical",
-    "code_version": "e60ffd1",
+    "code_version": "45c650f",
     "data_sources": [
       "docs/Equations.md",
       "docs/paper_azmi.md"
