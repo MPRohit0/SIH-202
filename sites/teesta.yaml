@@ -49,6 +49,11 @@ domains:
         unit: deg
         source: "UNVERIFIED guess. Replace from: South Lhonak outlet channel snapped to the DEM stream network."
         status: placeholder
+      base_flow:
+        value: null
+        unit: m^3/s
+        source: "NOT SOURCED. Replace from: gauged discharge immediately upstream of the M3 far-field inflow before breach-wave arrival."
+        status: placeholder
 
   near_field:
     description: Lachen Chu approach, Teesta III dam and Chungthang town

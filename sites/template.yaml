@@ -68,11 +68,11 @@ domains:
         unit: deg
         source: ""
         status: placeholder
-      # base_flow:                 # optional; steady discharge already in the channel before t0
-      #   value: null              # (M3 upstream boundary before the breach hydrograph starts)
-      #   unit: m^3/s
-      #   source: ""
-      #   status: placeholder
+      base_flow:                   # optional; steady discharge already in the channel before t0
+        value: null                # M3 initial channel flow before the breach hydrograph starts
+        unit: m^3/s
+        source: ""
+        status: placeholder
 
   near_field:
     description: <extent and purpose>

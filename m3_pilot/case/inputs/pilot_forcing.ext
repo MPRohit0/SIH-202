@@ -1,0 +1,19 @@
+# written by HYDROLIB-core 1.4.0
+
+[General]
+fileVersion = 2.01
+fileType    = extForce
+
+[Boundary]
+quantity     = neumannbnd
+locationFile = downstream_outlet.pli
+forcingFile  = downstream_neumann.bc
+
+[SourceSink]
+id             = breach_source_0001
+name           = breach_source_0001
+numCoordinates = 1
+xCoordinates   = 618095.227
+yCoordinates   = 3087257.641
+discharge      = inputs/breach_source.tim
+

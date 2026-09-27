@@ -1,0 +1,140 @@
+{
+  "label": "PLACEHOLDER \u2014 teesta_pilot_s001, all inputs placeholder",
+  "solver": "D-Flow FM 1.2.184 / DIMR 2.00",
+  "crs": "EPSG:32645",
+  "cell_count": 26888,
+  "mesh_roundtrip": {
+    "node_count": [
+      16258,
+      16258
+    ],
+    "edge_count": [
+      43145,
+      43145
+    ],
+    "face_count": [
+      26888,
+      26888
+    ],
+    "node_coordinates_max_abs_error_m": 0.0
+  },
+  "domain_area_m2": 125704573.34828441,
+  "upstream_boundary_support_points": 3,
+  "breach_corridor_width_m": 180,
+  "upstream_boundary_offset_from_breach_m": 75,
+  "manning_range": [
+    0.025000000000000005,
+    0.10000000000000003
+  ],
+  "bed_elevation_range_m_positive_up": [
+    638.9238639010663,
+    5482.133055555555
+  ],
+  "base_flow_m3s_already_in_hydrograph": 60.0,
+  "spinup_s": 7200.0,
+  "stop_s_since_simulation_start": 36000.0,
+  "map_interval_s": 120,
+  "changes_from_fm_defaults": [
+    {
+      "setting": "uniffricttype",
+      "default": 1,
+      "new_value": 2,
+      "reason": "SOURCED Manning n samples require Manning friction convention"
+    },
+    {
+      "setting": "MapInterval",
+      "default": "FM default",
+      "new_value": 120,
+      "reason": "CHOSEN IN PILOT arrival-time resolution and lean output"
+    },
+    {
+      "setting": "DtMax / DtInit",
+      "default": "FM default",
+      "new_value": [
+        30.0,
+        0.5
+      ],
+      "reason": "CHOSEN IN PILOT initial stability choice; UNCLEAR until run diagnostics"
+    },
+    {
+      "setting": "Cosphiutrsh",
+      "default": 0.5,
+      "new_value": 0.99,
+      "reason": "CHOSEN IN PILOT kernel geometry gate; mesh max cos(phi)=0.968"
+    },
+    {
+      "setting": "Removesmalllinkstrsh",
+      "default": 0.1,
+      "new_value": 0.0,
+      "reason": "CHOSEN IN PILOT testing disables kernel auto-discard after thresholds 0.1 and 0.3 triggered an error; UNCLEAR numerical stability"
+    },
+    {
+      "setting": "CFLmax",
+      "default": 0.7,
+      "new_value": 0.7,
+      "reason": "FM DEFAULT restored after diagnostic run produced implausible speeds"
+    }
+  ],
+  "run_label": "PLACEHOLDER \u2014 teesta_pilot_s001, all inputs placeholder",
+  "kernel_exit_code_not_success_signal": 0,
+  "runtime_s": 139.76,
+  "peak_ram_kb": 205680,
+  "map_file_bytes": 134459196,
+  "his_file_bytes": 83380,
+  "case_disk_bytes": 143245295,
+  "summary_metrics": {
+    "poi_metrics": [
+      {
+        "poi_id": "teesta_pilot__poi__lachen",
+        "status": "sampled",
+        "max_depth_m": 0.0,
+        "max_velocity_ms": 0.0,
+        "t0_depth_m": 0.0,
+        "arrival_s_since_t0": null,
+        "arrival_rule": "first t >= 0 with depth > t0 depth + 0.1 m; UNCLEAR proposal in decisions.md"
+      },
+      {
+        "poi_id": "teesta_pilot__poi__chungthang",
+        "status": "sampled",
+        "max_depth_m": 0.0,
+        "max_velocity_ms": 0.0,
+        "t0_depth_m": 0.0,
+        "arrival_s_since_t0": null,
+        "arrival_rule": "first t >= 0 with depth > t0 depth + 0.1 m; UNCLEAR proposal in decisions.md"
+      },
+      {
+        "poi_id": "teesta_pilot__poi__sangkalang_bridge",
+        "status": "sampled",
+        "max_depth_m": 0.0,
+        "max_velocity_ms": 0.0,
+        "t0_depth_m": 0.0,
+        "arrival_s_since_t0": null,
+        "arrival_rule": "first t >= 0 with depth > t0 depth + 0.1 m; UNCLEAR proposal in decisions.md"
+      },
+      {
+        "poi_id": "teesta_pilot__poi__mangan_district_hospital",
+        "status": "sampled",
+        "max_depth_m": 0.0,
+        "max_velocity_ms": 0.0,
+        "t0_depth_m": 0.0,
+        "arrival_s_since_t0": null,
+        "arrival_rule": "first t >= 0 with depth > t0 depth + 0.1 m; UNCLEAR proposal in decisions.md"
+      }
+    ],
+    "max_depth_m": 3.669859922724754,
+    "max_velocity_ms": 1735.4041129890277,
+    "arrival_s_since_t0": {
+      "reached_face_count": 28,
+      "unreached_face_count": 26860,
+      "minimum_s": 240.0
+    },
+    "arrival_map_interval_s": 120.0,
+    "max_depth_map": "quick_max_depth.png"
+  },
+  "success_rule": {
+    "dia_has_no_line_starting_error": true,
+    "map_exists": true,
+    "his_exists": true,
+    "computation_finished_marker": true
+  }
+}

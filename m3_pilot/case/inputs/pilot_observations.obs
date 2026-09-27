@@ -1,0 +1,26 @@
+# written by HYDROLIB-core 1.4.0
+
+[General]
+fileVersion = 2.00      # File version. Do not edit this.
+fileType    = obsPoints # File type. Should be 'obsPoints'. Do not edit this.
+
+[ObservationPoint]
+name = teesta_pilot__poi__lachen # Name of the observation point (max. 255 characters).
+x    = 653265.0                  # x-coordinate of the location of the observation point.
+y    = 3066795.0                 # y-coordinate of the location of the observation point.
+
+[ObservationPoint]
+name = teesta_pilot__poi__chungthang # Name of the observation point (max. 255 characters).
+x    = 662445.0                      # x-coordinate of the location of the observation point.
+y    = 3054285.0                     # y-coordinate of the location of the observation point.
+
+[ObservationPoint]
+name = teesta_pilot__poi__sangkalang_bridge # Name of the observation point (max. 255 characters).
+x    = 651105.0                             # x-coordinate of the location of the observation point.
+y    = 3044925.0                            # y-coordinate of the location of the observation point.
+
+[ObservationPoint]
+name = teesta_pilot__poi__mangan_district_hospital # Name of the observation point (max. 255 characters).
+x    = 651105.0                                    # x-coordinate of the location of the observation point.
+y    = 3043845.0                                   # y-coordinate of the location of the observation point.
+

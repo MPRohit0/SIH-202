@@ -1,0 +1,47 @@
+* 1.2.184.Unknown
+* Source: Unknown
+* File creation date: 08:52:09, 27-09-2026
+** INFO   : Command: /home/mprohit/delft3d/dflowfm-2026.01/lnx64/bin/../bin/dflowfm --nodisplay --autostartstop teesta_pilot_s001__dflowfm.mdu
+ Until here copy of previous diagnostic file
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] layertype=1 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] numtopsig=0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] numtopsiguniform=1 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] sigmagrowthfactor=1.0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] dztop=-999 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] floorlevtoplay=-999 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] dztopuniabovez=-999 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] keepzlayeringatbed=2 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] stretchtype=-1 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] zlaybot=-999.0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [geometry] zlaytop=-999.0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [numerics] qhrelax=0.01 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [numerics] maxitverticalforester=0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [output] wrishp_enc=0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [output] waterlevelclasses=0.0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [output] waterdepthclasses=0.0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [output] velocitydirectionclassesinterv=0.0 was in file, but not used. Check possible typo.
+** WARNING: While reading 'teesta_pilot_s001__dflowfm.mdu': keyword [output] velocitymagnitudeclasses=0.0 was in file, but not used. Check possible typo.
+** INFO   : Reading cache file: teesta_pilot_s001__dflowfm.cache
+** WARNING: The MD5 checksum of the cache file does not match the network file. Proceeding with normal initialization.
+** INFO   : Opened file : inputs/pilot_observations.xyn
+** INFO   : Closed file : inputs/pilot_observations.xyn
+** INFO   : Initializing flow model geometry...
+** INFO   : Opened file : inputs/downstream_outlet.pli
+** INFO   : Closed file : inputs/downstream_outlet.pli
+** INFO   : boundary: 'inputs/downstream_outlet.pli' opened 13 cells.
+** INFO   : neumannbnd inputs/downstream_outlet.pli      13 nr of open bndcells
+** INFO   : setbedlevelfromextfile: Using bedlevel as specified in net-file.
+** INFO   : setbedlevelfromextfile: Setting both 1D and 2D bedlevel from file 'inputs/bedlevel_samples.xyz'.
+** INFO   : Opened file : inputs/bedlevel_samples.xyz
+** INFO   : merged 0 samples in .01 seconds.
+** INFO   : Closed file : inputs/bedlevel_samples.xyz
+** INFO   : Done initializing flow model geometry.
+** INFO   : Finding flow nodes...
+** INFO   : done in      0.00300 sec.
+** INFO   : Start initializing external forcings...
+** INFO   : Reading initial field file 'inputs/pilot_initial_fields.ini'.
+** INFO   : Opened file : inputs/manning_samples.xyz
+** INFO   : merged 0 samples in .03 seconds.
+** INFO   : Closed file : inputs/manning_samples.xyz
+** INFO   : Finish initializing the initial field file 'inputs/pilot_initial_fields.ini':       3 blocks have been read and handled.
+** ERROR  : Adding time-space-relation for forcing 'sourcesink_discharge', location='breach_source_0001', file='inputs/breach_source.bc' failed!

@@ -1,0 +1,49 @@
+{
+  "poi_metrics": [
+    {
+      "poi_id": "teesta_pilot__poi__lachen",
+      "status": "sampled",
+      "max_depth_m": 0.0,
+      "max_velocity_ms": 0.0,
+      "t0_depth_m": 0.0,
+      "arrival_s_since_t0": null,
+      "arrival_rule": "first t >= 0 with depth > t0 depth + 0.1 m; UNCLEAR proposal in decisions.md"
+    },
+    {
+      "poi_id": "teesta_pilot__poi__chungthang",
+      "status": "sampled",
+      "max_depth_m": 0.0,
+      "max_velocity_ms": 0.0,
+      "t0_depth_m": 0.0,
+      "arrival_s_since_t0": null,
+      "arrival_rule": "first t >= 0 with depth > t0 depth + 0.1 m; UNCLEAR proposal in decisions.md"
+    },
+    {
+      "poi_id": "teesta_pilot__poi__sangkalang_bridge",
+      "status": "sampled",
+      "max_depth_m": 0.0,
+      "max_velocity_ms": 0.0,
+      "t0_depth_m": 0.0,
+      "arrival_s_since_t0": null,
+      "arrival_rule": "first t >= 0 with depth > t0 depth + 0.1 m; UNCLEAR proposal in decisions.md"
+    },
+    {
+      "poi_id": "teesta_pilot__poi__mangan_district_hospital",
+      "status": "sampled",
+      "max_depth_m": 0.0,
+      "max_velocity_ms": 0.0,
+      "t0_depth_m": 0.0,
+      "arrival_s_since_t0": null,
+      "arrival_rule": "first t >= 0 with depth > t0 depth + 0.1 m; UNCLEAR proposal in decisions.md"
+    }
+  ],
+  "max_depth_m": 2.3258642283944937,
+  "max_velocity_ms": 794.4634551451373,
+  "arrival_s_since_t0": {
+    "reached_face_count": 3,
+    "unreached_face_count": 33015,
+    "minimum_s": 360.0
+  },
+  "arrival_map_interval_s": 120.0,
+  "max_depth_map": "quick_max_depth.png"
+}

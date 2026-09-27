@@ -24,4 +24,13 @@ backend/m3_pilot/inputs/export/
 backend/m3_pilot/**/*.sww
 backend/m3_pilot/**/*.npz
 
+# D-Flow FM pilot/reproduction results: keep locally for review, but regenerate the large binary
+# map/history products and kernel working files from the committed case inputs and run metadata.
+m3_pilot/**/*_map.nc
+m3_pilot/**/*_his.nc
+m3_pilot/**/max_face_summary.csv
+m3_pilot/**/*.cache
+m3_pilot/**/kernel.pid
+m3_pilot/**/unstruc.dia
+
 # Playwright / browser cache used by frontend/visual (not committed)

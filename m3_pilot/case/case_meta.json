@@ -1,0 +1,199 @@
+{
+  "label": "PLACEHOLDER \u2014 teesta_pilot_s001, all inputs placeholder",
+  "solver": "D-Flow FM 1.2.184 / DIMR 2.00",
+  "crs": "EPSG:32645",
+  "cell_count": 33018,
+  "mesh_roundtrip": {
+    "node_count": [
+      18034,
+      18034
+    ],
+    "edge_count": [
+      51051,
+      51051
+    ],
+    "face_count": [
+      33018,
+      33018
+    ],
+    "node_coordinates_max_abs_error_m": 0.0
+  },
+  "domain_area_m2": 124568141.79650596,
+  "inflow_method": "point source at breach_location",
+  "inflow_boundary_fallback_reason": "discharge boundary produced 794-1,735 m/s spikes next to clipped cells and downstream POIs remained dry",
+  "breach_corridor_width_m": 180,
+  "mesh_clip_offset_from_breach_m": 75,
+  "manning_range": [
+    0.027374173183205945,
+    0.10000000000000003
+  ],
+  "bed_elevation_range_m_positive_up": [
+    634.3107001179037,
+    5482.133055555555
+  ],
+  "base_flow_m3s_already_in_hydrograph": 60.0,
+  "spinup_s": 7200.0,
+  "stop_s_since_simulation_start": 108000.0,
+  "map_interval_s": 120,
+  "changes_from_fm_defaults": [
+    {
+      "setting": "PathsRelativeToParent",
+      "default": 0,
+      "new_value": 1,
+      "reason": "M3 RULE 4 relocatable relative paths"
+    },
+    {
+      "setting": "RefDate",
+      "default": 20200101,
+      "new_value": 20010101,
+      "reason": "CHOSEN IN PILOT reference date for hydrograph and source time series"
+    },
+    {
+      "setting": "BedLevUni",
+      "default": -5.0,
+      "new_value": 634.3107001179037,
+      "reason": "CHOSEN IN PILOT uniform bed fallback matches positive-up DEM minimum"
+    },
+    {
+      "setting": "WaterLevIni",
+      "default": 0.0,
+      "new_value": 634.3107001179037,
+      "reason": "CHOSEN IN PILOT start from the lowest domain elevation; flat base-flow spin-up wets the domain"
+    },
+    {
+      "setting": "TStop",
+      "default": 86400.0,
+      "new_value": 108000.0,
+      "reason": "CHOSEN IN PILOT 30 h total after 20 h run still had three dry POIs"
+    },
+    {
+      "setting": "DtUser",
+      "default": 300.0,
+      "new_value": 30.0,
+      "reason": "CHOSEN IN PILOT forcing and output cadence for steep terrain"
+    },
+    {
+      "setting": "DtInit",
+      "default": 1.0,
+      "new_value": 0.5,
+      "reason": "CHOSEN IN PILOT small initial step during base-flow spin-up"
+    },
+    {
+      "setting": "uniffricttype",
+      "default": 1,
+      "new_value": 2,
+      "reason": "SOURCED Manning n samples require Manning friction convention"
+    },
+    {
+      "setting": "MapInterval",
+      "default": 1200.0,
+      "new_value": 120.0,
+      "reason": "CHOSEN IN PILOT arrival-time resolution and lean output"
+    },
+    {
+      "setting": "HisInterval",
+      "default": 300.0,
+      "new_value": 60.0,
+      "reason": "CHOSEN IN PILOT POI arrival and peak resolution"
+    },
+    {
+      "setting": "OutputDir",
+      "default": "",
+      "new_value": "output",
+      "reason": "CHOSEN IN PILOT keep output products together in the case"
+    },
+    {
+      "setting": "WriMap_*",
+      "default_enabled": [
+        "wrimap_SAL_potential",
+        "wrimap_calibration",
+        "wrimap_chezy",
+        "wrimap_density_rho",
+        "wrimap_flow_flux_q1",
+        "wrimap_horizontal_diffusivity_diu",
+        "wrimap_horizontal_viscosity_viu",
+        "wrimap_internal_tides_dissipation",
+        "wrimap_numLimdt",
+        "wrimap_salinity",
+        "wrimap_spiral_flow",
+        "wrimap_tauCurrent",
+        "wrimap_temperature",
+        "wrimap_tidal_potential",
+        "wrimap_turbulence",
+        "wrimap_velocity_component_u0",
+        "wrimap_velocity_component_u1",
+        "wrimap_velocity_magnitude",
+        "wrimap_velocity_vector",
+        "wrimap_waterLevel_s0",
+        "wrimap_waterLevel_s1",
+        "wrimap_waterdepth",
+        "wrimap_wind"
+      ],
+      "new_enabled": [
+        "wrimap_waterdepth",
+        "wrimap_velocity_magnitude"
+      ],
+      "reason": "CHOSEN IN PILOT disable all other default map variables to control map size"
+    },
+    {
+      "setting": "WriHis_*",
+      "default_enabled": [
+        "wrihis_balance",
+        "wrihis_bedlevel",
+        "wrihis_constituents",
+        "wrihis_density",
+        "wrihis_heat_fluxes",
+        "wrihis_infiltration",
+        "wrihis_lateral",
+        "wrihis_rain",
+        "wrihis_salinity",
+        "wrihis_sediment",
+        "wrihis_sourceSink",
+        "wrihis_structure_bridge",
+        "wrihis_structure_compound",
+        "wrihis_structure_culvert",
+        "wrihis_structure_dam",
+        "wrihis_structure_damBreak",
+        "wrihis_structure_gate",
+        "wrihis_structure_gen",
+        "wrihis_structure_longCulvert",
+        "wrihis_structure_orifice",
+        "wrihis_structure_pump",
+        "wrihis_structure_uniWeir",
+        "wrihis_structure_weir",
+        "wrihis_taucurrent",
+        "wrihis_temperature",
+        "wrihis_turbulence",
+        "wrihis_velocity_vector",
+        "wrihis_waterlevel_s1",
+        "wrihis_waves",
+        "wrihis_wind",
+        "wrihis_zcor"
+      ],
+      "new_enabled": [
+        "wrihis_waterdepth",
+        "wrihis_velocity",
+        "wrihis_waterlevel_s1"
+      ],
+      "reason": "CHOSEN IN PILOT disable default history variables except POI water level, depth, and velocity"
+    },
+    {
+      "setting": "Cosphiutrsh",
+      "default": 0.5,
+      "new_value": 0.99,
+      "reason": "CHOSEN IN PILOT kernel geometry gate; mesh max cos(phi)=0.968"
+    },
+    {
+      "setting": "Removesmalllinkstrsh",
+      "default": 0.1,
+      "new_value": 0.0,
+      "reason": "CHOSEN IN PILOT kernel auto-discard thresholds 0.1 and 0.3 triggered an error; mesh cleanup is done before writing; numerical implications remain UNCLEAR"
+    },
+    {
+      "setting": "CFLmax",
+      "default": 0.7,
+      "new_value": 0.7,
+      "reason": "FM DEFAULT restored after diagnostic run produced implausible speeds"
+    }
+  ]
+}
