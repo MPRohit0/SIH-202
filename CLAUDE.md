@@ -92,7 +92,7 @@ Frontend (in `frontend/`): React + Vite, Leaflet, Three.js, Recharts, Playwright
 - DualSPHysics: v5.4.3 (GenCase v5.4.354.01, DualSPHysics5.4 v5.4.355). Windows binaries +
   examples at `/mnt/d/APPS/DualSPHysics_v5.4/` (Linux binaries under `bin/linux/`, used by
   `tests/m4_sph/test_gencase_smoke.py` when `DSPH_BIN_DIR` is set) — not checked into this repo.
-- Working pilot cases: `m3_pilot/` and `m3_cascade_pilot/` are created in M3-1 / M3-4 (D-Flow FM);
+- Working pilot cases: `backend/m3_pilot/dflowfm/` and `backend/m3_cascade_pilot/` (D-Flow FM);
   the ANUGA pilot at `backend/m3_pilot/` (`docs/decisions.md` 2026-09-26 "M3: ANUGA replaces
   Delft3D 4 FLOW") is a fallback kept for the record, not the M3 reference. M4's pilot calibration
   run — `vram_estimator.py` (in `backend/m4_sph/`, since the real case generator imports it) reads

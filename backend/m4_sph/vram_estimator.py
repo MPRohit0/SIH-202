@@ -1,26 +1,15 @@
 """GPU memory / particle-count estimator for DualSPHysics (M4) near-field cases.
 
-Calibrated from the pilot run's raw logs in `backend/m4_pilot/` (this module stays in
-`backend/m4_sph/` since the real case generator imports it — see `docs/decisions.md` "M4 pilot
-files moved into `backend/m4_sph/`"): `gencase_output.log` and `dualsphysics_output.log`
-(CaseDambreakVal2D, dp=0.01 m, 21,001 particles, RTX 4060 Laptop GPU, 8188 MiB) plus the
-concurrent `nvidia_smi.log` sampled during the solver run.
+The default calibration is count-weighted across the stock 3D dam-break benchmark runs under
+`backend/m4_pilot/dambreak3d_dp*/`. The original 2D `CaseDambreakVal2D` logs remain at the
+pilot directory root as a comparison baseline; pass that directory to `calibrate()` to recover
+the 2D figures.
 
-The pilot case is a small 2D validation case, not a real 3D near-field GLOF
-domain. Per-particle GPU memory (bytes/particle) is read directly from
-DualSPHysics's own "GPU Memory" report, so it should hold for any case using
-the same particle arrays (DBC boundary, single precision, Verlet). The fixed
-CUDA context overhead is likewise measured, not guessed. What is NOT
-calibrated from this pilot — because it is a 2D case — is the ratio of
-boundary particles to fluid particles for a real terrain-following 3D floor,
-NOR the cell/particle ratio (`cells_per_particle`): a 2D case's cell-linked-list
-needs a 2D grid of cells for the same particle spacing, while a 3D domain needs
-a 3D grid, so `cells_per_particle` (and the `bytes_per_cell` contribution to the
-total estimate) measured here likely **undercounts** a real 3D near-field case.
-Both the boundary:fluid ratio and the cell/particle ratio are exposed as
-parameters (`boundary_layers` / this module's calibration) instead of hardcoded
-constants, and the estimate should be re-checked — ideally recalibrated from a
-real 3D `nearfield.stl` pilot run (M4-1) — once one exists.
+The 3D runs measure solver-reported bytes per particle, bytes per cell, and cells per particle
+on the RTX 4060 Laptop GPU. They are a stock rectangular dam-break benchmark, not a terrain-
+following `nearfield.stl` case. Boundary:fluid ratios and cell counts for a real near-field
+terrain therefore still need validation against a generated Teesta case once M3 can provide the
+routed inlet discharge required by the M4 generator.
 """
 
 from __future__ import annotations
@@ -31,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PILOT_DIR = Path(__file__).parent.parent / "m4_pilot"
+PILOT_3D_RUNS = tuple(sorted(PILOT_DIR.glob("dambreak3d_dp*")))
 
 
 @dataclass
@@ -77,7 +67,7 @@ def parse_nvidia_smi_log(path: Path) -> dict:
     }
 
 
-def calibrate(pilot_dir: Path = PILOT_DIR) -> Calibration:
+def _calibrate_one(pilot_dir: Path) -> tuple[dict, dict, Calibration]:
     dsph = parse_dualsphysics_log(pilot_dir / "dualsphysics_output.log")
     smi = parse_nvidia_smi_log(pilot_dir / "nvidia_smi.log")
 
@@ -89,11 +79,43 @@ def calibrate(pilot_dir: Path = PILOT_DIR) -> Calibration:
     context_overhead_mib = (smi["peak_mib"] - smi["baseline_mib"]) - solver_reported_mib
     context_overhead_mib = max(context_overhead_mib, 0.0)
 
-    return Calibration(
+    return dsph, smi, Calibration(
         bytes_per_particle=bytes_per_particle,
         bytes_per_cell=bytes_per_cell,
         cells_per_particle=cells_per_particle,
         context_overhead_mib=context_overhead_mib,
+    )
+
+
+def calibrate(pilot_dir: Path | None = None) -> Calibration:
+    """Calibrate from the 3D M4 pilot runs, or one explicit directory of two solver logs.
+
+    The legacy root-level logs remain the 2D comparison baseline. For the default 3D
+    calibration, particle and cell memory are weighted by observed counts across runs;
+    context overhead uses the median run value to reduce sensitivity to unrelated GPU use.
+    """
+    if pilot_dir is not None:
+        return _calibrate_one(Path(pilot_dir))[2]
+
+    runs = [p for p in PILOT_3D_RUNS if (p / "dualsphysics_output.log").is_file()]
+    if not runs:
+        # Preserve the original 2D calibration as a usable fallback before any 3D pilot exists.
+        return _calibrate_one(PILOT_DIR)[2]
+
+    records = [_calibrate_one(p) for p in runs]
+    particles = sum(dsph["max_particles"] for dsph, _, _ in records)
+    cells = sum(dsph["max_cells"] for dsph, _, _ in records)
+    gpu_particle_bytes = sum(dsph["gpu_memory_bytes"] for dsph, _, _ in records)
+    gpu_cell_bytes = sum(dsph["gpu_memory_cells_bytes"] for dsph, _, _ in records)
+    overheads = sorted(cal.context_overhead_mib for _, _, cal in records)
+    middle = len(overheads) // 2
+    median_overhead = (overheads[middle] if len(overheads) % 2 else
+                       (overheads[middle - 1] + overheads[middle]) / 2)
+    return Calibration(
+        bytes_per_particle=gpu_particle_bytes / particles,
+        bytes_per_cell=gpu_cell_bytes / cells,
+        cells_per_particle=cells / particles,
+        context_overhead_mib=median_overhead,
     )
 
 

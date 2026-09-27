@@ -1,6 +1,6 @@
 """Build and run the hand-reviewed Teesta D-Flow FM pilot.
 
-Run from the repository root with ``.venv/bin/python m3_pilot/build_teesta_pilot_s001__dflowfm.py``.
+Run from the repository root with ``.venv/bin/python backend/m3_pilot/dflowfm/build_teesta_pilot_s001__dflowfm.py``.
 Every modelling choice is tagged SOURCED, FM DEFAULT, CHOSEN IN PILOT, or UNCLEAR.
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ import subprocess
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from backend.m3_common.loaders import (
@@ -33,7 +33,7 @@ from hydrolib.core.dflowfm.xyn.models import XYNPoint
 
 
 INPUTS = ROOT / "backend" / "m3_pilot" / "inputs" / "export"
-PILOT = ROOT / "m3_pilot"
+PILOT = ROOT / "backend" / "m3_pilot" / "dflowfm"
 CASE = PILOT / "case"
 CASE_INPUTS = CASE / "inputs"
 OUTPUT = CASE / "output"

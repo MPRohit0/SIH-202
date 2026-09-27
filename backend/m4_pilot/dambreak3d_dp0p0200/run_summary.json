@@ -1,0 +1,21 @@
+{
+  "case": "DualSPHysics stock 3D dam-break benchmark",
+  "solver_version": "DualSPHysics 5.4.355 / GenCase 5.4.354.01",
+  "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "dp_m": 0.02,
+  "particle_count": 17446,
+  "fluid_particle_count": 9600,
+  "boundary_particle_count": 7846,
+  "cell_count": 960,
+  "peak_vram_mib_nvidia_smi": 677,
+  "baseline_vram_mib_nvidia_smi": 581,
+  "wall_time_s": 9.77,
+  "solver_total_runtime_s": 9.374628,
+  "disk_bytes_at_capture": 92554114,
+  "solver_success": true,
+  "gpu_sample_interval_s": 1,
+  "source_case": "/mnt/d/APPS/DualSPHysics_v5.4/examples/main/01_DamBreak/CaseDambreak_Def.xml",
+  "changes_to_source_case": [
+    "geometry dp set to 0.02 m (stock 0.0085 m)"
+  ]
+}

@@ -2,11 +2,11 @@
 
 ## Status and scope
 
-[CHOSEN IN PILOT] This Phase 1 specification records the `teesta_pilot_s001` D-Flow FM case in `m3_pilot/case/`, built by `m3_pilot/build_teesta_pilot_s001__dflowfm.py` from the placeholder exports in `backend/m3_pilot/inputs/export/`. It is the reference for M3 case-generation and reproduction work.
+[CHOSEN IN PILOT] This Phase 1 specification records the `teesta_pilot_s001` D-Flow FM case in `backend/m3_pilot/dflowfm/case/`, built by `backend/m3_pilot/dflowfm/build_teesta_pilot_s001__dflowfm.py` from the placeholder exports in `backend/m3_pilot/inputs/export/`. It is the reference for M3 case-generation and reproduction work.
 
 [SOURCED] Every input in this pilot is placeholder data. Preserve the case label exactly: `PLACEHOLDER — teesta_pilot_s001, all inputs placeholder`.
 
-[CHOSEN IN PILOT] The completed 30-hour point-source case in `m3_pilot/case/` is the reference run. The earlier 10-hour and 20-hour trials are retained in `m3_pilot/attempts/`; their outputs are diagnostic history, not the reference result.
+[CHOSEN IN PILOT] The completed 30-hour point-source case in `backend/m3_pilot/dflowfm/case/` is the reference run. Earlier trials are retained in `backend/m3_pilot/dflowfm/attempts/`; their outputs are diagnostic history, not the reference result.
 
 [UNCLEAR] The pilot is a hand-reviewed engineering reference, not a calibrated or physically validated Teesta model. The 30-hour run wets Chungthang but leaves Lachen, Sangkalang Bridge, and Mangan District Hospital dry. It reports a global maximum depth of 65.23 m and speed of 29.44 m/s. These outputs and the choice of the point-source fallback remain unresolved for production use.
 
@@ -95,7 +95,7 @@
 
 [CHOSEN IN PILOT] Arrival is post-processed from 120 s map samples as the first time after t0 when depth exceeds the t0 depth by 0.1 m. This is an UNCLEAR proposed interpretation of the arrival rule; record that proposal alongside results until the contract decision is settled.
 
-[SOURCED] The completed reference run took 475.09 s, peaked at 234,048 KB RAM, wrote a 481,977,476-byte map file, and used 492,784,953 bytes across the case tree. Its success record is `m3_pilot/case/output/run_meta_pilot.json`.
+[SOURCED] The completed reference run took 475.09 s, peaked at 234,048 KB RAM, wrote a 481,977,476-byte map file, and used 492,784,953 bytes across the case tree. Its success record is `backend/m3_pilot/dflowfm/case/output/run_meta_pilot.json`.
 
 [SOURCED] POI results from the reference history are:
 
@@ -106,7 +106,7 @@
 | `teesta_pilot__poi__sangkalang_bridge` | 0.00 | 0.00 | Not reached |
 | `teesta_pilot__poi__mangan_district_hospital` | 0.00 | 0.00 | Not reached |
 
-[SOURCED] Global maximum depth is 65.23 m and maximum face-centre speed is 29.44 m/s. The 120-second map samples show arrival in 4,033 faces and no arrival in 28,985 faces. The quick maximum-depth map is `m3_pilot/case/output/quick_max_depth.png`.
+[SOURCED] Global maximum depth is 65.23 m and maximum face-centre speed is 29.44 m/s. The 120-second map samples show arrival in 4,033 faces and no arrival in 28,985 faces. The quick maximum-depth map is `backend/m3_pilot/dflowfm/case/output/quick_max_depth.png`.
 
 ## CRS, software, and file formats
 

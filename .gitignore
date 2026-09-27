@@ -15,6 +15,17 @@ cache/
 # DualSPHysics calibration logs vram_estimator.py reads -- those are provenance, force-added.
 *.log
 
+# Keep the M4 3D calibration inputs, summaries, and three raw logs; omit bulky generated solver
+# binaries/VTKs so the raw 1-second GPU samples and run provenance remain reviewable.
+backend/m4_pilot/dambreak3d_dp*/**
+!backend/m4_pilot/dambreak3d_dp*/
+!backend/m4_pilot/dambreak3d_dp*/*.log
+!backend/m4_pilot/dambreak3d_dp*/CaseDambreak_Def.xml
+!backend/m4_pilot/dambreak3d_dp*/source_case.txt
+!backend/m4_pilot/dambreak3d_dp*/run_summary.json
+!backend/m4_pilot/dambreak3d_dp*/wall_time.txt
+!backend/m4_pilot/dambreak3d_dp*/solver_exit_code.txt
+
 # backend/m3_pilot/inputs/make_export.py output: large, regenerable point clouds (derived from
 # data/, which is itself gitignored) -- not the hand-written pilot scripts, which ARE committed.
 backend/m3_pilot/inputs/export/
@@ -24,13 +35,13 @@ backend/m3_pilot/inputs/export/
 backend/m3_pilot/**/*.sww
 backend/m3_pilot/**/*.npz
 
-# D-Flow FM pilot/reproduction results: keep locally for review, but regenerate the large binary
-# map/history products and kernel working files from the committed case inputs and run metadata.
-m3_pilot/**/*_map.nc
-m3_pilot/**/*_his.nc
-m3_pilot/**/max_face_summary.csv
-m3_pilot/**/*.cache
-m3_pilot/**/kernel.pid
-m3_pilot/**/unstruc.dia
+# D-Flow FM pilot/reproduction results under backend/m3_pilot/dflowfm: keep locally for review,
+# but regenerate large binary map/history products and kernel working files from case inputs.
+backend/m3_pilot/dflowfm/**/*_map.nc
+backend/m3_pilot/dflowfm/**/*_his.nc
+backend/m3_pilot/dflowfm/**/max_face_summary.csv
+backend/m3_pilot/dflowfm/**/*.cache
+backend/m3_pilot/dflowfm/**/kernel.pid
+backend/m3_pilot/dflowfm/**/unstruc.dia
 
 # Playwright / browser cache used by frontend/visual (not committed)

@@ -1,0 +1,2 @@
+Stock DualSPHysics v5.4.3 3D dam-break: /mnt/d/APPS/DualSPHysics_v5.4/examples/main/01_DamBreak/CaseDambreak_Def.xml
+Only change: dp=0.0125 m (stock 0.0085 m).

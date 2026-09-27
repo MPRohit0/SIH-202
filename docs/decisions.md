@@ -810,9 +810,39 @@ own per-run "GPU Memory" report, so those should hold regardless of dimensionali
 `cells_per_particle` (a 2D cell-linked-list needs far fewer cells per particle than a 3D one at
 the same spacing) is 2D-specific and likely **undercounts** a real 3D near-field domain, compounding
 the already-known boundary:fluid ratio gap. `vram_estimator.py`'s own docstring is updated with
-this. **Action for M4-1:** recalibrate `vram_estimator.py` from a real 3D `nearfield.stl` pilot run
-once one exists, rather than trusting the 2D numbers for VRAM-budget gating on real near-field
-cases.
+this. This was the pre-M4-1 caveat; the stock 3D benchmark calibration and its remaining
+terrain-specific limitation are recorded below.
+
+**M4-1 update, 2026-09-27:** Teesta's M1 near-field terrain exists, but its configured inlet is
+`far_field` and the available M3 pilot has no routed discharge series at that inlet. The M4
+generator correctly raises `InflowUnavailable`; no substitute Teesta hydrograph was invented.
+The fallback benchmark is the stock 3D `examples/main/01_DamBreak/CaseDambreak_Def.xml` from
+DualSPHysics 5.4.3, generated with GenCase and run on the RTX 4060 Laptop GPU. The original
+geometry and settings were retained; only `dp` changed. This calibrates 3D solver memory counts,
+but does not validate the generator's terrain STL, boundary:fluid ratio, inlet, or a full Teesta
+near-field case. The stock example was run directly through GenCase because the M4 Python
+generator currently has no stock 3D benchmark builder (its writer pilot is 2D).
+
+| `dp` (m) | particles (total) | peak VRAM (MiB; baseline → peak) | solver runtime (s) | wall time (s) | disk (bytes) |
+|---:|---:|---:|---:|---:|---:|
+| 0.0200 | 17,446 | 581 → 677 | 9.37 | 9.77 | 92,554,114 |
+| 0.0150 | 37,896 | 572 → 695 | 17.31 | 18.10 | 200,431,814 |
+| 0.0125 | 60,887 | 490 → 649 | 20.05 | 20.67 | 321,739,608 |
+
+Each run directory under `backend/m4_pilot/dambreak3d_dp*/` keeps `gencase_output.log`,
+`dualsphysics_output.log`, `nvidia_smi.log` (1-second samples), the edited source definition,
+and `run_summary.json`. Large solver outputs remain local and are Git-ignored. The estimator's
+default calibration now uses these three 3D runs, count-weighting particle and cell memory and
+using the median measured CUDA/context overhead; the original 2D root logs remain available for
+comparison.
+
+Across the 3D runs, `bytes_per_particle` is 163.96 B, down 8.52% from the 2D calibration's
+179.24 B. `bytes_per_cell` is 35.11 B (up 119.4%), while measured `cells_per_particle` is 0.07141
+(down 93.4% from 1.08185). Thus the particle-plus-cell term falls from 196.55 to 166.47 B per
+particle (−15.3%); median context overhead is 116.98 MiB versus 155.06 MiB. The stock 3D case's
+cell ratio is lower than the 2D case, contrary to the earlier expectation. Its compact rectangular
+geometry is not representative of a terrain-cut near-field domain, so retain the terrain
+calibration caveat and revisit it when the routed inlet series is available.
 
 Then added M4 post-processing (contract §4.4): `summary_nearfield/*.tif`, `surfaces/*.glb`,
 `timeseries.csv`, `run_meta.json` — turning a completed near-field run's raw solver output into
@@ -1004,3 +1034,12 @@ was the classic FLOW kernel); it is repurposed rather than renamed, since `docs/
 - **Known limitation, unchanged:** clear-water, not debris/sediment-laden (CLAUDE.md "Known
   limitations"); the moraine/embankment breach-equation caveats already in the contract still
   apply regardless of far-field solver.
+
+## 2026-09-27 — Keep M3 pilot artifacts under `backend/`
+
+The D-Flow FM pilot implementation, case, and diagnostic attempts live in
+`backend/m3_pilot/dflowfm/`. The ANUGA record and shared pilot exports remain in
+`backend/m3_pilot/`. The builder derives the repository root from its own path and writes its
+case under `dflowfm/`; relative solver paths keep the case relocatable. A copy of the moved case
+ran from a temporary location with no `.dia` errors and produced map and history outputs, without
+changing the kept pilot outputs.

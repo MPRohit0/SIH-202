@@ -1225,12 +1225,12 @@ and nothing is queued yet.
 
 ## 2026-09-27 — M3 D-Flow FM pilot, specification, and generator
 
-- **Built Phase 0 pilot:** `m3_pilot/build_teesta_pilot_s001__dflowfm.py` writes a relocatable
+- **Built Phase 0 pilot:** `backend/m3_pilot/dflowfm/build_teesta_pilot_s001__dflowfm.py` writes a relocatable
   D-Flow FM case from the M3 common pilot loaders. It uses a MeshKernel mesh, positive-up DEM
   bed levels, Manning samples, 2-hour base-flow spin-up, breach point source, downstream Neumann
   boundary, named POIs, and lean map/history output. The 30-hour run met the M3 success rule
   (no `** ERROR` in `.dia`, `_map.nc` and `_his.nc` present). It has 33,018 faces, ran in 475.09 s,
-  and produced a 481,977,476-byte map. The compact metrics and quick map are kept in `m3_pilot/`;
+  and produced a 481,977,476-byte map. The compact metrics and quick map are kept in `backend/m3_pilot/dflowfm/`;
   large NetCDFs and per-face CSVs stay local and are ignored by Git.
 - **Specified Phase 1:** `docs/m3_spec.md` records the six M3 rules, pilot choices, kernel and
   file-format versions, CRS, and provisional reproduction tolerances. `sites/template.yaml` now
@@ -1255,7 +1255,7 @@ Teesta base flow and other physical data need sourcing before production use.
 
 ## 2026-09-27 — M3 output reduction and arrival sampling
 
-- Read the frozen root `m3_pilot/` map/history output with xarray. The 901 map records are 120 s apart; the 1,801 POI history records are 60 s apart. Face maxima are 65.2315 m depth and 29.4403 m/s speed; using the 0.1 m increment over the 7,200 s spin-up state gives first arrivals in 4,033/33,018 faces.
+- Read the frozen D-Flow FM pilot map/history output with xarray. The 901 map records are 120 s apart; the 1,801 POI history records are 60 s apart. Face maxima are 65.2315 m depth and 29.4403 m/s speed; using the 0.1 m increment over the 7,200 s spin-up state gives first arrivals in 4,033/33,018 faces.
 - Exported all face summaries, 90 m EPSG:32645 raster summaries, and full POI histories under `reports/m3_pilot/`. FM map output is snapshot-based; class maps are not per-cell maxima or arrival times, so reductions still need post-processing.
 - Changed the production M3 generator map interval from 120 s to 60 s to match history cadence for arrival extraction; the frozen pilot was left unchanged. Added a generator assertion and reran `tests/m3_dflowfm/test_generator.py` (3 passed).
 - Regenerated and ran a separate Phase 3 case at `data/teesta_pilot/runs/teesta_pilot_s001/dflowfm_reproduction_map60/case/`. FM completed with 1,801 60-second map samples and passed the `.dia`/map/history success check. The POIs remain dry, depth peaks at 1,841.44 m, and speed peaks at 0.4383 m/s; reproduction remains failed for the documented mesh/input/solution mismatches. Details are appended to `docs/m3_reproduction.md`.
@@ -1263,7 +1263,7 @@ Teesta base flow and other physical data need sourcing before production use.
 ## M3 handoff summary — 2026-09-27
 
 - **Built:** a frozen D-Flow FM pilot with recorded depth, velocity, arrival, and POI histories; a separate active case generator; 60-second map output in generated cases; pilot face/raster/time-series diagnostics; and a successful FM rerun of the generated reproduction case.
-- **Still stubbed or placeholder:** the backend pilot folder is legacy ANUGA material, not the FM implementation. M3 contract post-processing is not implemented yet (canonical summary rasters, contract-format `timeseries.csv`, validated `run_meta.json`). Pilot site and physical inputs are placeholders. Phase 3 reproduction remains failed: mesh/inputs diverge, generated POIs are dry, and generated maxima are implausible relative to the frozen pilot.
+- **Still stubbed or placeholder:** M3 contract post-processing is implemented, but the Phase 3 reproduction remains failed: mesh/inputs diverge, generated POIs are dry, and generated maxima are implausible relative to the frozen pilot. Pilot site and physical inputs are placeholders.
 - **Next step:** make the generator consume equivalent frozen-pilot geometry and source fields, then implement contract-compliant post-processing and rerun the full reproduction comparison. Keep the result marked failed until all comparisons pass; source placeholder site inputs before production use.
 
 ## 2026-09-27 — M3 launcher and M0 queue handoff
@@ -1297,3 +1297,44 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Next step:** fix the Phase 3 geometry/input mismatch so the FM mesh and `domain_mask.tif` cover
   the same modeled area, then rerun post-processing and compare its outputs against the frozen pilot.
   Keep reproduction unaccepted until those comparisons pass and site inputs are sourced.
+
+## 2026-09-27 — M3 pilot moved under backend
+
+- Moved the D-Flow FM builder, case, and attempt records from repository-root `m3_pilot/` to
+  `backend/m3_pilot/dflowfm/`, alongside the existing ANUGA archive and shared exports.
+- Updated the builder's repository-root and output paths, `.gitignore`, the M3 specification,
+  this handoff, and the working-pilot location in `CLAUDE.md`.
+- The builder compiles from its new path. A relocated copy of the case ran with no `.dia` errors
+  and wrote both map and history outputs, without changing the frozen case outputs.
+
+## 2026-09-27 — M4 3D GPU pilot calibration
+
+- Teesta M1 near-field files are present, but M4 cannot use them yet: the configured inlet is
+  `far_field` and the available M3 run has no routed discharge series at that location. Used the
+  stock DualSPHysics 3D dam-break example as the permitted fallback, with only `dp` changed.
+- Ran GenCase and the GPU solver at 0.0200, 0.0150, and 0.0125 m on the RTX 4060 Laptop GPU.
+  Captured GenCase and solver logs, 1-second `nvidia-smi` samples, particle/cell counts, peak
+  VRAM, solver and wall runtimes, and run directory size under `backend/m4_pilot/`.
+- Updated `vram_estimator.py` to use a count-weighted calibration across all three 3D runs by
+  default, preserving the old 2D root logs for comparison. Measured bytes per particle decreased
+  8.52% (179.24 B → 163.96 B); bytes per cell increased 119.4%, but cells per particle were
+  lower in this stock case. Terrain-cut near-field calibration remains outstanding.
+- Updated the M4 pilot decision record with run metrics, calibration formulas, and the limitation
+  that the Python near-field generator still has no stock 3D benchmark builder. No pytest suite
+  was run for this operational calibration update.
+
+## M3/M4 handoff summary — 2026-09-27
+
+- **Built:** moved the D-Flow FM pilot builder, case, and diagnostics under
+  `backend/m3_pilot/dflowfm/`; kept ANUGA and shared exports as pilot records. Added M4 stock 3D
+  GPU runs at three particle spacings, preserved GenCase/solver/1-second GPU logs, and switched
+  the VRAM estimator's default calibration to the combined 3D measurements.
+- **Still stubbed or placeholder:** M3's generated case still fails reproduction against the
+  frozen pilot and its Teesta inputs are placeholders. The M4 runs are stock rectangular
+  dam-break benchmarks, not a Teesta terrain/inlet case. Teesta's M4 inlet needs an M3 routed
+  discharge series that is not available; its terrain-specific particle and cell calibration
+  therefore remains unverified.
+- **Next step:** resolve the M3 mesh/field mismatch and produce a routed discharge series at the
+  Teesta near-field inlet. Then generate and run the real M4 `nearfield.stl` case at multiple
+  `dp` values and compare its memory/count behavior with this stock 3D calibration. Keep both
+  solvers' results labelled as pilot data until sourced inputs and reproduction checks pass.
