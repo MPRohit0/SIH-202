@@ -53,6 +53,7 @@ __pycache__/
 *.tsbuildinfo
 /test-results/
 /playwright-report/
+/visual/test-results/
 
 # vite
 /.vite-cache/

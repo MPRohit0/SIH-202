@@ -1395,3 +1395,20 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Built:** reviewed `backend/m0_api` and the frontend against the contract and design docs. Added `docs/frontend_gaps.md`, which classifies each requested dashboard capability and identifies the nearest existing component to reuse. The frontend has navigation, views, controls, maps, status treatments and onboarding layouts; its data seam still returns `awaiting` with empty results.
 - **Still stubbed or placeholder:** M0's API is mostly backed by contract examples/mocks. SQLite job and recheck schedule persistence exist, but onboarding stages and solver work are placeholders. Frontend integration is not connected: exports cannot download results, job progress is local scaffolding, and several views lack required uncertainty ranges, confidence layers, charts, event comparisons and GEE status controls.
 - **Next step:** connect the frontend data seam to M0 and persist real flood query artifacts from M5. Then complete uncertainty-aware summary/map and timeline features against real responses, before wiring impact, comparison, exports and GEE controls.
+
+## 2026-09-27 — M0 contract review and visual snapshots
+
+- **Built:** confirmed all 22 routes in handoff contract §5 have handlers in `backend/m0_api`.
+  M0 also has JSON Schema validation, a SQLite registry/job system, a separate worker, recheck
+  scheduling, and helpers for map rendering, timelines, comparisons, Scene3D, and static files.
+  Added a Playwright visual suite under `frontend/visual` and `npm run test:visual`, with one
+  1440×900 baseline screenshot for each of the app's 12 routes. Captures request reduced motion
+  and disable animations. No component code changed; all 12 snapshot checks passed.
+- **Still stubbed or placeholder:** route presence does not mean the full workflow is connected.
+  Flood query submission/polling, site data, impact, validation and exports remain mock-backed in
+  part or whole. Worker stages and solver runs are partly simulated. Rerun queues onboarding work
+  instead of reusing terrain. Timeline, compare and Scene3D use persisted artifacts when available
+  and otherwise fall back to examples. The contract remains a draft.
+- **Next step:** wire flood query creation and polling to M5 outputs and persist contract-shaped
+  query artifacts; then connect dependent result routes to those artifacts. Define contract-
+  consistent campaign and rerun stages before implementing those workflows.

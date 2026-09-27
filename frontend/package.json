@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "start": "vite preview",
+    "test:visual": "npm --prefix visual run test",
     "lint": "eslint . --ignore-pattern dist",
     "check:shell": "node scripts/check-shell.mjs"
   },
