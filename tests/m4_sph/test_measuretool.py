@@ -42,7 +42,7 @@ def test_parse_elevation_csv_single_column(tmp_path):
         "1;0.0100156;2.00971\n",
         encoding="ascii",
     )
-    t_s, elevation = mt.parse_elevation_csv(path)
+    t_s, elevation = mt.parse_elevation_csv(path, [(0.2, 0.0)])
     np.testing.assert_allclose(t_s, [0.0, 0.0100156])
     assert elevation.shape == (2, 1)
     np.testing.assert_allclose(elevation[:, 0], [2.00973, 2.00971])
@@ -57,9 +57,39 @@ def test_parse_elevation_csv_multiple_columns(tmp_path):
         "1;0.0100156;2.00971;2.00969\n",
         encoding="ascii",
     )
-    t_s, elevation = mt.parse_elevation_csv(path)
+    t_s, elevation = mt.parse_elevation_csv(path, [(0.2, 0.0), (0.4, 0.0)])
     assert elevation.shape == (2, 2)
     np.testing.assert_allclose(elevation[1], [2.00971, 2.00969])
+
+
+def test_parse_elevation_csv_reorders_when_measuretool_sorts_columns(tmp_path):
+    """MeasureTool's `-elevation` output re-sorts POINTSENDLIST columns by position; this is the
+    real behaviour that produced an unphysical ~259 m SPH depth field on the Teesta MVP run
+    (docs/progress.md 2026-09-27) before this reordering was added. The CSV here lists column
+    (0.4, 0.0) before (0.2, 0.0), the opposite of the request order."""
+    path = tmp_path / "elev.csv"
+    path.write_text(
+        " ;PosX [m]:;0.4;0.2\n ;PosY [m]:;0;0\n ;PosZ [m]:;0;0\n"
+        "Part;Time [s];Elevation_0 [m];Elevation_1 [m]\n"
+        "0;0;9.0;1.0\n"
+        "1;0.01;9.5;1.5\n",
+        encoding="ascii",
+    )
+    t_s, elevation = mt.parse_elevation_csv(path, [(0.2, 0.0), (0.4, 0.0)])
+    # requested (0.2, 0.0) first -> its series (1.0, 1.5) must come back in column 0
+    np.testing.assert_allclose(elevation[:, 0], [1.0, 1.5])
+    np.testing.assert_allclose(elevation[:, 1], [9.0, 9.5])
+
+
+def test_parse_elevation_csv_rejects_unmatched_point(tmp_path):
+    path = tmp_path / "elev.csv"
+    path.write_text(
+        " ;PosX [m]:;0.2\n ;PosY [m]:;0\n ;PosZ [m]:;0\n"
+        "Part;Time [s];Elevation_0 [m]\n0;0;1.0\n",
+        encoding="ascii",
+    )
+    with pytest.raises(ValueError, match="no unclaimed output column"):
+        mt.parse_elevation_csv(path, [(99.0, 99.0)])
 
 
 def test_parse_velocity_csv(tmp_path):
@@ -84,7 +114,7 @@ def test_real_binary_elevation_and_velocity_on_pilot_data(tmp_path):
     cols = [(0.2, 0.0, 0.0, 0.02, 2.1), (0.4, 0.0, 0.0, 0.02, 2.1)]
     points_path = mt.write_column_points(tmp_path / "cols.txt", cols)
     elev_csv = mt.run_elevation(PILOT_DATA, points_path, tmp_path / "elev", DSPH_BIN_DIR)
-    t_s, elevation = mt.parse_elevation_csv(elev_csv)
+    t_s, elevation = mt.parse_elevation_csv(elev_csv, [(c[0], c[1]) for c in cols])
     assert elevation.shape[1] == 2
     assert elevation[0, 0] == pytest.approx(2.00973, abs=1e-3)  # initial water column height
     assert elevation[-1, 0] < elevation[0, 0]  # the dam has broken and the column has drained

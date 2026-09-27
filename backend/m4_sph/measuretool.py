@@ -108,19 +108,47 @@ def _run(cmd: list[str], binaries_dir: str | Path | None) -> None:
         raise MeasureToolError(f"{cmd[0]} exited {result.returncode}:\n{result.stdout}\n{result.stderr}")
 
 
-def parse_elevation_csv(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
-    """`(t_s, elevation_m)`: `t_s` is `(T,)`, `elevation_m` is `(T, n_columns)` -- column order
-    matches the order columns were given to `write_column_points`.
+def parse_elevation_csv(path: str | Path, requested_xy: list[tuple[float, float]],
+                        *, atol: float = 1e-3) -> tuple[np.ndarray, np.ndarray]:
+    """`(t_s, elevation_m)`: `t_s` is `(T,)`, `elevation_m` is `(T, n_columns)`, reordered to match
+    `requested_xy` -- the `(x, y)` of each column exactly as passed to `write_column_points`, in
+    request order.
 
     Real format (verified against MeasureTool 5.4's own output, not just its docs):
     3 header rows (` ;PosX [m]:;...`, `PosY`, `PosZ`), then `Part;Time [s];Elevation_0 [m];...`.
+    **MeasureTool's `-elevation` output re-sorts `POINTSENDLIST` columns by position (x ascending,
+    then y ascending within each x) -- it does not preserve the request order `write_column_points`
+    wrote them in** (verified against the real binary on real pilot particle data: a Teesta MVP run
+    fed 91 x=5 columns first, y descending from 595, and got them back grouped by x with y
+    ascending from 5). Every caller must reorder by `requested_xy`, using the PosX/PosY header rows
+    to recover where each requested column landed; skipping this silently pairs each near-field
+    cell with a *different* cell's elevation series (the cause of an unphysical ~259 m SPH depth
+    field from an 11.8 m inlet on the real Teesta run, `docs/progress.md` 2026-09-27).
     """
     rows = Path(path).read_text(encoding="ascii").splitlines()
-    header = rows[3].split(";")
-    n_cols = len(header) - 2  # drop "Part", "Time [s]"
+    header_x = [float(v) for v in rows[0].split(";")[2:]]
+    header_y = [float(v) for v in rows[1].split(";")[2:]]
+    n_cols = len(header_x)
+    if len(header_y) != n_cols:
+        raise ValueError(f"{path}: PosX header has {n_cols} columns but PosY header has {len(header_y)}")
     data = np.loadtxt(rows[4:], delimiter=";")
     data = data.reshape(-1, n_cols + 2)  # a single data row loses its leading dimension
-    return data[:, 1], data[:, 2:2 + n_cols]
+    t_s, elevation = data[:, 1], data[:, 2:2 + n_cols]
+    if len(requested_xy) != n_cols:
+        raise ValueError(f"{path}: {n_cols} columns in the CSV but {len(requested_xy)} requested")
+    header_xy = np.column_stack([header_x, header_y])
+    order = np.empty(n_cols, dtype=int)
+    claimed = np.zeros(n_cols, dtype=bool)
+    for i, (x, y) in enumerate(requested_xy):
+        distances = np.hypot(header_xy[:, 0] - x, header_xy[:, 1] - y)
+        distances[claimed] = np.inf
+        j = int(np.argmin(distances))
+        if distances[j] > atol:
+            raise ValueError(f"{path}: no unclaimed output column within {atol} m of requested "
+                              f"point ({x}, {y}) (closest was {distances[j]} m away)")
+        order[i] = j
+        claimed[j] = True
+    return t_s, elevation[:, order]
 
 
 def parse_velocity_csv(path: str | Path) -> tuple[np.ndarray, np.ndarray]:

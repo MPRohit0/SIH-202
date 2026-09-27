@@ -104,7 +104,8 @@ def compute_summary_rasters(
         columns = list(zip(x_local, y_local, bed_z, [elevation_dz_m] * len(bed_z), ceiling))
         points_path = measuretool.write_column_points(work_dir / f"depth_cols_{r0}.txt", columns)
         elev_csv = measuretool.run_elevation(dirdata, points_path, work_dir / f"depth_{r0}", binaries_dir)
-        chunk_tau, elevation = measuretool.parse_elevation_csv(elev_csv)
+        chunk_tau, elevation = measuretool.parse_elevation_csv(
+            elev_csv, list(zip(x_local.tolist(), y_local.tolist())))
         if tau_s is None:
             tau_s = chunk_tau
 

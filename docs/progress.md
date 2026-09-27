@@ -1998,3 +1998,41 @@ Teesta base flow and other physical data need sourcing before production use.
   here as the actual fix: conditioning the M1 far-field DEM (breach/fill its pits) before mesh
   generation would remove the ponding artifact; the steep-reach velocities would likely remain,
   since they are slope-driven rather than a DEM defect.
+
+## 2026-09-27 — Demo stabilization pass, item 2: SPH comparison gated; MeasureTool parser fixed
+
+- **Item 2 (required):** `backend/m4_sph/compare_mvp.py` now refuses to publish paired SPH/D-Flow
+  metrics when the SPH run's `run_meta.caveats` carries `sph_particle_exclusion_warning`
+  (`_unavailable_comparison`, checked before any grid/mesh work). Regenerated the real
+  `data/teesta/compare/teesta_2023_mvp/compare.json` through this builder against the actual
+  registered runs: `sph_vs_delft3d.available` is now `false`, `run_ids` is `[teesta_2023_mvp__delft3d]`
+  only, and a new `comparison_unavailable` caveat is present. Reworded `ui_text.json`'s
+  `onboarding.noPairedSph` to name the actual state ("D-Flow run only. The Teesta SPH attempt (a02)
+  completed... results are under investigation"). Verified live in the browser: the Compare page
+  shows this message and no fabricated IoU/F1/RMSE numbers. Added
+  `tests/m4_sph/test_compare_mvp.py` (2 tests: the gate fires and produces a schema-valid
+  `available:false` response; without the exclusion caveat the existing grid-dependent path is
+  reached instead, confirming the gate — not a missing-fixture accident — is what short-circuits).
+- **Item 2b (recommended, done):** found and fixed the actual cause of the reported 259.5 m SPH
+  depth. `MeasureTool -elevation` does not preserve the request order of `POINTSENDLIST` columns —
+  it re-sorts them by position (x ascending, then y ascending within x) — but
+  `backend/m4_sph/measuretool.py`'s `parse_elevation_csv` assumed request order, so every
+  near-field cell's depth search was silently paired with a *different* cell's free-surface
+  series. Fixed by reordering output columns using the CSV's own `PosX [m]:`/`PosY [m]:` header
+  rows against the request list (nearest-point match within 1 mm, each output column claimed at
+  most once; raises rather than guessing on any mismatch). `-vars:vel` explicit-point output was
+  checked against the real a02 raw data and does preserve request order — only the elevation path
+  needed the fix. Added a regression test with deliberately shuffled header columns, plus an
+  unmatched-point rejection test; the existing real-binary test (`DSPH_BIN_DIR` set) still passes.
+  Re-ran post-processing only (`backend.m4_sph.postprocess`, no solver rerun) on the retained a02
+  particle data: max depth corrected from **259.5 m to 11.47 m** (now under the 11.8 m inlet
+  ceiling; the `sph_depth_search_capped` caveat is gone), max velocity from 3.0 to 3.29 m/s. Only
+  5 of 3,600 cells are wet — consistent with the still-unresolved defect (b) from the prior
+  session (the run loses ~99% of its fluid to the >100% particle-exclusion warning almost
+  immediately), so `sph_particle_exclusion_warning` remains and Compare correctly stays
+  unavailable regardless of this fix. This is a genuine bug fix to the postprocessor, kept
+  separate from item 2's gate, which alone is what actually protects the dashboard.
+- Tests: `tests/m4_sph` under `DSPH_BIN_DIR` (real MeasureTool binary), full suite: **80 passed**.
+  `tests/m4_sph tests/m0_api` together: **259 passed**. Frontend `tsc --noEmit` passes; the Compare
+  page was checked live in the browser (screenshot, not committed) and matches the intended
+  "D-Flow run only" state with no fabricated metrics.

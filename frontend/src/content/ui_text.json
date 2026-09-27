@@ -221,7 +221,7 @@
     "validationRuns": "Validation runs",
     "cachedImage": "Cached satellite image",
     "openRealRun": "Open registered Teesta event result",
-    "noPairedSph": "No paired Teesta DualSPHysics result is registered. The retained controlled SPH benchmark is a stock tank case and is not spatially or scenariowise comparable to this river run.",
+    "noPairedSph": "D-Flow run only. The Teesta SPH attempt (a02) completed, but its particle-exclusion warning and anomalous depth field mean its results are under investigation and are not shown here.",
     "libraryUnavailable": "No real scenario library is registered. The Teesta MVP contains one direct solver event run, not prepared emulator nodes."
   },
   "dataLayers": {

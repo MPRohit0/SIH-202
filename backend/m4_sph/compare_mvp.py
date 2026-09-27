@@ -16,6 +16,35 @@ from backend.shared.grid import FLOAT_NODATA, CanonicalGrid, write_grid_raster
 from .teesta_mvp import M3_RUN_ID, M4_RUN_ID, SCENARIO_ID, SITE_ID
 
 
+def _unavailable_comparison(root: Path, m3_meta: dict, m4_meta: dict) -> Path:
+    """The SPH attempt completed (`postprocessed`) but its solver warned that it excluded more
+    than 100% of its own fluid particles in one PART output (docs/progress.md 2026-09-27 "Teesta
+    MVP comparison: corrected SPH run completed"); its depth/velocity fields are known-anomalous
+    (up to 259.5 m depth from an 11.8 m inlet), so no paired metric is published. This is not
+    "delete the run": the D-Flow result stays available on its own, and the SPH run stays
+    registered under investigation, not hidden."""
+    result = {
+        "site_id": SITE_ID, "scenario_id": SCENARIO_ID,
+        "sph_vs_delft3d": {"available": False, "domain": "MVP_NEAR_FIELD", "time_window_s": 0.0,
+            "metrics": {}, "probes": [], "layers": [], "run_ids": [M3_RUN_ID]},
+        "emulator_vs_physics": {"available": False, "held_out_run_id": None, "metrics": {}, "layers": []},
+        "gp_vs_linear": {}, "when_to_use_key": "when_to_use_sph_delft3d",
+        "caveats": [{"id": "direct_solver_output", "severity": "warning", "text_key": "direct_solver_output"},
+                    {"id": "mvp_reconstructed_forcing", "severity": "warning", "text_key": "mvp_reconstructed_forcing"},
+                    {"id": "comparison_unavailable", "severity": "warning", "text_key": "comparison_unavailable"}],
+        "provenance": {"domain_status": "MVP_NEAR_FIELD", "m3_run_id": M3_RUN_ID, "m4_run_id": M4_RUN_ID,
+                       "comparison_method": "none: SPH attempt under investigation",
+                       "reason": "sph_particle_exclusion_warning present in the SPH run's caveats",
+                       "solver_warnings": m4_meta.get("warnings", []),
+                       "sph_caveats": m4_meta.get("caveats", [])},
+    }
+    out = root / SITE_ID / "compare" / SCENARIO_ID
+    out.mkdir(parents=True, exist_ok=True)
+    sidecar = out / "compare.json"
+    sidecar.write_text(json.dumps(result, indent=2) + "\n")
+    return sidecar
+
+
 def build_comparison(data_dir: str | Path, *, m3_run_dir: str | Path, m4_run_dir: str | Path,
                      terrain_dir: str | Path, routed_manifest: str | Path) -> Path:
     """Rasterize the actual D-Flow time window onto the SPH crop and compare actual M4 maps."""
@@ -27,6 +56,8 @@ def build_comparison(data_dir: str | Path, *, m3_run_dir: str | Path, m4_run_dir
         raise ValueError("comparison requires registered real D-Flow and postprocessed SPH outputs")
     if route.get("source_m3_run_id") != M3_RUN_ID:
         raise ValueError("routed artifact source does not match Teesta MVP D-Flow run")
+    if "sph_particle_exclusion_warning" in m4_meta.get("caveats", []):
+        return _unavailable_comparison(root, m3_meta, m4_meta)
     grid = CanonicalGrid.from_json(terrain / "grid_nearfield.json")
     meta_case = json.loads((m4 / "case" / "case_meta.json").read_text())
     t0, t1 = route["provenance"]["time_window_source_s"]
