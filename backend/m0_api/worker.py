@@ -43,6 +43,7 @@ from datetime import datetime
 from pathlib import Path
 
 from backend.m0_api import jobs, registry, runner, site_status
+from backend.m0_api import onboarding
 from backend.m3_dflowfm import launcher as m3_launcher
 from backend.m7_gee import fetch as gee_fetch
 
@@ -170,6 +171,32 @@ class Worker:
             self._run_recheck(row)
             self._advance(row)
             return True
+
+        # API-created onboarding jobs always carry the contract-validated JSON
+        # SiteConfig. Keep the orchestration here thin: module work stays in
+        # M1, M2 and M5, with products exchanged through their normal files.
+        payload = jobs.payload(row)
+        if kind == "onboarding" and isinstance(payload.get("site_config"), dict):
+            data_dir = Path(payload.get("data_dir") or registry.data_dir())
+            try:
+                if stage == "terrain":
+                    result = onboarding.prepare_terrain(row["site_id"], data_dir, payload["site_config"])
+                elif stage == "breach":
+                    result = onboarding.prepare_breach(row["site_id"], data_dir)
+                elif stage == "design":
+                    result = onboarding.prepare_design(row["site_id"], data_dir, demo=bool(payload.get("demo_mode")))
+                elif stage == "training":
+                    from backend.m5_emulator.train_site import train_site
+                    result = train_site(row["site_id"], data_dir, demo=bool(payload.get("demo_mode")))
+                else:
+                    result = None
+                if result is not None:
+                    jobs.log_event(self.conn, row["job_id"], f"{stage} complete")
+                    self._advance(row)
+                    return True
+            except Exception as exc:
+                jobs.fail(self.conn, row["job_id"], stage, f"{stage}_failed", str(exc))
+                return True
 
         time.sleep(_env_float("SIH26_FAKE_STAGE_S", 3.0))  # FAKE stage work
         self._advance(row)
@@ -343,12 +370,14 @@ class Worker:
                 meta["last_dflow_time_s"] = progress.steps_done
                 self._mark_run(run["run_id"], "running", meta=meta)
                 jobs.log_event(self.conn, row["job_id"], f"D-Flow FM simulation time {progress.steps_done} s")
-            if progress.ok:
+            # A successful .dia and output file can appear before D-Flow has
+            # closed its NetCDF writers. Do not postprocess a live solver.
+            if progress.ok and not alive:
                 self._finish_run(row, run, True)
             elif not alive:
                 result = m3_launcher.check_success(case_dir, model_stem)
                 self._retry_or_fail(row, run, "D-Flow FM failed M3 rule 1", result)
-            return not progress.ok or alive
+            return not (progress.ok and not alive)
         alive = pid is not None and runner.is_alive(pid, run["run_id"])  # check before reading the log (no race)
         progress = runner.read_progress(runner.log_path(run["run_dir"]))
         if progress.finished:
@@ -451,7 +480,19 @@ class Worker:
             jobs.set_progress(self.conn, row["job_id"], None, None, None)
         if new in SIM_STAGES:  # so `simulating` never shows without its 0/N
             payload = jobs.payload(jobs.get_job(self.conn, row["job_id"]))
-            if not payload.get("dflowfm_campaign"):
+            if row["kind"] == "onboarding" and isinstance(payload.get("site_config"), dict):
+                data_dir = Path(payload.get("data_dir") or registry.data_dir())
+                try:
+                    from backend.campaign import run_dflowfm_campaign
+                    run_dflowfm_campaign(
+                        row["site_id"], self.conn, data_dir=data_dir,
+                        sites_dir=data_dir / row["site_id"] / "config",
+                        demo=bool(payload.get("demo_mode")), job_id=row["job_id"],
+                    )
+                except Exception as exc:
+                    current = jobs.get_job(self.conn, row["job_id"])
+                    jobs.fail(self.conn, row["job_id"], current["stage"], "campaign_prepare_failed", str(exc))
+            elif not payload.get("dflowfm_campaign"):
                 self._register_runs(jobs.get_job(self.conn, row["job_id"]))
         log.info("job %s: %s -> %s", row["job_id"], row["stage"], new)
 

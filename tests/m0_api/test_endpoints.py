@@ -176,18 +176,20 @@ def test_job_survives_api_restart():
     assert r.json()["stage"] == "queued"
 
 
-def test_job_runs_to_ready_through_worker():
+def test_job_fails_clearly_when_real_onboarding_inputs_are_missing():
     job_id = client.post(f"{API}/sites", json={"site_config": valid_site_config()}).json()["job_id"]
     worker = Worker()
     worker.acquire_lock()
     worker.recover()
     try:
-        wait_until(lambda: client.get(f"{API}/jobs/{job_id}").json()["stage"] == "ready", worker.tick)
+        wait_until(lambda: client.get(f"{API}/jobs/{job_id}").json()["stage"] == "failed", worker.tick)
     finally:
         worker.close()
     body = client.get(f"{API}/jobs/{job_id}").json()
     assert_matches("job_status.schema.json", body)
     assert body["started_at"] is not None
+    assert body["error"]["error"]["code"] == "terrain_failed"
+    assert "raw inputs are missing" in body["error"]["error"]["message"]
 
 
 # =============================================================================

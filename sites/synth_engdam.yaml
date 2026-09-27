@@ -1,0 +1,207 @@
+schema_version: 1
+site:
+  id: synth_engdam
+  name: Synthetic engineered dam demo
+  region: Synthetic test valley
+  river: Synthetic River
+crs:
+  utm_epsg:
+    value: 32645
+    unit: epsg
+    source: Synthetic test fixture - not real data
+    status: sourced
+domains:
+  far_field:
+    description: Synthetic far-field box (~10 km x 11 km)
+    bbox:
+      value:
+      - 88.45
+      - 27.45
+      - 88.55
+      - 27.55
+      unit: deg
+      source: Synthetic test fixture - not real data
+      status: sourced
+    grid_resolution:
+      value: 30
+      unit: m
+      source: Synthetic test fixture - not real data
+      status: sourced
+    inflow:
+      from: synth_lake
+      location:
+        value:
+        - 88.46
+        - 27.54
+        unit: deg
+        source: Synthetic test fixture - not real data
+        status: sourced
+      base_flow:
+        value: 12.0
+        unit: m^3/s
+        source: Synthetic test fixture; non-real demo input
+        status: sourced
+  near_field:
+    description: Synthetic near-field box (~2 km)
+    bbox:
+      value:
+      - 88.48
+      - 27.48
+      - 88.5
+      - 27.5
+      unit: deg
+      source: Synthetic test fixture - not real data
+      status: sourced
+    grid_resolution:
+      value: 10
+      unit: m
+      source: Synthetic test fixture - not real data
+      status: sourced
+    inflow:
+      from: synth_lake
+      location:
+        value:
+        - 88.485
+        - 27.499
+        unit: deg
+        source: Synthetic test fixture; non-real demo input
+        status: sourced
+dams:
+- id: synth_lake
+  name: Synthetic engineered embankment dam
+  kind: embankment_dam
+  triggered_by: null
+  location:
+    value:
+    - 88.46
+    - 27.545
+    unit: deg
+    source: Synthetic test fixture - not real data
+    status: sourced
+  breach_location:
+    value:
+    - 88.46
+    - 27.54
+    unit: deg
+    source: Synthetic test fixture - not real data
+    status: sourced
+  breach_inputs:
+    water_volume_above_invert:
+      value: 1000000
+      unit: m^3
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    water_height_above_invert:
+      value: 15
+      unit: m
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    breach_height:
+      value: 15
+      unit: m
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    dam_height:
+      value: 25
+      unit: m
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    average_embankment_width:
+      value: 150
+      unit: m
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    dam_type:
+      value: HD
+      unit: enum
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    failure_mode:
+      value: O
+      unit: enum
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    erodibility:
+      value: H
+      unit: enum
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+  volume_elevation:
+    method: area_volume_relation
+    area_volume_exponent_b:
+      value: 1.5
+      unit: '-'
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+  breach_hydrograph:
+    weir_coefficient_rect:
+      value: 1.7
+      unit: m^0.5/s
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    weir_coefficient_side:
+      value: 1.3
+      unit: m^0.5/s
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+    side_slope_z:
+      value: 0.5
+      unit: '-'
+      source: Synthetic test fixture; non-real demo input
+      status: sourced
+points_of_interest:
+- id: town_a
+  name: Town A
+  category: village
+  location:
+    value:
+    - 88.49
+    - 27.49
+    unit: deg
+    source: Synthetic test fixture - not real data
+    status: sourced
+- id: bridge_b
+  name: Bridge B
+  category: bridge
+  location:
+    value:
+    - 88.52
+    - 27.47
+    unit: deg
+    source: Synthetic test fixture - not real data
+    status: sourced
+events:
+- id: synth_event_2020
+  name: Synthetic event
+  kind: hypothetical
+  onset:
+    value: '2020-01-01T00:00:00+05:30'
+    unit: iso8601
+    source: Synthetic test fixture - not real data
+    status: sourced
+  breach_times:
+    synth_lake:
+      value: '2020-01-01T00:00:00+05:30'
+      unit: iso8601
+      source: Synthetic test fixture - not real data
+      status: sourced
+  simulation_start:
+    value: '2019-12-31T22:00:00+05:30'
+    unit: iso8601
+    source: Synthetic test fixture - not real data
+    status: sourced
+  simulation_end:
+    value: '2020-01-02T00:00:00+05:30'
+    unit: iso8601
+    source: Synthetic test fixture - not real data
+    status: sourced
+  imagery_pre_event:
+    value: '2019-12-25'
+    unit: iso8601
+    source: Synthetic test fixture - not real data
+    status: sourced
+  imagery_post_event:
+    value: '2020-01-05'
+    unit: iso8601
+    source: Synthetic test fixture - not real data
+    status: sourced

@@ -150,8 +150,10 @@ class FloodEmulator:
     ) -> "FloodEmulator":
         settings = settings or EmulatorSettings()
         n_runs = X_raw.shape[0]
-        if n_runs < 4:
-            raise ValueError(f"need at least 4 training runs, got {n_runs}")
+        # A four-run library is the documented minimum for LOOCV. Each fold
+        # trains on N-1 runs, so its PCA/GP fit must accept three observations.
+        if n_runs < 3:
+            raise ValueError(f"need at least 3 training runs, got {n_runs}")
         for key in OUTPUT_KEYS:
             if maps[key].shape[0] != n_runs:
                 raise ValueError(f"maps['{key}'] has {maps[key].shape[0]} rows, X_raw has {n_runs}")

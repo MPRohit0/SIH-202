@@ -29,6 +29,24 @@ def coarse_grid() -> CanonicalGrid:
     )
 
 
+def test_four_run_loocv_fits_three_run_training_folds():
+    """Four is the library minimum; each held-out fold has three fit rows."""
+    grid = sw.small_grid()
+    training = lib.build_synthetic_library(grid, n=4, seed=21)
+    ranges = {
+        name: (float(training.X_raw[:, i].min()), float(training.X_raw[:, i].max()))
+        for i, name in enumerate(lib.INPUT_ORDER)
+    }
+    result = loocv.run_loocv(
+        "m5synth", "synthetic", training.X_raw,
+        {"max_depth": training.max_depth, "max_velocity": training.max_velocity,
+         "arrival_time": training.arrival_time},
+        grid, make_input_specs(ranges), training.run_ids, training.t_end_s,
+        settings=EmulatorSettings(seed=21, n_restarts=1), progress=False,
+    )
+    assert len(result.folds) == 4
+
+
 @pytest.fixture(scope="module")
 def library():
     return lib.build_synthetic_library(coarse_grid(), n=N_TRAIN, seed=SEED)

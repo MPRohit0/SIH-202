@@ -197,7 +197,9 @@ def build_scenario_design(cfg: SiteConfig, dam_id: str,
 
     m2_ranges = _m2_ranges(dam)
     caveats = ["moraine_extrapolation"] if dam.kind in ("moraine_dammed_lake", "landslide_dam") else []
-    return design_from_ranges(cfg.site.id, dam_id, water_volume_m3, m2_ranges, caveats, settings)
+    payload = design_from_ranges(cfg.site.id, dam_id, water_volume_m3, m2_ranges, caveats, settings)
+    payload["has_placeholders"] = bool(cfg.placeholder_fields)
+    return payload
 
 
 def write_scenario_design(cfg: SiteConfig, dam_id: str, data_dir: Path | None = None,

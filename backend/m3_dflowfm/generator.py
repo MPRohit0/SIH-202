@@ -6,6 +6,7 @@ Numerical choices and output fields follow ``docs/m3_spec.md``.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import subprocess
@@ -166,7 +167,11 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
     q = np.asarray(hydro_q, dtype=float)
     if t.ndim != 1 or t.shape != q.shape or len(t) < 2 or np.any(np.diff(t) <= 0):
         raise ValueError("M2 hydrograph must contain matching, increasing t_s and q_m3s arrays")
-    end = max(float(stop_s), float(t[-1]) + SPINUP_S)
+    # D-Flow FM requires the simulation end to align with DtUser (30 s here).
+    # M2's hydrograph duration is continuous-valued, so extending exactly to
+    # its final sample can otherwise produce a solver error for some scenarios.
+    dt_user_s = 30.0
+    end = math.ceil(max(float(stop_s), float(t[-1]) + SPINUP_S) / dt_user_s) * dt_user_s
     q_rows = [(0.0, base_flow), (SPINUP_S, base_flow)]
     first = 1 if np.isclose(t[0], 0.0) else 0
     q_rows.extend((float(ts + SPINUP_S), float(base_flow + discharge))
@@ -223,7 +228,7 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
     mdu = FMModel(general=General(pathsrelativetoparent=True),
         geometry=Geometry(netfile=DiskOnlyFileModel(filepath=Path("inputs/domain_net.nc")), inifieldfile=ini,
                           bedlevtype=3, bedlevuni=float(np.nanmin(bed)), waterlevini=float(np.nanmin(bed))),
-        time=Time(refdate="20010101", tstart=0.0, tstop=end, tunit="S", dtuser=30.0, dtmax=30.0, dtinit=0.5),
+        time=Time(refdate="20010101", tstart=0.0, tstop=end, tunit="S", dtuser=dt_user_s, dtmax=dt_user_s, dtinit=0.5),
         physics=Physics(uniffricttype=2), numerics=Numerics(cflmax=0.7),
         external_forcing=ExternalForcing(extforcefilenew=DiskOnlyFileModel(filepath=Path("inputs/forcing.ext"))),
         output=Output(outputdir=Path("output"), obsfile=[DiskOnlyFileModel(filepath=Path("inputs/observations.xyn"))],

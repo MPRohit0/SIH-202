@@ -1443,3 +1443,43 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Next step:** source the missing Teesta M2 physical inputs, then generate and validate its real
   scenario design before launching a campaign. Separately, resolve and implement the XZ9 peak-
   discharge path if Q_p ranges are required, and wire campaign outputs into M5 training/publication.
+
+## 2026-09-27 — Synthetic engineered-dam onboarding demo
+
+- **Built:** added `sites/synth_engdam.yaml` from the existing synthetic site, M1 valley raster
+  generator, and test-only sourced inputs; connected contract JSON onboarding jobs to M1 terrain,
+  M2 breach ranges, M5 four-point scenario design, M3 case/campaign execution, post-processing,
+  and M5 emulator training plus LOOCV. Demo campaigns use four distinct design points at 90 m and
+  a common horizon long enough for the longest M2 hydrograph (9,150 s on this fixture). M3 stop
+  times now align with its 30 s timestep, and the worker waits for D-Flow's process to exit before
+  opening output files.
+- **Verified:** one API-created demo reached `ready` in about 10 s on this machine. All four
+  D-Flow FM cases ran and post-processed; M5 trained and completed four LOOCV folds. The manifest
+  carries `DEMO MODE` and `LOW`. M4 generated a valid near-field case spec for each design point;
+  no DualSPHysics solver run was part of onboarding. M0 focused tests: 156 passed, one unrelated
+  static GeoJSON fixture test failed because its expected file is absent. M1: 61 passed; M2: 130;
+  M3: 5; M4 generator: 7; M5: 224 passed.
+- **Still stubbed or limited:** this repository does not contain the referenced
+  `engineered_dam` FailureSource fixture; the new demo uses existing synthetic test values and is
+  clearly labelled synthetic. M1 still requires raw DEM/land-cover inputs and exactly one selected
+  DEM product; automatic download/comparison/selection is not wired into onboarding. The shared
+  Manning table is placeholder data, so M1/M3 output retains those caveats. M4 case generation is
+  validated, but SPH execution/training is not included in onboarding.
+- **Next step:** add the missing FailureSource fixture if it is expected to be authoritative, then
+  wire real-site DEM selection and decide whether onboarding should launch an SPH comparison after
+  the Delft3D library is ready.
+
+## 2026-09-27 — Integration audit handoff
+
+- **Built:** canonical JSON onboarding now runs M1 → M2 → four-point M5 design → M3 Delft3D
+  campaign/post-processing → M5 training and LOOCV for the synthetic engineered-dam demo. M4
+  case generation accepts the same scenario inputs. The demo reached `ready` with a `DEMO MODE`,
+  `LOW` confidence manifest; no onboarding contract fields were added.
+- **Still stubbed or placeholder:** raw DEM/land-cover acquisition and DEM selection remain an
+  operator-prepared input to M1; the shared Manning table remains placeholder data; the referenced
+  `engineered_dam` FailureSource fixture is absent; M4 is case-generation/handoff only, with no
+  DualSPHysics execution or SPH training. The M0 suite has one unrelated missing-Teesta-GeoJSON
+  fixture failure (156 passed, 1 failed); focused synthetic onboarding tests pass.
+- **Next step:** supply the missing FailureSource fixture if it is authoritative, then implement
+  real-site raster acquisition/selection and validate the same onboarding path against a real site.
+  Treat SPH execution and training as a separate follow-on after its solver environment is ready.

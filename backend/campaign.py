@@ -8,6 +8,7 @@ retains its existing case-generation path.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sqlite3
 from dataclasses import dataclass
@@ -73,7 +74,8 @@ def write_dflowfm_status(data_dir: Path, site_id: str, conn: sqlite3.Connection,
 
 def run_dflowfm_campaign(site_id: str, conn: sqlite3.Connection, data_dir: str | Path | None = None,
                          sites_dir: str | Path | None = None, *, extra: list[str] | None = None,
-                         dry_run: bool = False, demo: bool = False) -> tuple[str | None, list[CampaignCaseResult]]:
+                         dry_run: bool = False, demo: bool = False,
+                         job_id: str | None = None) -> tuple[str | None, list[CampaignCaseResult]]:
     """Build and register M5 design scenarios and explicitly selected extras."""
     from backend.m3_dflowfm import generator
     from backend.m5_emulator import scenario_design
@@ -88,10 +90,11 @@ def run_dflowfm_campaign(site_id: str, conn: sqlite3.Connection, data_dir: str |
     if design is None:
         settings = scenario_design.load_scenario_design_settings()
         if demo:
-            settings = replace(settings, n=1, n_holdout=0)
+            settings = replace(settings, n=4, n_holdout=0)
         design = scenario_design.build_scenario_design(cfg, cfg.domains.far_field.inflow.from_, settings)
     if demo:
-        design["scenarios"] = design["scenarios"][:1]
+        # M5's emulator and LOOCV both require at least four training runs.
+        design["scenarios"] = design["scenarios"][:4]
         design["n"] = len(design["scenarios"])
         for index, item in enumerate(design["scenarios"], 1):
             # The design schema uses kind=design; the registry carries kind=demo.
@@ -129,13 +132,32 @@ def run_dflowfm_campaign(site_id: str, conn: sqlite3.Connection, data_dir: str |
         raise ValueError(f"named extra scenario(s) not found in design: {', '.join(sorted(unknown))}")
     if not entries:
         return None, []
-    job_id = jobs.create_job(conn, "campaign", site_id, demo_mode=demo,
-        payload={"model": "delft3d", "dflowfm_campaign": True, "dry_run": dry_run,
-                 "scenario_ids": [e["scenario_id"] for e in entries], "extra": sorted(selected),
-                 "data_dir": str(data_dir.resolve()),
-                 "sites_dir": str(Path(sites_dir).resolve()) if sites_dir else None})
+    campaign_payload = {"model": "delft3d", "dflowfm_campaign": True, "dry_run": dry_run,
+                        "scenario_ids": [e["scenario_id"] for e in entries], "extra": sorted(selected),
+                        "data_dir": str(data_dir.resolve()),
+                        "sites_dir": str(Path(sites_dir).resolve()) if sites_dir else None}
+    if job_id is None:
+        job_id = jobs.create_job(conn, "campaign", site_id, demo_mode=demo, payload=campaign_payload)
+    else:
+        existing = jobs.get_job(conn, job_id)
+        if existing is None or existing["site_id"] != site_id or existing["kind"] != "onboarding":
+            raise ValueError("an attached campaign job must be an existing onboarding job for this site")
+        jobs.update_payload(conn, job_id, **campaign_payload)
     run_ids, results = [], []
     now = registry.utc_now()
+    demo_stop_s = 9000.0
+    if demo:
+        # Keep all emulator training maps on the same run horizon. A breach
+        # hydrograph can outlast the nominal short demo duration; extend every
+        # scenario to the longest M2 hydrograph, rounded to M3's 30 s timestep.
+        from backend.m2_breach.hydrograph import hydrograph
+        from backend.m3_dflowfm.generator import SPINUP_S
+        dam_id = cfg.domains.far_field.inflow.from_
+        required_end = max(
+            float(hydrograph(site_id, dam_id, entry["params"], sites_dir=sites_dir).t_s[-1]) + SPINUP_S
+            for entry in entries
+        )
+        demo_stop_s = math.ceil(max(demo_stop_s, required_end) / 30.0) * 30.0
     for entry in entries:
         sid, params = entry["scenario_id"], entry["params"]
         run_id = f"{sid}__delft3d"
@@ -149,7 +171,7 @@ def run_dflowfm_campaign(site_id: str, conn: sqlite3.Connection, data_dir: str |
                                               site_id, sid, data_dir=data_dir)
             case_dir, meta = generator.build_case(site_id, sid, params, data_dir=data_dir,
                 sites_dir=sites_dir, case_dir=case_dir,
-                stop_s=9000.0 if demo else generator.DEFAULT_STOP_S, demo=demo)
+                stop_s=demo_stop_s if demo else generator.DEFAULT_STOP_S, demo=demo)
             meta["hydrographs"] = [str(hydro_path.relative_to(data_dir / site_id))]
             run_dir.mkdir(parents=True, exist_ok=True)
             (run_dir / "scenario.json").write_text(json.dumps(entry, indent=2) + "\n", encoding="utf-8")
@@ -245,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--extra", action="append", default=[], metavar="SCENARIO_ID",
                          help="include a named/historical scenario from the M5 design (repeatable)")
     parser.add_argument("--dry-run", action="store_true", help="generate/register cases without launching the solver")
-    parser.add_argument("--demo", action="store_true", help="one truncated 9,000 s D-Flow FM demo run")
+    parser.add_argument("--demo", action="store_true", help="four short D-Flow FM scenarios for demo training")
     parser.add_argument("--data-dir", type=Path, help="override data root (also sets SIH26_DATA_DIR)")
     parser.add_argument("--sites-dir", type=Path, help="directory containing site YAML files")
     args = parser.parse_args(argv)
