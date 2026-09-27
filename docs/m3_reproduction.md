@@ -1,5 +1,41 @@
 # Phase 3: Teesta pilot reproduction
 
+## 2026-09-27 — frozen-pilot reference-path reproduction (controlled; not production)
+
+This controlled run checks the existing generated-case writer against the retained frozen pilot
+using the pilot's own exported geometry, terrain/Manning samples, source series and POIs. It is
+separate from the earlier generated production-domain attempts below. It does not make the
+placeholder pilot inputs suitable for production.
+
+| Item | Frozen pilot | Generated reference case | Result / root cause |
+|---|---|---|---|
+| CRS | EPSG:32645 | EPSG:32645 | exact |
+| Mesh | 18,034 nodes / 51,051 edges / 33,018 faces | same counts; net writer round-trip exact | exact geometry path reused |
+| Terrain/Manning samples | 18,034 node elevations / 33,018 face n values | bitwise numeric equality | previous generated production case sampled a different full M1 domain/mesh |
+| Domain/outlet | pilot reach polygons L002/L004/L006, buffered/clipped; retained 14-point outlet | same pilot geometry helper and outlet coordinates | exact; prior production used all-component M1 domain and perimeter-derived outlet |
+| POIs | four pilot XYN points | byte-identical four points | exact |
+| Breach/source | point source at exported breach location; frozen source series includes 60 m³/s base flow | same location and byte-identical `breach_source.tim` | exact; previous production run used M2 hydrograph plus configured base flow on another geometry |
+| Solver window / outputs | 108,000 s, map 120 s, history 60 s, 30 s user step | same | exact output cadence and duration |
+| MDU diagnostic | mass-balance output disabled | enabled for generated metadata | additive diagnostic only; original common outputs remain equal |
+| Solver results | 901 map / 1,801 history records | same dimensions; all 14 common map variables and 11 common history variables exactly equal | numerical reproduction PASS |
+| Maxima | 65.23152497 m depth; 29.44025086 m/s speed | same | exact |
+| Runtime/resources | retained historic run | 468.5 s elapsed; peak RAM 228.1 MiB | controlled host/run only |
+| Outputs | map 481,977,476 B; history 236,980 B | map 481,977,476 B; history 762,940 B | generated history is larger because it records water-balance variables |
+
+The earlier generated case reconstructed an unrelated M1 domain (3,234 faces before boundary
+segmentization; 77,415 after), connected all components/POIs, and derived a different outlet, while
+the frozen pilot uses a deliberately clipped three-reach geometry and explicit outlet. The
+3,234-face case also predates boundary segmentization. Historical `sourcesink_discharge` `** ERROR`
+attempts were separate rejected boundary-input experiments; the accepted frozen pilot and this
+reproduction use a point source and have no `.dia` error markers.
+
+Added `build_pilot_reproduction_case()` as a controlled reference mode in the existing M3 generator
+module. It consumes only retained pilot exports and the pilot-only config; it does not alter the
+default `build_case()` path or `sites/teesta.yaml`. The production Teesta case remains blocked until
+its real domain and fields are sourced/approved and cascade inputs are resolved. This PASS
+establishes generator/solver equivalence for the frozen pilot setup, not scientific validity or
+production readiness.
+
 ## Decision
 
 [SOURCED] The generated case ran to its configured 30-hour stop. Its `.dia` contains no line starting `** ERROR`, and both `model_map.nc` and `model_his.nc` exist. This satisfies M3 rule 1 for that run.
@@ -89,3 +125,23 @@ because `sites/teesta.yaml` has no trigger threshold and `backend/m2_breach/casc
 blocks a null threshold. The pilot also uses different domain and terrain samples, so the missing
 stage-2 hydrograph is a concrete mismatch but is not yet proven to be the only cause. Keep Phase 3
 reproduction unaccepted and do not begin the 2–3 scenario smoke campaign.
+
+## 2026-09-27 implementation audit — pilot vs generated geometry
+
+This audit compares retained pilot and generated artifacts; it is not a new solver run. The pilot remains a placeholder engineering reference, not a physically validated Teesta model.
+
+| Item | Frozen pilot | Generated case | Finding |
+|---|---|---|---|
+| CRS | EPSG:32645 | EPSG:32645 | Match |
+| Domain source | `domain.pol` reaches L002/L004/L006; 400 m reach buffer; 90 m breach and POI corridors; 30 m simplify; clipped at x = breach − 75 m and the chosen downstream reach edge | Full M1 `domain.gpkg` MultiPolygon; connectors to every component and POI; simplify by half mesh spacing; no equivalent pilot clip | **Root cause:** different computational domains and boundary geometry |
+| Mesh | 18,034 nodes / 51,051 edges / 33,018 faces | Original reproduction: 3,234 faces; retained segmented 90 m follow-up: 77,415 faces | Neither matches. The 3,234-face case predates boundary segmentization; segmentization fixed long unconstrained edges but produces a denser mesh on the unsmoothed full M1 geometry |
+| Source | Point source at UTM (618095.227, 3087257.641), pilot `.tim` hydrograph | Same point-source coordinates; M2-derived `.tim` with configured 60 m³/s base flow added once | Coordinates and early forcing rows match to text precision; the current point-source format runs. Rejected `sourcesink_discharge` `.bc` attempts are separate historical failures |
+| POIs | Four pilot locations in EPSG:32645 | Same four coordinates and IDs | Match |
+| Terrain fields | M1 `dem.tif` and `roughness.tif`, interpolated at pilot mesh nodes/faces | Same source rasters, sampled at a different mesh | Source products match; discrete samples differ with mesh locations |
+| Outlet | Pilot's chosen downstream reach edge and pilot `.pli` | Outlet derived from the full M1 centreline endpoint and nearest perimeter segment | **Root cause:** open-boundary geometry differs |
+| Solver setup | 30 h; 2 h spin-up; 30 s timestep; 60 s history; 120 s map | Same duration, spin-up and timesteps; 120 s map in original and 60 s in later sampling trial | Substantially matches; output cadence alone did not fix behavior |
+| Results | Global max 65.2315 m / 29.4403 m/s; Chungthang 11.1348 m, 5.1631 m/s, arrival 55,860 s | Original coarse case: 1,841.4446 m / 0.0293 m/s; retained segmented case: 67.38 m / 33.14 m/s; all four POIs dry, nearest wet face 3.70 km from Chungthang | Segmentation brought global maxima near the pilot, but wetting and POI behavior still fail |
+
+The supported implementation diagnosis is **domain/mesh/outlet non-equivalence**, not a proven bad scientific parameter. The pilot selects and smooths/clips a reduced reach; the production generator uses the full M1 domain with different connector and outlet algorithms. The pilot's 400 m buffer, 90 m corridors and clipping rules are documented pilot choices. They can be reused only in a clearly scoped pilot-reproduction path; they are not real-site measurements. The absent cascade stage is not itself a pilot-reproduction mismatch: the frozen reference also uses only the South Lhonak source. It remains a separate production-input blocker for the real two-dam scenario.
+
+**Code/config change in this audit:** none. Boundary segmentization and 60 s map sampling are prior changes; the retained segmented run results above are their post-change evidence. Reproduction remains **FAILED**. No production campaign is authorized by this report.

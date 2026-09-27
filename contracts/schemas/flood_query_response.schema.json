@@ -41,7 +41,9 @@
     "method": {
       "enum": [
         "gp_emulator",
-        "empirical_fallback"
+        "empirical_fallback",
+        "delft3d_direct",
+        "sph_direct"
       ]
     },
     "mode": {

@@ -71,7 +71,7 @@ class TestRunEndToEnd:
     def test_gee_meta_records_settings_and_has_placeholders(self, tmp_path):
         fetch.run("synth", settings=GeeSettings(months_back=1), provider=SyntheticProvider(), data_dir=tmp_path)
         meta = json.loads((cache.gee_dir("synth", tmp_path) / "gee_meta.json").read_text())
-        assert meta["contract_version"] == "0.2.0"
+        assert meta["contract_version"] == "0.3.0"
         assert meta["site_id"] == "synth"
         assert "months_back" in meta["settings"]
         assert meta["has_placeholders"] is False  # synth_lake's location and crs.utm_epsg are both sourced

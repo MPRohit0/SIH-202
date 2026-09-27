@@ -122,6 +122,14 @@ class Worker:
                         self._finish_run(row, run, True)
                     elif not alive:
                         self._retry_or_fail(row, run, "D-Flow FM process ended during worker restart")
+                elif run_meta.get("solver") == "sph":
+                    from backend.m4_sph import launcher as sph_launcher
+                    alive = pid is not None and runner.is_alive(pid, run["run_id"])
+                    result = sph_launcher.read_result(run["run_dir"], int(run_meta.get("attempt", 0)))
+                    if result is not None and not alive:
+                        self._finish_run(row, run, bool(result.get("success")))
+                    elif not alive:
+                        self._retry_or_fail(row, run, "DualSPHysics launcher ended without an execution record")
                 else:
                     alive = pid is not None and runner.is_alive(pid, run["run_id"])
                     progress = runner.read_progress(runner.log_path(run["run_dir"]))
@@ -166,6 +174,11 @@ class Worker:
             self._advance(row)
             return True
         if stage in SIM_STAGES:
+            stage_payload = jobs.payload(row)
+            if kind == "onboarding" and stage_payload.get("i1_synthetic"):
+                jobs.log_event(self.conn, job_id, "synthetic demo run artifacts ready; no solver was executed")
+                self._advance(row)
+                return True
             return self._tick_simulating(row)
         if kind == "recheck" and stage == "checking":
             self._run_recheck(row)
@@ -180,7 +193,19 @@ class Worker:
             data_dir = Path(payload.get("data_dir") or registry.data_dir())
             try:
                 if stage == "terrain":
-                    result = onboarding.prepare_terrain(row["site_id"], data_dir, payload["site_config"])
+                    if payload.get("i1_synthetic"):
+                        from backend.m0_api.synthetic_demo import create_site_artifacts
+                        onboarding.materialize_site_config(row["site_id"], payload["site_config"], data_dir)
+                        create_site_artifacts(row["site_id"], data_dir)
+                        result = data_dir / row["site_id"] / "terrain/grid.json"
+                    else:
+                        result = onboarding.prepare_terrain(row["site_id"], data_dir, payload["site_config"])
+                elif stage == "breach" and payload.get("i1_synthetic"):
+                    result = True
+                elif stage == "design" and payload.get("i1_synthetic"):
+                    result = True
+                elif stage == "training" and payload.get("i1_synthetic"):
+                    result = True
                 elif stage == "breach":
                     result = onboarding.prepare_breach(row["site_id"], data_dir)
                 elif stage == "design":
@@ -269,6 +294,9 @@ class Worker:
     def _tick_simulating(self, row: sqlite3.Row) -> bool:
         job_id = row["job_id"]
         if not jobs.payload(row).get("run_ids"):
+            if jobs.payload(row).get("sph_campaign"):
+                self._advance(row)
+                return True
             self._register_runs(row)
             return True
         row = jobs.get_job(self.conn, job_id)
@@ -284,7 +312,7 @@ class Worker:
             return True
 
         failed = [r for r in runs if r["status"] == "failed"]
-        if failed and jobs.payload(row).get("dflowfm_campaign"):
+        if failed and (jobs.payload(row).get("dflowfm_campaign") or jobs.payload(row).get("sph_campaign")):
             jobs.fail(self.conn, job_id, row["stage"], "run_failed",
                       f"Campaign contains failed run {failed[0]['run_id']}.",
                       {"run_id": failed[0]["run_id"], "error": failed[0]["error"]})
@@ -329,7 +357,12 @@ class Worker:
         job_payload = jobs.payload(row)
         current_meta = json.loads(run["meta_json"] or "{}")
         case_dir = current_meta.get("case_dir", job_payload.get("case_dir"))
-        if case_dir:
+        if job_payload.get("sph_campaign"):
+            from backend.m4_sph import launcher as sph_launcher
+            attempt = int(current_meta.get("attempt", 0))
+            proc = sph_launcher.launch_case(case_dir, run["run_dir"], job_payload.get("binaries_dir"), attempt)
+            solver_meta = {"solver": "sph", "case_dir": str(Path(case_dir).resolve()), "attempt": attempt}
+        elif case_dir:
             model = job_payload.get("model_file", "model.mdu") if job_payload.get("dflowfm_campaign") else job_payload.get("model", "model.mdu")
             proc = m3_launcher.launch_case(case_dir, run["run_dir"], model=model)
             model_stem = Path(model).stem
@@ -378,6 +411,22 @@ class Worker:
                 result = m3_launcher.check_success(case_dir, model_stem)
                 self._retry_or_fail(row, run, "D-Flow FM failed M3 rule 1", result)
             return not (progress.ok and not alive)
+        if meta.get("solver") == "sph":
+            from backend.m4_sph import launcher as sph_launcher
+            alive = pid is not None and runner.is_alive(pid, run["run_id"])
+            result = sph_launcher.read_result(run["run_dir"], int(meta.get("attempt", 0)))
+            if result is not None and not alive:
+                if meta.get("started_epoch_s") is not None:
+                    result["wall_time_s"] = round(time.time() - meta["started_epoch_s"], 3)
+                meta["execution"] = result
+                self._mark_run(run["run_id"], "running", meta=meta)
+                refreshed = self.conn.execute("SELECT * FROM runs WHERE run_id=?", (run["run_id"],)).fetchone()
+                self._finish_run(row, refreshed, bool(result.get("success")))
+                return True
+            if not alive:
+                self._retry_or_fail(row, run, "DualSPHysics launcher ended without an execution record")
+                return True
+            return False
         alive = pid is not None and runner.is_alive(pid, run["run_id"])  # check before reading the log (no race)
         progress = runner.read_progress(runner.log_path(run["run_dir"]))
         if progress.finished:
@@ -393,8 +442,9 @@ class Worker:
         if "started_epoch_s" in meta:
             meta["wall_time_s"] = round(time.time() - meta["started_epoch_s"], 3)
         job_id = row["job_id"]
+        payload = jobs.payload(jobs.get_job(self.conn, job_id))
         if ok:
-            if jobs.payload(jobs.get_job(self.conn, job_id)).get("dflowfm_campaign"):
+            if payload.get("dflowfm_campaign"):
                 try:
                     from backend.m3_common.postprocess import PostprocessConfig, postprocess_dflowfm
                     from backend.m5_emulator.run_cache import register_run
@@ -425,17 +475,62 @@ class Worker:
                 except Exception as exc:
                     self._retry_or_fail(row, run, f"post-processing/cache load failed: {exc}")
                     return
+            elif payload.get("sph_campaign"):
+                try:
+                    from backend.m4_sph.postprocess import postprocess_run
+                    data_dir = Path(payload.get("data_dir") or registry.data_dir())
+                    terrain_dir = Path(payload.get("terrain_dir") or data_dir / row["site_id"] / "terrain")
+                    execution = meta.get("execution") or {}
+                    run_root = Path(run["run_dir"])
+                    from backend.m4_sph.settings import load_sph_settings
+                    sph_settings = load_sph_settings(**payload.get("sph_settings", {}))
+                    run_meta = postprocess_run(run_root, terrain_dir, run_root / "raw" / "data",
+                                               settings=sph_settings, binaries_dir=payload.get("binaries_dir"))
+                    case_meta = json.loads((run_root / "case" / "case_meta.json").read_text())
+                    for key in ("run_id", "label", "domain_status", "output_classification",
+                                "source_m3_run_id", "routed_discharge_csv", "routed_discharge_manifest",
+                                "terrain_provenance", "comparison_section_id", "provenance"):
+                        if key in case_meta:
+                            run_meta[key] = case_meta[key]
+                    run_meta["output_classification"] = "REAL_SIMULATION_ARTIFACT"
+                    run_meta["solver_status"] = "REAL_SOLVER_OUTPUT"
+                    run_meta.update({
+                        "wall_time_s": execution.get("wall_time_s", meta.get("wall_time_s")),
+                        "peak_vram_mb": execution.get("peak_vram_mb"),
+                        "started_at": execution.get("started_at", run_meta["started_at"]),
+                        "finished_at": execution.get("finished_at", run_meta["finished_at"]),
+                        "execution": execution,
+                        "artifact_paths": {"case": meta["case_dir"], "raw": str(run_root / "raw"),
+                                           "run_meta": str(run_root / "run_meta.json"),
+                                           "summary_nearfield": str(run_root / "summary_nearfield"),
+                                           **({"timeseries": str(run_root / "timeseries.csv")}
+                                              if (run_root / "timeseries.csv").is_file() else {}),
+                                           "surfaces": str(run_root / "surfaces")},
+                    })
+                    (run_root / "run_meta.json").write_text(json.dumps(run_meta, indent=2) + "\n")
+                    meta.update(run_meta)
+                    self._mark_run(run["run_id"], "postprocessed", meta=meta, finished_at=registry.utc_now())
+                except Exception as exc:
+                    self._retry_or_fail(row, run, f"SPH post-processing failed: {exc}")
+                    return
             else:
                 self._mark_run(run["run_id"], "completed", meta=meta, finished_at=registry.utc_now())
-            completed = sum(r["status"] == "completed" for r in jobs.job_runs(self.conn, jobs.get_job(self.conn, job_id)))
-            if jobs.payload(jobs.get_job(self.conn, job_id)).get("dflowfm_campaign"):
+            current_payload = jobs.payload(jobs.get_job(self.conn, job_id))
+            if current_payload.get("dflowfm_campaign") or current_payload.get("sph_campaign"):
                 completed = sum(r["status"] == "postprocessed" for r in jobs.job_runs(self.conn, jobs.get_job(self.conn, job_id)))
+            else:
+                completed = sum(r["status"] == "completed" for r in jobs.job_runs(self.conn, jobs.get_job(self.conn, job_id)))
             jobs.set_progress(self.conn, job_id, completed, row["progress_total"], "runs")
             jobs.log_event(self.conn, job_id, f"run {run['run_id']} completed")
         else:
+            if payload.get("dflowfm_campaign") or payload.get("sph_campaign"):
+                self._retry_or_fail(row, run, "solver reported failure", {"solver_result": meta.get("execution")})
+                return
             self._mark_run(run["run_id"], "failed", meta=meta, finished_at=registry.utc_now(), error="solver reported failure")
-            jobs.fail(self.conn, job_id, row["stage"], "run_failed",
-                      f"Run {run['run_id']} reported failure.", {"run_id": run["run_id"]})
+            if not (jobs.payload(jobs.get_job(self.conn, job_id)).get("dflowfm_campaign") or
+                    jobs.payload(jobs.get_job(self.conn, job_id)).get("sph_campaign")):
+                jobs.fail(self.conn, job_id, row["stage"], "run_failed",
+                          f"Run {run['run_id']} reported failure.", {"run_id": run["run_id"]})
 
         payload = jobs.payload(jobs.get_job(self.conn, job_id))
         if payload.get("dflowfm_campaign"):
@@ -445,15 +540,23 @@ class Worker:
     def _retry_or_fail(self, row: sqlite3.Row, run: sqlite3.Row, message: str, details: dict | None = None) -> None:
         """Persist one retry before making a run/job terminally failed."""
         meta = json.loads(run["meta_json"] or "{}")
-        if jobs.payload(row).get("dflowfm_campaign") and int(meta.get("attempt", 0)) < 1:
+        payload = jobs.payload(row)
+        is_solver_campaign = payload.get("dflowfm_campaign") or payload.get("sph_campaign")
+        if is_solver_campaign and int(meta.get("attempt", 0)) < 1:
+            if payload.get("sph_campaign"):
+                from backend.m4_sph import launcher as sph_launcher
+                sph_launcher.archive_failed_output(run["run_dir"], int(meta.get("attempt", 0)))
             meta["attempt"] = int(meta.get("attempt", 0)) + 1
             meta.pop("pid", None)
             meta.pop("started_epoch_s", None)
             self._mark_run(run["run_id"], "queued", meta=meta, error=None)
             jobs.log_event(self.conn, row["job_id"], f"retrying {run['run_id']} once: {message}")
         else:
+            meta.update({"failure_reason": message, **(details or {})})
+            if is_solver_campaign:
+                meta.update({"solver_status": "FAILED", "output_classification": "FAILED_SOLVER_ATTEMPT"})
             self._mark_run(run["run_id"], "failed", meta=meta, error=message, finished_at=registry.utc_now())
-            if not jobs.payload(row).get("dflowfm_campaign"):
+            if not is_solver_campaign:
                 jobs.fail(self.conn, row["job_id"], row["stage"], "run_failed",
                           f"Run {run['run_id']} failed: {message}", {"run_id": run["run_id"], **(details or {})})
         if jobs.payload(jobs.get_job(self.conn, row["job_id"])).get("dflowfm_campaign"):
@@ -476,6 +579,11 @@ class Worker:
     def _advance(self, row: sqlite3.Row) -> None:
         new = jobs.next_stage(row["kind"], row["stage"])
         jobs.set_stage(self.conn, row["job_id"], row["stage"], new)
+        payload = jobs.payload(jobs.get_job(self.conn, row["job_id"]))
+        if row["kind"] == "onboarding" and payload.get("i1_synthetic") and new == "ready":
+            data_dir = Path(payload.get("data_dir") or registry.data_dir())
+            marker = data_dir / row["site_id"] / "demo_ready.json"
+            marker.write_text(json.dumps({"synthetic": True, "demo": True, "created_at": registry.utc_now()}))
         if row["stage"] in SIM_STAGES:  # run counts describe `simulating` only
             jobs.set_progress(self.conn, row["job_id"], None, None, None)
         if new in SIM_STAGES:  # so `simulating` never shows without its 0/N
@@ -483,16 +591,19 @@ class Worker:
             if row["kind"] == "onboarding" and isinstance(payload.get("site_config"), dict):
                 data_dir = Path(payload.get("data_dir") or registry.data_dir())
                 try:
-                    from backend.campaign import run_dflowfm_campaign
-                    run_dflowfm_campaign(
-                        row["site_id"], self.conn, data_dir=data_dir,
-                        sites_dir=data_dir / row["site_id"] / "config",
-                        demo=bool(payload.get("demo_mode")), job_id=row["job_id"],
-                    )
+                    if payload.get("i1_synthetic"):
+                        jobs.update_payload(self.conn, row["job_id"], dflowfm_campaign=True)
+                    else:
+                        from backend.campaign import run_dflowfm_campaign
+                        run_dflowfm_campaign(
+                            row["site_id"], self.conn, data_dir=data_dir,
+                            sites_dir=data_dir / row["site_id"] / "config",
+                            demo=bool(payload.get("demo_mode")), job_id=row["job_id"],
+                        )
                 except Exception as exc:
                     current = jobs.get_job(self.conn, row["job_id"])
                     jobs.fail(self.conn, row["job_id"], current["stage"], "campaign_prepare_failed", str(exc))
-            elif not payload.get("dflowfm_campaign"):
+            elif not payload.get("dflowfm_campaign") and not payload.get("sph_campaign"):
                 self._register_runs(jobs.get_job(self.conn, row["job_id"]))
         log.info("job %s: %s -> %s", row["job_id"], row["stage"], new)
 

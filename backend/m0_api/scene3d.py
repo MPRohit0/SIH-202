@@ -238,7 +238,7 @@ def build_scene(query_id: str, vertical_exaggeration: float) -> dict | None:
         [near_left + near_width, near_top],
     ]
     return {
-        "contract_version": "0.2.0",
+        "contract_version": "0.3.0",
         "query_id": query_id,
         "frame": {
             "crs_epsg": frame["crs_epsg"], "origin_x_utm_m": frame["origin_x"], "origin_y_utm_m": frame["origin_y"],

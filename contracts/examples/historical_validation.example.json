@@ -1,5 +1,5 @@
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "site_id": "teesta",
   "event_id": "teesta_2023",
   "observed": {
@@ -95,7 +95,7 @@
   ],
   "provenance": {
     "method": "gp_emulator",
-    "contract_version": "0.2.0",
+    "contract_version": "0.3.0",
     "code_version": "mock-0.0.0",
     "solver_versions": {
       "delft3d": "mock-0.0.0",

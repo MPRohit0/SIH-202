@@ -37,10 +37,13 @@ from fastapi import Body, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from backend.m0_api import jobs, mock_files, mocks, registry, rendering, schemas, site_status
+from backend.m0_api import jobs, mock_files, mocks, onboarding, registry, rendering, schemas, site_status
 from backend.m0_api import compare as api_compare
+from backend.m0_api import real_query
 from backend.m0_api import scene3d as api_scene3d
 from backend.m0_api import timeline as api_timeline
+from backend.m0_api import real_timeline
+from backend.m0_api import real_impact
 from backend.m7_gee import cache as gee_cache
 from backend.m7_gee import fetch as gee_fetch
 from backend.m7_gee import imagery as gee_imagery
@@ -48,12 +51,12 @@ from backend.shared.site_config import SiteConfigError, load_site_config
 
 log = logging.getLogger("m0.main")
 
-app = FastAPI(title="SIH26 GLOF/dam-break decision-support API", version="0.2.0")
+app = FastAPI(title="SIH26 GLOF/dam-break decision-support API", version="0.3.0")
 
 # Contract §5: "CORS allows the Vite dev server (http://localhost:5173)."
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -82,7 +85,7 @@ def _validated_json(schema_name: str, payload: Any, status_code: int = 200) -> J
 
 
 def _require_known_site(site_id: str) -> None:
-    if site_id not in mocks.KNOWN_SITE_IDS:
+    if site_id not in mocks.KNOWN_SITE_IDS and not (registry.data_dir() / site_id / "config" / f"{site_id}.yaml").is_file():
         raise HTTPException(
             status_code=404,
             detail=mocks.error("site_not_found", f"No site '{site_id}' is configured.", {"site_id": site_id}),
@@ -121,6 +124,12 @@ def get_styles() -> JSONResponse:
 @app.get(f"{API}/sites")
 def list_sites() -> JSONResponse:
     sites = mocks.mock_response("site_list.example.json")
+    for config_path in registry.data_dir().glob("*/config/demo_valley.yaml"):
+        site_id = config_path.parent.parent.name
+        if not any(item["site_id"] == site_id for item in sites):
+            cfg = load_site_config(site_id, sites_dir=config_path.parent)
+            ready = (config_path.parent.parent / "demo_ready.json").is_file()
+            sites.append({"site_id":site_id,"name":cfg.site.name,"status":"demo_mode" if ready else "onboarding","status_reason_key":"synthetic_demo","emulator_ready":False,"models_available":["delft3d"],"bbox_lonlat":cfg.domains.far_field.bbox.value,"events":[e.id for e in cfg.events],"has_placeholders":bool(cfg.has_placeholders)})
     sites = [site_status.overlay(s["site_id"], s) for s in sites]
     return _validated_json("site_list.schema.json", sites)
 
@@ -128,6 +137,21 @@ def list_sites() -> JSONResponse:
 @app.get(f"{API}/sites/{{site_id}}")
 def get_site(site_id: SiteIdPath) -> JSONResponse:
     _require_known_site(site_id)
+    if site_id == "demo_valley" and (registry.data_dir() / site_id / "config" / f"{site_id}.yaml").is_file():
+        cfg = load_site_config(site_id, sites_dir=registry.data_dir() / site_id / "config")
+        detail = mocks.mock_response("site_detail.example.json", site_id=site_id)
+        ready = (registry.data_dir() / site_id / "demo_ready.json").is_file()
+        detail.update({"site_id":site_id,"name":cfg.site.name,"status":"demo_mode" if ready else "onboarding","status_reason_key":"synthetic_demo",
+                       "has_placeholders":bool(cfg.has_placeholders),"bbox_lonlat":cfg.domains.far_field.bbox.value,"emulator_ready":False,"models_available":["delft3d"],"events":[e.id for e in cfg.events]})
+        west, south, east, north = cfg.domains.far_field.bbox.value
+        detail["domain"] = {"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[west,south],[east,south],[east,north],[west,north],[west,south]]]},"properties":{"synthetic":True}}]}
+        detail["centreline"] = {"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[[(west+east)/2,north],[(west+east)/2,(south+north)/2],[(west+east)/2,south]]},"properties":{"synthetic":True}}]}
+        detail["dams"] = [{"dam_id":f"{site_id}__{dam.id}","name":dam.name,"kind":dam.kind,"order":i+1,"key_specs":{}} for i,dam in enumerate(cfg.dams)]
+        detail["emulator_inputs"] = []
+        detail["pois"] = {"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":poi.location.value},"properties":{"poi_id":f"{site_id}__poi__{poi.id}","name":poi.name,"kind":poi.category,"chainage_m":float(i*100)}} for i,poi in enumerate(cfg.points_of_interest)]}
+        detail["validation_summary"] = {"extent":"UNKNOWN","depth":"UNKNOWN","arrival":"UNKNOWN","velocity":"UNKNOWN"}
+        detail["caveats"] = [{"id":"synthetic_demo","severity":"warning","text_key":"caveat_synthetic_demo"}]
+        return _validated_json("site_detail.schema.json", detail)
     detail = mocks.mock_response("site_detail.example.json", site_id=site_id)
     detail = site_status.overlay(site_id, detail)
     return _validated_json("site_detail.schema.json", detail)
@@ -154,9 +178,12 @@ def create_site(body: Annotated[dict, Body(...)]) -> JSONResponse:
                 status_code=409,
                 detail=mocks.error("site_onboarding_in_progress", f"Site '{site_id}' already has an active job.", {"site_id": site_id, "job_id": active}),
             )
-        job_id = jobs.create_job(conn, "onboarding", site_id, demo_mode=bool(body.get("demo_mode", False)), payload={"site_config": site_config})
+        job_id = jobs.create_job(conn, "onboarding", site_id, demo_mode=bool(body.get("demo_mode", False)),
+                                 payload={"site_config": site_config, "i1_synthetic": site_id == "demo_valley" and bool(body.get("demo_mode", False))})
     finally:
         conn.close()
+    if site_id == "demo_valley" and body.get("demo_mode"):
+        onboarding.materialize_site_config(site_id, site_config, registry.data_dir())
     return _validated_json("site_create_accepted.schema.json", {"job_id": job_id, "site_id": site_id}, status_code=202)
 
 
@@ -228,15 +255,62 @@ def rerun_site(site_id: SiteIdPath) -> JSONResponse:
 def query_flood(body: Annotated[dict, Body(...)]) -> JSONResponse:
     _validate_request_body("flood_query_request.schema.json", body)
     _require_known_site(body["site_id"])
-    payload = mocks.mock_response("flood_query_response.example.json", site_id=body["site_id"])
-    payload["mode"] = body["mode"]
+    if (registry.data_dir() / body["site_id"] / "demo_ready.json").is_file():
+        from datetime import datetime, timezone
+        import secrets
+        query_id = f"q_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_{secrets.token_hex(3)}"
+        demo_cfg = load_site_config(body["site_id"], sites_dir=registry.data_dir() / body["site_id"] / "config")
+        payload = __import__("backend.m0_api.synthetic_demo", fromlist=["create_query"]).create_query(
+            body["site_id"], query_id, body, registry.data_dir(), list(demo_cfg.placeholder_fields))
+        conn = registry.connect()
+        try:
+            with conn:
+                conn.execute("INSERT INTO queries (query_id,site_id,request_json,status,result_path,created_at) VALUES (?,?,?,?,?,?)",
+                    (query_id, body["site_id"], __import__("json").dumps(body), "complete",
+                     str(registry.data_dir() / body["site_id"] / "queries" / query_id / "result.json"), registry.utc_now()))
+        finally:
+            conn.close()
+    else:
+        scenario_id = body.get("scenario_id")
+        if not isinstance(scenario_id, str) or not scenario_id:
+            raise HTTPException(status_code=422, detail=mocks.error(
+                "scenario_id_required", "Real scenario queries require a registered scenario_id."))
+        if body["mode"] != "scenario":
+            raise HTTPException(status_code=422, detail=mocks.error(
+                "unsupported_direct_query_mode", "Direct registered runs support scenario mode only."))
+        from datetime import datetime, timezone
+        import secrets
+        import json
+        query_id = f"q_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_{secrets.token_hex(3)}"
+        try:
+            payload = real_query.resolve_registered_run(body["site_id"], scenario_id, body["model"],
+                                                        query_id, body)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=mocks.error(
+                "real_run_not_found", str(exc), {"site_id": body["site_id"], "scenario_id": scenario_id})) from exc
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=422, detail=mocks.error("invalid_run_artifacts", str(exc))) from exc
+        conn = registry.connect()
+        try:
+            with conn:
+                conn.execute("INSERT INTO queries (query_id,site_id,request_json,status,result_path,created_at) VALUES (?,?,?,?,?,?)",
+                    (query_id, body["site_id"], json.dumps(body), "complete",
+                     str(registry.data_dir() / body["site_id"] / "queries" / query_id / "result.json"), registry.utc_now()))
+        finally:
+            conn.close()
     return _validated_json("flood_query_response.schema.json", payload)
 
 
 @app.get(f"{API}/flood/{{query_id}}")
 def get_flood(query_id: QueryIdPath) -> JSONResponse:
-    payload = mocks.mock_response("flood_query_response.example.json", query_id=query_id)
-    return _validated_json("flood_query_response.schema.json", payload)
+    conn = registry.connect()
+    try:
+        row = conn.execute("SELECT result_path FROM queries WHERE query_id=?", (query_id,)).fetchone()
+    finally:
+        conn.close()
+    if row and row["result_path"] and __import__("pathlib").Path(row["result_path"]).is_file():
+        return _validated_json("flood_query_response.schema.json", __import__("json").loads(__import__("pathlib").Path(row["result_path"]).read_text()))
+    raise HTTPException(status_code=404, detail=mocks.error("query_not_found", f"No result artifact for query '{query_id}'.", {"query_id":query_id}))
 
 
 # =============================================================================
@@ -250,7 +324,7 @@ def get_flood_layer(query_id: QueryIdPath, layer_filename: str) -> Response:
     # Contract §1.8: real GeoTIFFs land at data/<site_id>/queries/<query_id>/layers/.
     # M5 doesn't produce them yet, so this is a real render only when one has been
     # placed there by hand (e.g. a test); otherwise fall back to the mock PNG.
-    for site_id in mocks.KNOWN_SITE_IDS:
+    for site_id in (*mocks.KNOWN_SITE_IDS, *(p.name for p in registry.data_dir().iterdir() if p.is_dir())):
         tif_path = registry.data_dir() / site_id / "queries" / query_id / "layers" / f"{layer_id}.tif"
         if tif_path.is_file():
             try:
@@ -258,7 +332,7 @@ def get_flood_layer(query_id: QueryIdPath, layer_filename: str) -> Response:
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=mocks.error("invalid_layer", str(exc))) from exc
             return Response(content=png_bytes, media_type="image/png")
-    return Response(content=mock_files.mock_png(), media_type="image/png")
+    raise HTTPException(status_code=404, detail=mocks.error("file_not_found", f"No generated raster layer '{layer_id}' for query '{query_id}'."))
 
 
 # =============================================================================
@@ -266,7 +340,11 @@ def get_flood_layer(query_id: QueryIdPath, layer_filename: str) -> Response:
 # =============================================================================
 @app.get(f"{API}/flood/{{query_id}}/extent.geojson")
 def get_flood_extent(query_id: QueryIdPath) -> JSONResponse:
-    return _validated_json("geojson_feature_collection.schema.json", mocks.mock_response("extent_geojson.example.json"))
+    for site_dir in registry.data_dir().iterdir():
+        path = site_dir / "queries" / query_id / "extent.geojson"
+        if path.is_file():
+            return _validated_json("geojson_feature_collection.schema.json", __import__("json").loads(path.read_text()))
+    raise HTTPException(status_code=404, detail=mocks.error("query_not_found", f"No extent artifact for query '{query_id}'.", {"query_id":query_id}))
 
 
 # =============================================================================
@@ -276,7 +354,27 @@ def get_flood_extent(query_id: QueryIdPath) -> JSONResponse:
 def get_flood_timeline(query_id: QueryIdPath, interval_s: int = Query(300, ge=60, le=86400)) -> JSONResponse:
     found = api_timeline.find_query_timeline_dir(query_id)
     if found is None:
-        return _validated_json("timeline.schema.json", mocks.mock_response("timeline.example.json", query_id=query_id))
+        # Direct solver queries may not have an M5 arrival ensemble. Build
+        # their sparse playback frames from the retained FM map records.
+        for site_dir in registry.data_dir().iterdir():
+            result_path = site_dir / "queries" / query_id / "result.json"
+            if not result_path.is_file():
+                continue
+            result = __import__("json").loads(result_path.read_text())
+            run_ids = result.get("provenance", {}).get("run_ids", [])
+            if result.get("method") not in ("delft3d_direct", "sph_direct") or not run_ids:
+                break
+            if result.get("method") == "delft3d_direct":
+                try:
+                    timeline_dir = real_timeline.create_timeline(site_dir, result_path.parent, run_ids[0])
+                except (FileNotFoundError, ValueError) as exc:
+                    raise HTTPException(status_code=404, detail=mocks.error(
+                        "artifact_not_found", f"No usable real solver timeline for '{query_id}': {exc}",
+                        {"query_id": query_id})) from exc
+                found = (site_dir.name, timeline_dir)
+            break
+    if found is None:
+        raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"No timeline artifacts for query '{query_id}'.", {"query_id":query_id}))
     site_id, timeline_dir = found
     response = api_timeline.build_response(site_id, timeline_dir, query_id, interval_s)
     if len(response["frames"]) > api_timeline.MAX_FRAMES:
@@ -290,7 +388,24 @@ def get_flood_timeline(query_id: QueryIdPath, interval_s: int = Query(300, ge=60
 # =============================================================================
 @app.get(f"{API}/impact/{{query_id}}")
 def get_impact(query_id: QueryIdPath) -> JSONResponse:
-    return _validated_json("impact.schema.json", mocks.mock_response("impact.example.json", query_id=query_id))
+    for site_dir in registry.data_dir().iterdir():
+        path = site_dir / "queries" / query_id / "impact.json"
+        result_path = site_dir / "queries" / query_id / "result.json"
+        if result_path.is_file():
+            result = __import__("json").loads(result_path.read_text())
+            if result.get("method") == "delft3d_direct":
+                try:
+                    impact = real_impact.build_impact(site_dir, result_path.parent)
+                except (FileNotFoundError, ValueError) as exc:
+                    raise HTTPException(status_code=404, detail=mocks.error(
+                        "artifact_not_found", f"Cannot derive impact from registered solver artifacts: {exc}",
+                        {"query_id": query_id})) from exc
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(__import__("json").dumps(impact, indent=2) + "\n", encoding="utf-8")
+                return _validated_json("impact.schema.json", impact)
+        if path.is_file():
+            return _validated_json("impact.schema.json", __import__("json").loads(path.read_text()))
+    raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"No impact artifact for query '{query_id}'.", {"query_id":query_id}))
 
 
 # =============================================================================
@@ -299,11 +414,65 @@ def get_impact(query_id: QueryIdPath) -> JSONResponse:
 @app.get(f"{API}/compare/{{site_id}}")
 def get_compare(site_id: SiteIdPath, scenario_id: str | None = Query(default=None)) -> JSONResponse:
     _require_known_site(site_id)
+    # The existing Model Comparison page requests the site's default comparison
+    # without a scenario parameter. Expose the real Teesta MVP pair there once
+    # that sidecar exists; explicit scenario requests remain exact.
+    mvp_scenario = scenario_id or ("teesta_2023_mvp" if site_id == "teesta" else None)
+    mvp_pair = registry.data_dir() / site_id / "compare" / (mvp_scenario or "") / "compare.json"
+    if mvp_scenario and mvp_pair.is_file():
+        return _validated_json("compare.schema.json", __import__("json").loads(mvp_pair.read_text()))
     found = api_compare.find_compare_sidecar(site_id, scenario_id)
     if found is not None:
         model, held_out_run_id, sidecar_path = found
         response = api_compare.build_response(site_id, scenario_id, model, held_out_run_id, sidecar_path)
         return _validated_json("compare.schema.json", response)
+    if (registry.data_dir() / site_id / "demo_ready.json").is_file():
+        run_meta_path = registry.data_dir() / site_id / "runs" / f"{site_id}_demo_s001__synthetic" / "run_meta.json"
+        if not run_meta_path.is_file():
+            raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"Synthetic run metadata missing for '{site_id}'."))
+        synthetic_run = __import__("json").loads(run_meta_path.read_text())
+        response = {"site_id":site_id,"scenario_id":scenario_id or synthetic_run["scenario_id"],
+          "sph_vs_delft3d":{"available":False,"domain":"nearfield","time_window_s":0,"metrics":{},"probes":[],"layers":[],"run_ids":[]},
+          "emulator_vs_physics":{"available":False,"held_out_run_id":None,"metrics":{},"layers":[]},"gp_vs_linear":{},
+          "when_to_use_key":"compare_synthetic_demo_unavailable","caveats":[{ "id":"synthetic_demo","severity":"warning","text_key":"caveat_synthetic_demo"}]}
+        return _validated_json("compare.schema.json", response)
+    # Never decorate the real Teesta MVP run with the contract example's zero
+    # scores / fictitious paired run IDs. A direct comparison is available only
+    # when a real pair artifact has been written by the comparison pipeline.
+    real_runs_dir = registry.data_dir() / site_id / "runs"
+    real_run_meta = []
+    if real_runs_dir.is_dir():
+        for meta_path in real_runs_dir.glob("*/run_meta.json"):
+            try:
+                meta = __import__("json").loads(meta_path.read_text())
+            except (OSError, ValueError):
+                continue
+            if meta.get("solver_status") == "REAL_SOLVER_OUTPUT" or meta.get("output_classification") == "REAL_SIMULATION_ARTIFACT":
+                if scenario_id is None or meta.get("scenario_id") == scenario_id:
+                    real_run_meta.append(meta)
+    if real_run_meta:
+        run_meta = real_run_meta[0]
+        response = {
+            "site_id": site_id,
+            "scenario_id": scenario_id or run_meta.get("scenario_id", "unpaired_real_run"),
+            "sph_vs_delft3d": {"available": False, "domain": "nearfield", "time_window_s": 0,
+                               "metrics": {}, "probes": [], "layers": [],
+                               "run_ids": [run_meta["run_id"]] if run_meta.get("run_id") else []},
+            "emulator_vs_physics": {"available": False, "held_out_run_id": None, "metrics": {}, "layers": []},
+            "gp_vs_linear": {}, "when_to_use_key": "comparison_unavailable",
+            "caveats": [{"id": "comparison_unavailable", "severity": "warning",
+                         "text_key": "comparison_unavailable"}],
+        }
+        return _validated_json("compare.schema.json", response)
+    if scenario_id:
+        conn = registry.connect()
+        try:
+            has_real_run = conn.execute("SELECT 1 FROM runs WHERE scenario_id=? AND model IN ('delft3d','sph') AND status IN ('completed','postprocessed') LIMIT 1",
+                                        (scenario_id,)).fetchone() is not None
+        finally:
+            conn.close()
+        if has_real_run:
+            raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"No comparison artifact for registered scenario '{scenario_id}'.", {"scenario_id":scenario_id}))
     ids = {"site_id": site_id}
     if scenario_id:
         ids["scenario_id"] = scenario_id
@@ -316,6 +485,50 @@ def get_compare(site_id: SiteIdPath, scenario_id: str | None = Query(default=Non
 @app.get(f"{API}/validation/{{site_id}}")
 def get_validation(site_id: SiteIdPath, event: str | None = Query(default=None)) -> JSONResponse:
     _require_known_site(site_id)
+    if (registry.data_dir() / site_id / "demo_ready.json").is_file():
+        if event:
+            payload = {"contract_version":"0.3.0","site_id":site_id,"event_id":event,"observed":{},"predicted":{},"metrics":{},
+                       "comparison_domain":"none","caveats":[{"id":"synthetic_demo","severity":"warning","text_key":"caveat_synthetic_demo"}],
+                       "provenance":{"method":"empirical_fallback","contract_version":"0.3.0","synthetic":True,"validation_available":False}}
+            return _validated_json("historical_validation.schema.json", payload)
+        payload = {"contract_version":"0.3.0","site_id":site_id,"model":"delft3d","n_runs":0,"per_run":[],"summary":{},
+                   "baseline_linear":{},"grade_thresholds_ref":"docs/m5_specs.md","events":[],"synthetic_demo":True,
+                   "validation_available":False,"note":"I-1 tests software plumbing; it contains no scientific validation data."}
+        return _validated_json("validation.schema.json", payload)
+    # A Teesta solver run is not M5 validation. Return the contract's empty
+    # report shape unless an actual validation report exists on disk.
+    validation_root = registry.data_dir() / site_id / "emulator" / "delft3d" / "validation"
+    real_report = validation_root / ("historical.json" if event else "loocv.json")
+    if real_report.is_file():
+        payload = __import__("json").loads(real_report.read_text())
+        schema = "historical_validation.schema.json" if event else "validation.schema.json"
+        return _validated_json(schema, payload)
+    real_runs_dir = registry.data_dir() / site_id / "runs"
+    has_real_run = False
+    if real_runs_dir.is_dir():
+        for meta_path in real_runs_dir.glob("*/run_meta.json"):
+            try:
+                meta = __import__("json").loads(meta_path.read_text())
+            except (OSError, ValueError):
+                continue
+            if meta.get("solver_status") == "REAL_SOLVER_OUTPUT" or meta.get("output_classification") == "REAL_SIMULATION_ARTIFACT":
+                has_real_run = True
+                break
+    if has_real_run and not event:
+        payload = {"contract_version": "0.3.0", "site_id": site_id, "model": "delft3d",
+                   "n_runs": 0, "per_run": [], "summary": {}, "baseline_linear": {},
+                   "grade_thresholds_ref": "docs/m5_specs.md", "events": []}
+        return _validated_json("validation.schema.json", payload)
+    if has_real_run and event:
+        # A registered solver run is not an observed-event validation pair.
+        # Avoid leaking the contract example's zero scores into real-site mode.
+        payload = {"contract_version": "0.3.0", "site_id": site_id, "event_id": event,
+                   "observed": {}, "predicted": {}, "metrics": {}, "comparison_domain": "none",
+                   "caveats": [{"id": "validation_unavailable", "severity": "warning",
+                                "text_key": "validation_unavailable"}],
+                   "provenance": {"method": "none", "contract_version": "0.3.0",
+                                  "validation_available": False}}
+        return _validated_json("historical_validation.schema.json", payload)
     if event:
         payload = mocks.mock_response("historical_validation.example.json", site_id=site_id, event_id=event)
         return _validated_json("historical_validation.schema.json", payload)
@@ -341,7 +554,56 @@ def export_query(query_id: QueryIdPath, format: str = Query(...)) -> Response:  
             status_code=400,
             detail=mocks.error("invalid_format", f"format must be one of {sorted(_EXPORT_MEDIA_TYPES)}, got '{format}'."),
         )
-    site_id = "teesta"  # mock-only: no registry to look the query's site up in yet
+    conn = registry.connect()
+    try:
+        query = conn.execute("SELECT site_id,result_path FROM queries WHERE query_id=?", (query_id,)).fetchone()
+    finally:
+        conn.close()
+    if query and query["result_path"] and __import__("pathlib").Path(query["result_path"]).is_file():
+        site_id = query["site_id"]
+        result_path = __import__("pathlib").Path(query["result_path"])
+        extent_path = result_path.parent / "extent.geojson"
+        if not extent_path.is_file():
+            raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"Extent artifact missing for query '{query_id}'."))
+        extent = __import__("json").loads(extent_path.read_text())
+        query_result = __import__("json").loads(result_path.read_text())
+        is_synthetic = bool(query_result.get("flags", {}).get("demo_mode"))
+        report_label = "Synthetic I-1 report" if is_synthetic else "Direct solver result"
+        if format == "geojson":
+            content, filename = __import__("json").dumps(extent).encode(), f"{site_id}_{query_id}_extent.geojson"
+        elif format == "kml":
+            coords = " ".join(f"{p[0]},{p[1]},0" for f in extent["features"] for p in f["geometry"]["coordinates"][0])
+            content = f'<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>{report_label} {query_id}</name><Placemark><name>Extent</name><Polygon><outerBoundaryIs><LinearRing><coordinates>{coords}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></Document></kml>'.encode()
+            filename = f"{site_id}_{query_id}_extent.kml"
+        elif format == "shp":
+            import io, zipfile, tempfile
+            import geopandas as gpd
+            buf = io.BytesIO()
+            qdir = __import__("pathlib").Path(query["result_path"]).parent
+            with tempfile.TemporaryDirectory(prefix="i1-shp-") as tmp:
+                vector_path = __import__("pathlib").Path(tmp) / "extent.geojson"
+                vector_path.write_text(__import__("json").dumps(extent))
+                gpd.read_file(vector_path).to_file(__import__("pathlib").Path(tmp) / "extent.shp", driver="ESRI Shapefile", index=False)
+                with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
+                    for component in __import__("pathlib").Path(tmp).glob("extent.*"):
+                        archive.write(component, component.name)
+                    archive.write(qdir / "result.json", "result.json")
+                    for layer_file in sorted((qdir / "layers").glob("*.tif")):
+                        archive.write(layer_file, f"layers/{layer_file.name}")
+            content, filename = buf.getvalue(), f"{site_id}_{query_id}_artifacts.zip"
+        else:
+            summary = query_result["summary"]
+            report = (f"{report_label}: {site_id} {query_id}; maximum depth {summary['max_depth_m']['value']} m; "
+                      f"maximum velocity {summary['max_velocity_ms']['value']} m/s; inundated area {summary['inundated_area_m2']['value']} m2. ")
+            report += ("Software integration fixture only; not a scientific forecast." if is_synthetic else
+                       "Values are direct registered solver outputs; this is not a scientific validation statement.")
+            content, filename = mock_files.text_report_pdf(report), f"{site_id}_{query_id}_report.pdf"
+        return Response(content=content, media_type=_EXPORT_MEDIA_TYPES[format], headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+    if query is not None:
+        raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"Registered query artifacts missing for '{query_id}'."))
+    if any(registry.data_dir().glob("*/demo_ready.json")):
+        raise HTTPException(status_code=404, detail=mocks.error("query_not_found", f"No export artifacts for query '{query_id}'.", {"query_id":query_id}))
+    site_id = "teesta"  # legacy example behavior for non-synthetic mock queries
     if format == "shp":
         content, filename = mock_files.mock_shapefile_zip(site_id, query_id), f"{site_id}_{query_id}_extent.zip"
     elif format == "kml":
@@ -457,6 +719,9 @@ SCENE_ASSET_PATH_RE = re.compile(
 SPH_SURFACE_PATH_RE = re.compile(
     rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/runs/(?P<run_id>[A-Za-z0-9_]+__sph)/surfaces/(?P<filename>t\d+\.glb)$"
 )
+MVP_COMPARE_DIFF_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/compare/(?P<scenario_id>[A-Za-z0-9_]+)/depth_diff\.png$"
+)
 
 
 # =============================================================================
@@ -464,6 +729,14 @@ SPH_SURFACE_PATH_RE = re.compile(
 # =============================================================================
 @app.get(f"{API}/files/{{path:path}}")
 def get_file(path: str) -> Response:
+    m = MVP_COMPARE_DIFF_PATH_RE.match(path)
+    if m is not None:
+        sidecar = registry.data_dir() / m["site_id"] / "compare" / m["scenario_id"] / "compare.json"
+        if not sidecar.is_file():
+            raise HTTPException(status_code=404, detail=mocks.error("file_not_found", f"No paired comparison at '{path}'.", {"path": path}))
+        from backend.m4_sph.compare_mvp import render_mvp_depth_diff
+        return Response(content=render_mvp_depth_diff(registry.data_dir(), m["scenario_id"]), media_type="image/png")
+
     m = SCENE_ASSET_PATH_RE.match(path)
     if m is not None:
         asset_path = registry.data_dir() / m["site_id"] / "queries" / m["query_id"] / "scene3d" / m["filename"]
@@ -488,6 +761,8 @@ def get_file(path: str) -> Response:
         if (timeline_dir / "timeline_data.json").is_file():
             png_bytes = api_timeline.render_frame(timeline_dir, m["band"], int(m["t_s"]))
             return Response(content=png_bytes, media_type="image/png")
+        if (registry.data_dir() / m["site_id"] / "demo_ready.json").is_file():
+            raise HTTPException(status_code=404, detail=mocks.error("file_not_found", f"No timeline frame at '{path}'.", {"path":path}))
 
     m = COMPARE_DIFF_PATH_RE.match(path)
     if m is not None:

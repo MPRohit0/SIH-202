@@ -163,6 +163,23 @@ stone or timber-built house in a Himalayan village may cost quite differently to
 the country average this curve is built from — `loss_inr` is a rough estimate, not a precise
 valuation, and every output says so in `assumptions`.
 
+### Direct real-run MVP impact
+
+For `delft3d_direct` query IDs without a persisted `impact.json`, M0 derives and
+caches the §4.7 response from the query's real `depth_p50.tif`, the registered
+run's history `timeseries.csv`, and the existing exposure files. A deterministic
+single run has no HIGH/POSSIBLE uncertainty partition; its impacted exposure is
+placed in the contract's POSSIBLE bucket, with that limitation explicit in the
+caveats rather than reported as probability. Population is a spatial sum of the
+stored WorldPop cells and has no interval. Economic loss remains null because
+there is no run ensemble and approved FX/index/road-width values are unavailable.
+
+For the Teesta MVP, the OSM files predate this adapter and their exact Overpass
+query/fetch timestamp are not recorded. The exposed counts are intersections
+with the pilot-domain raster only. The site-config bbox used to collect exposure
+is placeholder-marked; therefore these are limited MVP counts, not a complete
+site inventory. Missing cropland and hydropower layers remain unassessed.
+
 ### 5.1 Acceptance checks
 
 | # | Check | Pass |

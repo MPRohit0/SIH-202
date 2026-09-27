@@ -59,7 +59,7 @@ def _redact_url(url: str) -> str:
     return _API_KEY_RE.sub(r"\1***", url)
 
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 

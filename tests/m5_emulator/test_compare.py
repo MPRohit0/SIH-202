@@ -147,7 +147,7 @@ def test_write_compare_inputs_writes_tif_and_contract_valid_sidecar(library, spe
 
     compare_dir = compare.write_compare_inputs(
         report, library.X_raw, maps, library.grid, specs, library.run_ids, library.t_end_s, settings,
-        held_out, tmp_path, contract_version="0.2.0", created_at="2026-09-25T00:00:00Z",
+        held_out, tmp_path, contract_version="0.3.0", created_at="2026-09-25T00:00:00Z",
     )
 
     assert (compare_dir / f"{held_out}__depth_diff.tif").is_file()
@@ -177,5 +177,5 @@ def test_write_compare_inputs_unknown_run_id_raises(library, specs, settings, ma
     with pytest.raises(ValueError, match="no per_run entry"):
         compare.write_compare_inputs(
             report, library.X_raw, maps, library.grid, specs, library.run_ids, library.t_end_s, settings,
-            "nope", tmp_path, contract_version="0.2.0",
+            "nope", tmp_path, contract_version="0.3.0",
         )

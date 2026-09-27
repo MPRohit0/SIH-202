@@ -14,7 +14,7 @@ import xarray as xr
 from rasterio.features import rasterize
 from shapely.geometry import Polygon
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 NODATA = -9999.0
 
 
@@ -254,16 +254,24 @@ def postprocess_dflowfm(case_dir: str | Path, run_dir: str | Path, *,
             raise ValueError(f"FM history is missing required variables: {sorted(missing)}")
         htime = _time_seconds(his.time.values)
         after_t0 = htime >= spinup_s
+        poi_depth = np.asarray(his.waterdepth.values, dtype=float)
+        poi_arrival_s = []
+        for station_index in range(poi_depth.shape[1]):
+            wet_indices = np.flatnonzero((poi_depth[:, station_index] > config.arrival_m) & (htime >= spinup_s))
+            poi_arrival_s.append(float(htime[wet_indices[0]] - spinup_s) if wet_indices.size else None)
         station_ids = [x.decode(errors="replace").strip() if isinstance(x, bytes) else str(x).strip()
                        for x in his.station_id.values]
-        columns = ["poi_id", "t_s", "depth_m", "velocity_ms", "wse_m"]
+        columns = ["poi_id", "t_s", "depth_m", "velocity_ms", "wse_m", "arrival_s_since_t0"]
         with (run_dir / "timeseries.csv").open("w", newline="", encoding="utf-8") as stream:
             writer = csv.writer(stream)
             writer.writerow(columns)
             for i, poi_id in enumerate(station_ids):
                 for j in np.flatnonzero(after_t0):
                     values = [his.waterdepth.values[j, i], his.velocity_magnitude.values[j, i], his.waterlevel.values[j, i]]
-                    writer.writerow([poi_id, f"{htime[j]-spinup_s:.3f}", *["" if not np.isfinite(v) else f"{float(v):.6f}" for v in values]])
+                    arrival = poi_arrival_s[i]
+                    writer.writerow([poi_id, f"{htime[j]-spinup_s:.3f}",
+                                     *["" if not np.isfinite(v) else f"{float(v):.6f}" for v in values],
+                                     "" if arrival is None else f"{arrival:.3f}"])
 
     runtime_s, started_at, finished_at = _dia_runtime(dia_path)
     output_bytes = sum(p.stat().st_size for p in output_dir.rglob("*") if p.is_file())

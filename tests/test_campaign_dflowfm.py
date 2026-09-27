@@ -29,7 +29,7 @@ def test_synthetic_dflowfm_campaign_retries_then_postprocesses_and_caches(tmp_pa
     (sites_dir / "synth.yaml").write_text(yaml.safe_dump(raw, sort_keys=False))
     design_dir = data_dir / "synth/design"
     design_dir.mkdir(parents=True)
-    design = {"contract_version": "0.2.0", "site_id": "synth", "model": "delft3d",
+    design = {"contract_version": "0.3.0", "site_id": "synth", "model": "delft3d",
         "method": "maximin_lhs", "seed": 7, "n": 1, "inputs": [],
         "scenarios": [{"scenario_id": "synth__s001", "kind": "design",
             "params": {"water_volume_m3": 1e6, "breach_width_m": 10.0, "failure_time_s": 100.0}}],
@@ -79,7 +79,7 @@ def test_synthetic_dflowfm_campaign_retries_then_postprocesses_and_caches(tmp_pa
         summary.mkdir(exist_ok=True)
         for name in ("max_depth", "max_velocity", "arrival_time"):
             (summary / f"{name}.tif").touch()
-        return {"contract_version": "0.2.0", "run_id": kwargs["run_id"],
+        return {"contract_version": "0.3.0", "run_id": kwargs["run_id"],
                 "scenario_id": kwargs["scenario_id"], "model": "delft3d",
                 "status": "postprocessed", "wall_time_s": 0.01}
     monkeypatch.setattr("backend.m3_common.postprocess.postprocess_dflowfm", fake_postprocess)

@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "solver": "DualSPHysics",
+  "case_name": "CaseDambreak",
+  "case_dir": "/tmp/pytest-of-mprohit/pytest-128/test_stock_3d_dambreak_execute0/run/case",
+  "raw_dir": "/tmp/pytest-of-mprohit/pytest-128/test_stock_3d_dambreak_execute0/run/raw",
+  "started_at": "2026-09-27T18:00:06.706414+00:00",
+  "finished_at": "2026-09-27T18:00:17.684009+00:00",
+  "wall_time_s": 10.978,
+  "gencase_returncode": 0,
+  "gencase_wall_time_s": 0.1,
+  "solver_returncode": 0,
+  "solver_wall_time_s": 10.873,
+  "peak_vram_mb": 845.0,
+  "gpu_sample_interval_s": 1.0,
+  "nvidia_smi_log": "/tmp/pytest-of-mprohit/pytest-128/test_stock_3d_dambreak_execute0/run/attempts/a00/nvidia_smi.csv",
+  "error": null
+}

@@ -51,7 +51,7 @@ from .generator import probes_in_nearfield
 from .settings import SphSettings, load_sph_settings
 from backend.shared.probes import load_probes
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 ARRIVAL_THRESHOLD_M = 0.1  # contract §1.5 -- mirrors backend/m5_emulator/{synthetic,fallback}.py
 EXTENT_THRESHOLD_M = 0.3
 _WET_EPS_M = 1e-6
@@ -246,8 +246,15 @@ def postprocess_run(
 
     probes = load_probes(terrain_dir)
     kept_probes, _ = probes_in_nearfield(probes, frame, grid_near, dem_near)
-    rows = gauges.build_timeseries(run_dir / "raw", kept_probes, case_meta["t_start_s"])
-    gauges.write_timeseries_csv(run_dir / "timeseries.csv", rows)
+    expected_gauges = [
+        run_dir / "raw" / f"GaugesSWL_swl_{p.probe.poi_id}.csv" for p in kept_probes
+    ] + [
+        run_dir / "raw" / f"GaugesVel_vel_{p.probe.poi_id}.csv" for p in kept_probes
+    ]
+    gauges_missing = [p.name for p in expected_gauges if not p.is_file()]
+    if not gauges_missing:
+        rows = gauges.build_timeseries(run_dir / "raw", kept_probes, case_meta["t_start_s"])
+        gauges.write_timeseries_csv(run_dir / "timeseries.csv", rows)
 
     tau_s = rasters["tau_s"]
     iso_prefix = work_dir / "surface"
@@ -262,6 +269,18 @@ def postprocess_run(
     log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.is_file() else None
     sim_duration_s = float(tau_s[-1] - tau_s[0]) if tau_s.size else 0.0
     run_meta = build_run_meta(case_meta, grid_near, sim_duration_s, rasters["depth_capped"], log_text)
+    if gauges_missing:
+        run_meta["warnings"].append(
+            "probe timeseries unavailable; solver did not emit configured gauge CSVs: "
+            + ", ".join(gauges_missing)
+        )
+        run_meta["caveats"].append("sph_probe_timeseries_unavailable")
+    if log_text and re.search(r"More than 100% of current fluid particles were excluded", log_text):
+        run_meta["warnings"].append(
+            "DualSPHysics reported more than 100% of current fluid particles excluded in a PART output; "
+            "depth and velocity artifacts require physical review"
+        )
+        run_meta["caveats"].append("sph_particle_exclusion_warning")
     (run_dir / "run_meta.json").write_text(json.dumps(run_meta, indent=2) + "\n", encoding="utf-8")
     return run_meta
 

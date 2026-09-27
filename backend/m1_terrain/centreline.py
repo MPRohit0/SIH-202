@@ -16,7 +16,7 @@ from backend.shared.site_config import Dam, PointOfInterest, SiteConfig
 from .hydro import FlowNetwork, best_accumulation_cell, trace_downstream
 from .settings import TerrainSettings
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 
 
 def find_breach_cell(

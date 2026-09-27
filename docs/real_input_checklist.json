@@ -1,0 +1,54 @@
+{
+  "checklist_version": "1.0",
+  "contract_version": "0.3.0",
+  "status_values": ["READY", "CONTROLLED PASS", "PLACEHOLDER", "UNAVAILABLE — PRODUCTION RUN BLOCKED", "CONTRACT DECISION REQUIRED"],
+  "shared_gates": [
+    {"key":"production_run_budget","value":null,"unit":null,"source":null,"status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"No production CPU/RAM/disk/runtime/GPU budget has been approved; docs/run_budget.md presents options but records no selection."},
+    {"key":"m3_frozen_pilot_reproduction","value":"PASS for retained pilot geometry and outputs only","unit":null,"source":"docs/m3_reproduction.md; generated_pilot_reference controlled run","status":"CONTROLLED PASS","note":"Production Teesta domain/input case remains unverified and is not unlocked by this controlled reproduction."},
+    {"key":"m4_campaign_launcher","value":"PASS for stock controlled 3D dam-break benchmark","unit":null,"source":"backend/m4_pilot/controlled_launcher_20260927/","status":"CONTROLLED PASS","note":"No target-site terrain/inlet execution or M4 scientific output validation."},
+    {"key":"cascade_trigger_contract","value":null,"unit":null,"source":"docs/decisions.md","status":"CONTRACT DECISION REQUIRED","note":"Resolve site-level vs per-dam trigger scope and routed-series/time-crossing semantics; actual threshold remains separately unsourced."}
+  ],
+  "sites": {
+    "teesta": {
+      "site_label": "Teesta III / Teesta basin cascade",
+      "site_config": "sites/teesta.yaml",
+      "production_gate": "BLOCKED",
+      "inputs": [
+        {"key":"authoritative_site_identity","value":null,"unit":null,"source":null,"confidence":"none","type":"measured","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Official Teesta III identity and dam owner/operator confirmation required."},
+        {"key":"dam_type","value":null,"unit":null,"source":"sites/teesta.yaml is explicitly unverified","confidence":"low","type":"unverified assertion","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Embankment / concrete-faced rockfill classification must be supported by an authoritative project source."},
+        {"key":"dam_geometry_and_specifications","value":null,"unit":null,"source":null,"confidence":"none","type":"measured","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Surveyed crest, height, width, outlet/spillway and breach-relevant dimensions are absent or placeholders."},
+        {"key":"reservoir_storage_curve_and_initial_level","value":null,"unit":null,"source":null,"confidence":"none","type":"measured","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Need elevation-storage curve and event-time reservoir level; current YAML entries are placeholders."},
+        {"key":"terrain_dem_and_vertical_datum","value":"Copernicus GLO-30 candidate is staged; selected conditioned M1 terrain is not production-approved","unit":"m","source":"docs/data_sources.md src_034; data/teesta/raw and terrain products","confidence":"medium for raster provenance; unsuitable pending validation","type":"downloaded/derived","status":"PLACEHOLDER","note":"Need M1 DEM comparison, datum confirmation, void/vertical checks and surveyed bathymetry/channel data."},
+        {"key":"crs","value":"EPSG:32645 in current config and pilot","unit":null,"source":"derived from site bbox; sites/teesta.yaml","confidence":"medium","type":"derived","status":"PLACEHOLDER","note":"Confirm authoritative site bounds and UTM zone for final selected domain."},
+        {"key":"far_field_domain_and_resolution","value":null,"unit":"m","source":null,"confidence":"none","type":"engineering choice","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Current site domain and grid are placeholder; M3 generated geometry fails pilot reproduction."},
+        {"key":"near_field_domain_and_resolution","value":null,"unit":"m","source":null,"confidence":"none","type":"engineering choice","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Current site config is placeholder; M4 inlet/domain needs reviewed terrain and actual routed input."},
+        {"key":"base_flow_and_boundary_conditions","value":null,"unit":"m3/s","source":null,"confidence":"none","type":"measured/imposed","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"No sourced Teesta reach base flow or production boundary series."},
+        {"key":"south_lhonak_breach_inputs","value":null,"unit":null,"source":"sites/teesta.yaml currently marks relevant fields placeholder","confidence":"none","type":"measured/derived","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Need event-time reservoir geometry/storage and sourced breach parameters."},
+        {"key":"teesta_iii_cascade_trigger_threshold","value":null,"unit":"m3/s","source":null,"confidence":"none","type":"imposed threshold","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Threshold is placeholder and trigger representation remains a contract decision."},
+        {"key":"cascade_trigger_representation","value":null,"unit":null,"source":"docs/decisions.md 2026-09-24 M2 cascade engine","confidence":"pending","type":"contract decision","status":"CONTRACT DECISION REQUIRED","note":"Choose site-level trigger vs per-dam trigger/default and define M3 routed series semantics."},
+        {"key":"m3_to_m4_routed_section","value":null,"unit":null,"source":null,"confidence":"none","type":"engineering/source decision","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Choose surveyed/approved section coordinates, flow integration method, CRS and time window before production extraction."},
+        {"key":"points_of_interest","value":null,"unit":"EPSG:4326","source":"sites/teesta.yaml current entries are placeholders","confidence":"none","type":"measured/approved","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Verify settlement/facility coordinates and names against authoritative sources."},
+        {"key":"m3_m4_solver_configuration","value":"Kernel/binaries available; production configuration not approved","unit":null,"source":"docs/m3_spec.md; config/m4_sph.yaml","confidence":"software verified only","type":"engineering setting","status":"PLACEHOLDER","note":"M3 reproduction gate and production run budget remain blocked; controlled tests do not validate science."}
+      ]
+    },
+    "rishiganga": {
+      "site_label": "Chamoli / Rishi Ganga, 2021 event context",
+      "site_config": null,
+      "production_gate": "BLOCKED",
+      "inputs": [
+        {"key":"authoritative_site_identity","value":"Rishi Ganga / Chamoli event area","unit":null,"source":"docs/events/chamoli_2021.md; src_042","confidence":"medium","type":"reported","status":"PLACEHOLDER","note":"Exact modeled site/dam/reach identity and selected downstream limit remain to be approved."},
+        {"key":"event_representation","value":"2021 rock–ice avalanche / debris flow and downstream flood; not a dam breach","unit":null,"source":"docs/events/chamoli_2021.md; docs/data_sources.md src_042","confidence":"medium","type":"historical observation","status":"CONTRACT DECISION REQUIRED","note":"Current M2 dam-break generator is not an admissible representation of this mass-flow event."},
+        {"key":"dam_geometry_and_breach_inputs","value":null,"unit":null,"source":null,"confidence":"none","type":"measured","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"No supported dam-breach source exists for this event; do not encode avalanche as a breach."},
+        {"key":"terrain_dem_and_vertical_datum","value":null,"unit":"m","source":null,"confidence":"none","type":"downloaded/derived","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"No Chamoli terrain inputs or approved M1 products are present."},
+        {"key":"crs","value":null,"unit":null,"source":null,"confidence":"none","type":"derived","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Resolve only after approved domain and input georeferencing are available."},
+        {"key":"far_field_domain_and_resolution","value":null,"unit":"m","source":null,"confidence":"none","type":"engineering choice","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"No sites/rishiganga.yaml or approved limits/resolution."},
+        {"key":"near_field_domain_and_resolution","value":null,"unit":"m","source":null,"confidence":"none","type":"engineering choice","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"No approved near-field domain or M4 inlet definition."},
+        {"key":"event_inflow_hydrograph","value":null,"unit":"m3/s","source":"docs/events/chamoli_2021.md cites published observations, no machine-ready series in repo","confidence":"low","type":"observed/reconstructed","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Need source-backed digitized time series and an agreed event model compatible with M3."},
+        {"key":"boundary_conditions","value":null,"unit":null,"source":null,"confidence":"none","type":"measured/imposed","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Need upstream/downstream boundaries and any inflow series from authoritative event datasets."},
+        {"key":"points_of_interest","value":null,"unit":null,"source":null,"confidence":"none","type":"measured/approved","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"Need approved coordinates and names for Rishi Ganga, Tapovan and selected validation gauges/locations."},
+        {"key":"m3_to_m4_routed_section","value":null,"unit":null,"source":null,"confidence":"none","type":"engineering/source decision","status":"UNAVAILABLE — PRODUCTION RUN BLOCKED","note":"No section geometry, routing extraction method, or M4 inflow series."},
+        {"key":"event_model_contract","value":null,"unit":null,"source":"docs/events/chamoli_2021.md","confidence":"pending","type":"contract decision","status":"CONTRACT DECISION REQUIRED","note":"Need a source-backed M3 input/event representation; current dam-breach contract cannot describe the observed mass flow."}
+      ]
+    }
+  }
+}

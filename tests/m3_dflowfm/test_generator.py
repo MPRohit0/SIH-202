@@ -4,7 +4,9 @@ import json
 
 import pytest
 
-from backend.m3_dflowfm.generator import _densified_ring, build_case, check_run_success
+from backend.m3_dflowfm.generator import (
+    _densified_ring, build_case, build_pilot_reproduction_case, check_run_success,
+)
 
 
 def test_densified_ring_obeys_mesh_spacing_and_closes():
@@ -60,3 +62,23 @@ def test_run_success_uses_dia_and_both_netcdf_files(tmp_path):
     (output / "model.dia").write_text("** INFO   : done\n")
     (output / "model_his.nc").unlink()
     assert check_run_success(tmp_path)["success"] is False
+
+
+def test_pilot_reference_builder_reuses_frozen_geometry_fields_and_forcing(tmp_path):
+    repo = __import__("pathlib").Path(__file__).resolve().parents[2]
+    case, meta = build_pilot_reproduction_case(case_dir=tmp_path / "case")
+    frozen = repo / "backend/m3_pilot/dflowfm/case"
+    assert meta["mesh"]["node_count"] == 18034
+    assert meta["mesh"]["edge_count"] == 51051
+    assert meta["mesh"]["face_count"] == 33018
+    assert (case / "inputs/downstream_outlet.pli").read_bytes() == (frozen / "inputs/downstream_outlet.pli").read_bytes()
+    assert (case / "inputs/breach_source.tim").read_bytes() == (frozen / "inputs/breach_source.tim").read_bytes()
+    assert (case / "inputs/observations.xyn").read_bytes() == (frozen / "inputs/pilot_observations.xyn").read_bytes()
+    import numpy as np
+    generated_bed = np.loadtxt(case / "inputs/bedlevel.xyz")
+    frozen_bed = np.loadtxt(frozen / "inputs/bedlevel_samples.xyz")
+    generated_n = np.loadtxt(case / "inputs/manning.xyz")
+    frozen_n = np.loadtxt(frozen / "inputs/manning_samples.xyz")
+    np.testing.assert_array_equal(generated_bed, frozen_bed)
+    np.testing.assert_array_equal(generated_n, frozen_n)
+    assert meta["hydrograph_includes_base_flow"] is True

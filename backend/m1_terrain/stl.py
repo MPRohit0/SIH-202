@@ -13,7 +13,7 @@ import numpy as np
 
 from backend.shared.grid import FLOAT_NODATA, CanonicalGrid
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 
 
 def nearfield_frame(grid: CanonicalGrid) -> dict:

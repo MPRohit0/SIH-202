@@ -64,7 +64,7 @@ def test_postprocess_pilot_outputs_match_contract(tmp_path: Path) -> None:
                 assert (values == -9999.0).all()
     with (tmp_path / "run/timeseries.csv").open(newline="") as stream:
         reader = csv.reader(stream)
-        assert next(reader) == ["poi_id", "t_s", "depth_m", "velocity_ms", "wse_m"]
+        assert next(reader) == ["poi_id", "t_s", "depth_m", "velocity_ms", "wse_m", "arrival_s_since_t0"]
     json.loads((tmp_path / "run/run_meta.json").read_text())
     assert (CASE / "output/model_map.nc").exists()  # default is keep for pilot.
 

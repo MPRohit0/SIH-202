@@ -1,0 +1,22 @@
+{
+  "contract_version": "0.3.0",
+  "site_id": "synth",
+  "scenario_id": "synth_s001",
+  "source_m3_run_id": "synth_s001__delft3d",
+  "timeseries": "timeseries.csv",
+  "time_column": "t_s",
+  "flow_column": "q_m3s",
+  "time_unit": "s",
+  "flow_unit": "m3/s",
+  "routing_method": "controlled_fixture_only",
+  "section": {
+    "type": "LineString",
+    "coordinates": [[0.0, 0.0], [10.0, 10.0]],
+    "crs": "EPSG:32645"
+  },
+  "provenance": {
+    "source_map": "fixture-controlled-m3-output",
+    "synthetic": true
+  },
+  "validation_status": "artifact_validated"
+}

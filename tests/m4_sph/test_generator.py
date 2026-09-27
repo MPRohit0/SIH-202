@@ -15,10 +15,19 @@ from backend.m4_sph.generator import (
     InflowUnavailable,
     OverVramBudget,
     build_nearfield_case,
+    inlet_rotation_for_tangent,
     write_case,
 )
 from backend.m4_sph.settings import load_sph_settings
 from backend.shared.site_config import load_site_config
+
+
+def test_inlet_rotation_matches_dualsphysics_clockwise_axis():
+    # A downstream-east channel needs a north/south inlet width. The stock solver
+    # rotates clockwise, so -90 degrees turns the unrotated (0,-1) flow vector east.
+    assert inlet_rotation_for_tangent(1.0, 0.0) == pytest.approx(-90.0)
+    # A downstream-south channel similarly needs a west/east inlet width.
+    assert inlet_rotation_for_tangent(0.0, -1.0) == pytest.approx(0.0)
 
 
 def _build(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, **overrides):
@@ -73,6 +82,32 @@ def test_inlet_mass_flux_matches_hydrograph(synth_terrain_dir, synth_hydrograph_
     for tv in zone.velocity_times:
         expected_q = np.interp(tv.time_s + case_meta["t_start_s"], hydro.t_s, hydro.q_m3s)
         assert tv.v_ms * area_m2 == pytest.approx(expected_q, rel=1e-6)
+
+
+def test_m4_consumes_routed_m3_artifact(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, tmp_path):
+    from backend.m3_dflowfm.routed_discharge import write_routed_discharge
+
+    _, sidecar = write_routed_discharge(
+        tmp_path / "runs" / "m3", site_id="synth", scenario_id="synth_s001",
+        source_run_id="synth_s001__delft3d", t_s=[0, 600, 1200, 1800],
+        q_m3s=[20, 80, 40, 10], routing_method="controlled_map_section_integration",
+        section={"type": "LineString", "coordinates": [[0, 0], [10, 10]], "crs": "EPSG:32645"},
+        provenance={"source_map": "controlled-m3-output-fixture"},
+    )
+    spec, meta = build_nearfield_case(
+        "synth", "synth_s001", synth_hydrograph_params, load_sph_settings(dp_m=10),
+        data_dir=synth_terrain_dir.parent.parent, sites_dir=synth_sites_dir,
+        routed_discharge_path=sidecar,
+    )
+    zone = spec.inout_zones[0]
+    area = meta["inlet"]["area_m2"]
+    expected = np.interp(
+        np.asarray([v.time_s for v in zone.velocity_times]) + meta["t_start_s"],
+        [0, 600, 1200, 1800], [20, 80, 40, 10],
+    )
+    np.testing.assert_allclose(np.asarray([v.v_ms for v in zone.velocity_times]) * area, expected)
+    assert meta["provenance"]["hydrograph_method"] == "m3_routed_discharge"
+    assert meta["provenance"]["routed_discharge"]["source_m3_run_id"] == "synth_s001__delft3d"
 
 
 def test_gauges_present_for_every_probe_kept(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir):

@@ -32,7 +32,7 @@ from backend.m5_emulator.library import maximin_lhs, _widen
 from backend.shared.site_config import Dam, SiteConfig
 
 DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parents[2] / "config" / "m5_scenario_design.yaml"
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 
 #: Emulator inputs with an M2-computed range (`backend.m2_breach.ranges.PAIRS`
 #: minus `peak_discharge_m3s`, which isn't one of the emulator's 3 inputs,

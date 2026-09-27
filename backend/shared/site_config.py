@@ -6,8 +6,8 @@ SourcedValue: {value, unit, source, status[, note]}. A value missing `unit`,
 loader warns loudly and lists them; every result built from such a config must
 set `has_placeholders: true` (docs/handoff_contract.md §0 rule 5).
 
-NOTE: docs/handoff_contract.md §3.1 (contract_version 0.2.0) mirrors this schema —
-see docs/decisions.md "Site config: YAML v1 canonical, contract 0.2.0" (2026-09-25).
+NOTE: docs/handoff_contract.md §3.1 (contract_version 0.3.0) mirrors this schema —
+see docs/decisions.md "Site config: YAML v1 canonical, contract 0.3.0" (2026-09-25).
 """
 
 from __future__ import annotations

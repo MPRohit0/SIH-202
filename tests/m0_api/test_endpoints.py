@@ -62,12 +62,18 @@ def test_health():
     assert_matches("health.schema.json", r.json())
 
 
+def test_vite_loopback_origin_is_allowed_for_browser_api_calls():
+    response = client.get(f"{API}/health", headers={"Origin": "http://127.0.0.1:5173"})
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+
+
 def test_styles():
     r = client.get(f"{API}/styles")
     assert r.status_code == 200
     body = r.json()
     assert_matches("styles.schema.json", body)
-    assert body["contract_version"] == "0.2.0"
+    assert body["contract_version"] == "0.3.0"
 
 
 # =============================================================================
@@ -268,11 +274,8 @@ VALID_FLOOD_QUERY = {
 
 def test_post_flood_query():
     r = client.post(f"{API}/flood/query", json=VALID_FLOOD_QUERY)
-    assert r.status_code == 200
-    body = r.json()
-    assert_matches("flood_query_response.schema.json", body)
-    assert body["site_id"] == KNOWN_SITE
-    assert body["mode"] == "unknown_breach"
+    assert r.status_code == 422
+    assert r.json()["detail"]["error"]["code"] == "scenario_id_required"
 
 
 def test_post_flood_query_unknown_site_404():
@@ -288,10 +291,59 @@ def test_post_flood_query_bad_mode_422():
 
 def test_get_flood_by_query_id():
     r = client.get(f"{API}/flood/{QUERY_ID}")
-    assert r.status_code == 200
-    body = r.json()
+    assert r.status_code == 404
+
+
+def test_real_registered_run_query_uses_rasters_and_renders_them(data_dir):
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    site_dir = data_dir / KNOWN_SITE
+    run_id, scenario_id = "s001__delft3d", "s001"
+    run_dir = site_dir / "runs" / run_id
+    summary = run_dir / "summary"
+    summary.mkdir(parents=True)
+    profile = {"driver":"GTiff", "height":2, "width":3, "count":1, "dtype":"float32",
+               "crs":"EPSG:32645", "transform":from_origin(500000, 3100000, 30, 30), "nodata":-9999.0}
+    arrays = {"max_depth.tif":np.array([[0.0, 0.4, 1.5], [0.0, 2.0, -9999.0]], dtype="float32"),
+              "max_velocity.tif":np.array([[0.0, 0.5, 2.0], [0.0, 3.0, -9999.0]], dtype="float32"),
+              "arrival_time.tif":np.array([[-9999.0, 60.0, 120.0], [-9999.0, 180.0, -9999.0]], dtype="float32")}
+    for name, values in arrays.items():
+        with rasterio.open(summary / name, "w", **profile) as ds:
+            ds.write(values, 1)
+    (run_dir / "run_meta.json").write_text(json.dumps({"run_id":run_id,"scenario_id":scenario_id,
+                                                       "thresholds":{"extent_m":0.3}}))
+    with registry.connect() as conn:
+        conn.execute("INSERT INTO scenarios VALUES (?,?,?,?,?)", (scenario_id, KNOWN_SITE, "design",
+                     json.dumps({"breach_width_m":42.0}), registry.utc_now()))
+        conn.execute("INSERT INTO runs (run_id,scenario_id,model,status,run_dir,meta_json) VALUES (?,?,?,?,?,?)",
+                     (run_id, scenario_id, "delft3d", "postprocessed", str(run_dir),
+                      json.dumps({"has_placeholders":False,"placeholder_fields":[]})))
+    response = client.post(f"{API}/flood/query", json={"site_id":KNOWN_SITE,"model":"delft3d",
+                       "mode":"scenario","scenario_id":scenario_id,"inputs":{}})
+    assert response.status_code == 200, response.text
+    body = response.json()
     assert_matches("flood_query_response.schema.json", body)
-    assert body["query_id"] == QUERY_ID
+    assert body["method"] == "delft3d_direct"
+    assert body["summary"]["max_depth_m"]["value"] == 2.0
+    assert body["summary"]["inundated_area_m2"]["value"] == 2700.0
+    assert body["provenance"]["run_ids"] == [run_id]
+    assert body["confidence"]["overall"]["level"] == "LOW"
+    polled = client.get(f"{API}/flood/{body['query_id']}")
+    assert polled.status_code == 200 and polled.json() == body
+    png = client.get(f"{API}/flood/{body['query_id']}/layers/depth_p50.png")
+    assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
+    extent = client.get(f"{API}/flood/{body['query_id']}/extent.geojson")
+    assert extent.status_code == 200
+    assert extent.json()["features"][0]["properties"]["source_run_id"] == run_id
+
+
+def test_real_query_missing_registered_run_does_not_use_example():
+    response = client.post(f"{API}/flood/query", json={"site_id":KNOWN_SITE,"model":"delft3d",
+                            "mode":"scenario","scenario_id":"missing_s001","inputs":{}})
+    assert response.status_code == 404
+    assert response.json()["detail"]["error"]["code"] == "real_run_not_found"
 
 
 # =============================================================================
@@ -299,9 +351,7 @@ def test_get_flood_by_query_id():
 # =============================================================================
 def test_get_flood_layer_png():
     r = client.get(f"{API}/flood/{QUERY_ID}/layers/p_inundation.png")
-    assert r.status_code == 200
-    assert r.headers["content-type"] == "image/png"
-    assert r.content.startswith(b"\x89PNG")
+    assert r.status_code == 404
 
 
 def test_get_flood_layer_non_png_400():
@@ -333,18 +383,12 @@ def test_get_flood_layer_renders_real_geotiff_when_present(data_dir):
 
 def test_get_flood_extent_geojson():
     r = client.get(f"{API}/flood/{QUERY_ID}/extent.geojson")
-    assert r.status_code == 200
-    body = r.json()
-    assert_matches("geojson_feature_collection.schema.json", body)
-    assert body["type"] == "FeatureCollection"
+    assert r.status_code == 404
 
 
 def test_get_flood_timeline():
     r = client.get(f"{API}/flood/{QUERY_ID}/timeline")
-    assert r.status_code == 200
-    body = r.json()
-    assert_matches("timeline.schema.json", body)
-    assert body["query_id"] == QUERY_ID
+    assert r.status_code == 404
 
 
 def _write_synthetic_timeline(data_dir, *, query_id=QUERY_ID, site_id=KNOWN_SITE, t_end_s=3600.0, width=6, height=3):
@@ -386,7 +430,7 @@ def _write_synthetic_timeline(data_dir, *, query_id=QUERY_ID, site_id=KNOWN_SITE
     query_dir = data_dir / site_id / "queries" / query_id
     m5_timeline.write_timeline_inputs(
         result, grid, query_dir, hydrographs=[hg], chainage_m=chainage_m, cell_index=cell_index,
-        pois={}, t_end_s=t_end_s, contract_version="0.2.0", created_at="2026-09-24T10:15:00Z",
+        pois={}, t_end_s=t_end_s, contract_version="0.3.0", created_at="2026-09-24T10:15:00Z",
     )
     return query_dir
 
@@ -462,10 +506,7 @@ def test_get_flood_timeline_frame_path_rejects_traversal(data_dir):
 # =============================================================================
 def test_get_impact():
     r = client.get(f"{API}/impact/{QUERY_ID}")
-    assert r.status_code == 200
-    body = r.json()
-    assert_matches("impact.schema.json", body)
-    assert body["query_id"] == QUERY_ID
+    assert r.status_code == 404
 
 
 # =============================================================================
@@ -522,7 +563,7 @@ def _write_synthetic_compare(data_dir, *, site_id=KNOWN_SITE, model="delft3d", s
     out_dir = data_dir / site_id / "emulator" / model / "validation"
     compare_dir = m5_compare.write_compare_inputs(
         report, library.X_raw, maps, library.grid, specs, [held_out_run_id] + library.run_ids[1:], library.t_end_s,
-        settings, held_out_run_id, out_dir, contract_version="0.2.0", created_at="2026-09-25T00:00:00Z",
+        settings, held_out_run_id, out_dir, contract_version="0.3.0", created_at="2026-09-25T00:00:00Z",
     )
     return compare_dir
 
@@ -558,6 +599,45 @@ def test_get_compare_falls_back_to_mock_when_no_sidecar_written():
     assert_matches("compare.schema.json", body)
 
 
+def test_real_solver_site_compare_is_unavailable_without_a_paired_sph_artifact(data_dir):
+    run_dir = data_dir / KNOWN_SITE / "runs" / "teesta_2023_mvp__delft3d"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_meta.json").write_text(json.dumps({
+        "run_id": "teesta_2023_mvp__delft3d", "scenario_id": "teesta_2023_mvp",
+        "solver_status": "REAL_SOLVER_OUTPUT", "model": "delft3d",
+    }))
+    response = client.get(f"{API}/compare/{KNOWN_SITE}", params={"scenario_id": "teesta_2023_mvp"})
+    assert response.status_code == 200
+    body = response.json()
+    assert_matches("compare.schema.json", body)
+    assert body["sph_vs_delft3d"]["available"] is False
+    assert body["sph_vs_delft3d"]["run_ids"] == ["teesta_2023_mvp__delft3d"]
+    assert body["gp_vs_linear"] == {}
+
+
+def test_get_compare_defaults_to_registered_teesta_mvp_pair(data_dir):
+    compare_dir = data_dir / KNOWN_SITE / "compare" / "teesta_2023_mvp"
+    compare_dir.mkdir(parents=True)
+    example = Path(__file__).resolve().parents[2] / "contracts/examples/compare.example.json"
+    sidecar = json.loads(example.read_text())
+    sidecar["site_id"] = KNOWN_SITE
+    sidecar["scenario_id"] = "teesta_2023_mvp"
+    sidecar["sph_vs_delft3d"]["available"] = True
+    sidecar["sph_vs_delft3d"]["run_ids"] = [
+        "teesta_2023_mvp__delft3d", "teesta_2023_mvp__dualsphysics",
+    ]
+    (compare_dir / "compare.json").write_text(json.dumps(sidecar))
+
+    response = client.get(f"{API}/compare/{KNOWN_SITE}")
+    assert response.status_code == 200
+    body = response.json()
+    assert_matches("compare.schema.json", body)
+    assert body["scenario_id"] == "teesta_2023_mvp"
+    assert body["sph_vs_delft3d"]["run_ids"] == [
+        "teesta_2023_mvp__delft3d", "teesta_2023_mvp__dualsphysics",
+    ]
+
+
 def test_get_compare_diff_png_renders_and_caches(data_dir):
     compare_dir = _write_synthetic_compare(data_dir)
     r = client.get(f"{API}/files/{KNOWN_SITE}/emulator/delft3d/validation/compare/teesta_s005__delft3d__depth_diff.png")
@@ -591,6 +671,18 @@ def test_get_historical_validation():
     body = r.json()
     assert_matches("historical_validation.schema.json", body)
     assert body["event_id"] == EVENT_ID
+
+
+def test_real_solver_site_has_no_fabricated_historical_validation(data_dir):
+    run_dir = data_dir / KNOWN_SITE / "runs" / "teesta_2023_mvp__delft3d"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_meta.json").write_text(json.dumps({"solver_status": "REAL_SOLVER_OUTPUT"}))
+    response = client.get(f"{API}/validation/{KNOWN_SITE}", params={"event": EVENT_ID})
+    assert response.status_code == 200
+    body = response.json()
+    assert_matches("historical_validation.schema.json", body)
+    assert body["metrics"] == {}
+    assert body["provenance"]["validation_available"] is False
 
 
 # =============================================================================
@@ -675,8 +767,10 @@ def test_get_file_png():
 
 def test_get_file_geojson():
     r = client.get(f"{API}/files/teesta/gee/observed/teesta_2023_observed.geojson")
-    assert r.status_code == 200
-    assert_matches("geojson_feature_collection.schema.json", r.json())
+    # A path matching the observed-extent artifact route must not silently
+    # return an unrelated example when the real file is absent.
+    assert r.status_code == 404
+    assert r.json()["detail"]["error"]["code"] == "file_not_found"
 
 
 def test_get_file_bin():

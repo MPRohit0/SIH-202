@@ -37,7 +37,7 @@ from .settings import TerrainSettings
 
 log = logging.getLogger("m1.pipeline")
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data"
 MANNING_TABLE_PATH = REPO_ROOT / "config" / "manning_n.csv"

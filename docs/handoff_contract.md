@@ -1,12 +1,15 @@
 # SIH26 — Data Hand-off Contract
 
-**Version:** 0.2.0 (DRAFT) · **Status:** review as a team, then freeze before playbook step M0-1 **Repo location:** `docs/handoff_contract.md` · **Machine-readable version:** `contracts/` (JSON Schemas generated from this file in M0-1)
+**Version:** 0.3.0 (DRAFT) · **Status:** review as a team, then freeze before playbook step M0-1 **Repo location:** `docs/handoff_contract.md` · **Machine-readable version:** `contracts/` (JSON Schemas generated from this file in M0-1)
+
+**0.3.0 change (2026-09-27):** adds the M3→M4 routed-discharge artifact manifest and direct solver
+method identifiers for canonical results. It does not select a real routing cross-section or
+method; those remain site-specific source/engineering decisions.
 
 **0.2.0 change (2026-09-25):** §3 (site config) rewritten to match the schema actually implemented
 in `sites/*.yaml` / `backend/shared/site_config.py`, which had drifted from the 0.1.0 draft since
 before M0-1. See `docs/decisions.md` "Site config: YAML v1 canonical, contract 0.2.0" for the full
-list of changes and the reasoning; decided by the user this session, module owners still need to
-confirm per rule 8 below.
+list of changes and the reasoning.
 
 ---
 
@@ -14,7 +17,7 @@ confirm per rule 8 below.
 
 1. This document and `contracts/` define every piece of data that passes between modules. If code and contract disagree, the code is wrong.
 2. A module reads another module's data **only** through the files, functions and endpoints defined here — never by reaching into its internals.
-3. Every JSON payload and metadata file carries `"contract_version": "0.2.0"`.
+3. Every JSON payload and metadata file carries `"contract_version": "0.3.0"`.
 4. Every numeric **fact** (a dam height, a lake volume) is a `SourcedValue` (§2.1). Every numeric **result** is an `Estimate` (§2.2). Settings (thresholds, frequencies) are plain values documented in `docs/decisions.md`.
 5. Any result that depends on a `placeholder` input sets `"has_placeholders": true` and lists the fields in `"placeholder_fields"`. The UI must show this.
 6. Predicted and observed values are never mixed in one field: every `Estimate` says which it is (`kind`).
@@ -66,7 +69,7 @@ Each site has two grids, written by M1, and **every raster in the project is ali
 
 ```jsonc
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "site_id": "teesta",
   "grid_id": "farfield",            // "farfield" | "nearfield"
   "crs_epsg": 32645,
@@ -238,7 +241,7 @@ Standard caveat IDs: `moraine_extrapolation`, `concrete_dam_imposed`, `clear_wat
 ```jsonc
 {
   "method": "gp_emulator",     // gp_emulator | empirical_fallback | delft3d_direct | sph_direct | observed
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "code_version": "a1b2c3d",   // git commit
   "solver_versions": { "delft3d": "<version string>", "dualsphysics": "<version string>" },
   "run_ids": ["teesta_s001__delft3d", "..."],
@@ -491,7 +494,7 @@ Slider mapping: linear → `value = low + (p / 10) × (high − low)`; log → t
 
 ```jsonc
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "site_id": "teesta",
   "has_placeholders": true,
   "placeholder_fields": ["dams[0].breach_inputs.water_volume_above_invert"],
@@ -539,7 +542,7 @@ Sidecar:
 
 ```jsonc
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "scenario_id": "teesta_s007", "dam_id": "teesta__south_lhonak",
   "method": "breach_growth_weir",     // breach_growth_weir | triangular | imposed | equivalent_event
   "params": { "breach_width_m": 0.0, "failure_time_s": 0.0, "water_volume_m3": 0.0 },
@@ -556,7 +559,7 @@ Sidecar:
 
 ```jsonc
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "site_id": "teesta", "model": "delft3d",
   "method": "latin_hypercube", "seed": 42, "n": 30,
   "inputs": [ { "name": "breach_width_m", "dam_id": "teesta__south_lhonak", "low": 0.0, "high": 0.0, "unit": "m" } ],
@@ -568,6 +571,15 @@ Sidecar:
 ### 4.4 Run results (M3 and M4, identical schema) → `runs/<run_id>/`
 
 **Inputs:** terrain (§4.1), hydrograph(s) (§4.2), scenario params (§4.3), simulation settings (site config).
+
+For M3 far-field output routed to an M4 near-field inlet, the M3 run may additionally write
+`routed_discharge/timeseries.csv` and `routed_discharge/routed_discharge.json`. The CSV columns
+are `t_s,q_m3s`. The manifest schema is `contracts/schemas/routed_discharge.schema.json` and
+records site, scenario, source M3 run, flow-integration method, CRS-qualified section geometry,
+validation status, and source provenance. M4 must consume this file and record its manifest in
+run provenance. The artifact writer checks format and finite/nonnegative flow; it does not select
+or scientifically validate a section. Production routing remains blocked until an approved
+section and extraction method are specified for the site.
 
 |Path|Grid|Content|
 |---|---|---|
@@ -586,7 +598,7 @@ started writing real ones -- `docs/decisions.md`, today's session)
 
 ```jsonc
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "run_id": "teesta_s007__delft3d", "scenario_id": "teesta_s007", "model": "delft3d",
   "status": "postprocessed",          // queued | running | completed | postprocessed | failed
   "solver_version": "<version string>",
@@ -630,7 +642,7 @@ started writing real ones -- `docs/decisions.md`, today's session)
 
 ```jsonc
 {
-  "contract_version": "0.2.0", "site_id": "teesta", "model": "delft3d", "n_runs": 30,
+  "contract_version": "0.3.0", "site_id": "teesta", "model": "delft3d", "n_runs": 30,
   "per_run": [ { "run_id": "teesta_s001__delft3d", "iou": 0.0, "f1": { "0.05": 0.0, "0.1": 0.0, "0.3": 0.0 },
                  "depth_rmse_wet_m": 0.0, "arrival_mae_s": 0.0, "velocity_mae_ms": 0.0,
                  "area_error_pct": 0.0, "coverage_90": 0.0 } ],
@@ -688,7 +700,7 @@ Summary statistics are computed **per Monte Carlo sample**, then summarised acro
 
 ```jsonc
 {
-  "contract_version": "0.2.0", "query_id": "q_20260924T101500Z_3fa9c1", "site_id": "teesta",
+  "contract_version": "0.3.0", "query_id": "q_20260924T101500Z_3fa9c1", "site_id": "teesta",
   "population_persons": { "value": 0, "low": 0, "high": 0, "unit": "persons", "interval": "zone_range", "kind": "predicted",
                           "basis": "value = Σ p × pop; low = HIGH zone; high = HIGH + POSSIBLE" },
   "assets": {
@@ -738,7 +750,7 @@ Shapefile field names (≤ 10 characters):
 |`arr_p10`, `arr_p50`, `arr_p90`|arrival (s)|
 |`vel_p50`, `vel_p90`|velocity (m/s)|
 |`conf`|HIGH / MODERATE / LOW|
-|`method`|gp_emulator / empirical_fallback|
+|`method`|gp_emulator / empirical_fallback / delft3d_direct / sph_direct|
 |`site_id`, `query_id`|IDs|
 |`iso_s`|isochrone time (s)|
 |`dep_class`|depth class label|
@@ -848,7 +860,8 @@ Request:
 ```jsonc
 {
   "site_id": "teesta",
-  "model": "delft3d",                 // the emulated model; SPH is comparison-only
+  "model": "delft3d",                 // emulated or direct registered model
+  "scenario_id": "teesta_s007",       // required when resolving a direct registered run
   "mode": "unknown_breach",           // scenario | unknown_breach
   "inputs": {
     "breach_width_m": { "type": "exact",  "value": 72.0 },
@@ -868,10 +881,10 @@ Response (`FloodQueryResponse`):
 
 ```jsonc
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "query_id": "q_20260924T101500Z_3fa9c1", "site_id": "teesta",
   "status": "complete",                    // partial | complete | failed
-  "method": "gp_emulator",                 // gp_emulator | empirical_fallback
+  "method": "gp_emulator",                 // gp_emulator | empirical_fallback | delft3d_direct | sph_direct
   "mode": "unknown_breach",
   "resolved_inputs": {
     "breach_width_m": { "value": 72.0, "low": 72.0, "high": 72.0, "unit": "m", "interval": "none", "kind": "input" },
@@ -938,7 +951,7 @@ percentiles are per-cell marginals, not a true joint distribution -- flagged via
                         { "chainage_m": 12000.0, "arrival_p10_s": 2100, "arrival_p50_s": 2400, "arrival_p90_s": null } ],
   "pois_on_profile": [ { "poi_id": "teesta__poi__chungthang", "name": "Chungthang", "chainage_m": 12000.0 } ],
   "caveats": [ { "id": "clear_water", "severity": "warning", "text_key": "caveat_clear_water" } ],
-  "provenance": { "method": "gp_emulator", "contract_version": "0.2.0", "created_at": "2026-09-24T10:15:00Z" }
+  "provenance": { "method": "gp_emulator", "contract_version": "0.3.0", "created_at": "2026-09-24T10:15:00Z" }
 }
 ```
 
@@ -978,7 +991,7 @@ Extent at time t = cells whose arrival ≤ t.
 
 ```jsonc
 {
-  "contract_version": "0.2.0", "site_id": "teesta", "event_id": "teesta_2023",
+  "contract_version": "0.3.0", "site_id": "teesta", "event_id": "teesta_2023",
   "observed": {
     "extent_url": "/api/v1/files/teesta/gee/observed/teesta_2023_observed.geojson",
     "area_m2": { "value": 0.0, "unit": "m2", "kind": "observed", "source": "src_040" },
@@ -1027,7 +1040,7 @@ uses the existing mock response.
 
 ```jsonc
 {
-  "contract_version": "0.2.0", "query_id": "q_...",
+  "contract_version": "0.3.0", "query_id": "q_...",
   "frame": { "crs_epsg": 32645, "origin_x_utm_m": 0.0, "origin_y_utm_m": 0.0,
               "vertical_exaggeration": 1.5, "vertical_exaggeration_applies_to": "z_axis",
               "units": "m", "axis_order": "east,north,up" },
@@ -1059,7 +1072,7 @@ One file drives map overlays (M0-5), KML styling (M6-6) and legends (M8). Colour
 
 ```jsonc
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "extent_class": {
     "high":     { "fill": "#<hex>", "opacity": 0.65, "label_key": "legend_high" },
     "possible": { "fill": "#<hex>", "opacity": 0.35, "pattern": "hatch", "label_key": "legend_possible" }

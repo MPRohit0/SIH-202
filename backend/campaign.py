@@ -17,7 +17,7 @@ from pathlib import Path
 from backend.m0_api import jobs, registry
 from backend.shared.site_config import load_site_config
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 
 
 @dataclass(frozen=True)
@@ -218,8 +218,13 @@ def run_sph_campaign(
 
     design = _load_design(data_dir, site_id)
 
+    from backend.m4_sph.settings import load_sph_settings
+    sph_settings = load_sph_settings()
     job_id = jobs.create_job(conn, "campaign", site_id,
-                              payload={"model": "sph", "scenario_ids": list(scenario_ids)})
+        payload={"model": "sph", "sph_campaign": True, "scenario_ids": list(scenario_ids),
+                 "data_dir": str(data_dir.resolve()),
+                 "sites_dir": str(Path(sites_dir).resolve()) if sites_dir is not None else None,
+                 "binaries_dir": sph_settings.binaries_dir})
 
     results: list[CampaignCaseResult] = []
     for scenario_id in scenario_ids:
@@ -241,7 +246,7 @@ def run_sph_campaign(
             jobs.log_event(conn, job_id, f"refused {run_id}: {e}")
             continue
 
-        run_directory = jobs.run_dir(site_id, run_id)
+        run_directory = data_dir / site_id / "runs" / run_id
         terrain_dir = data_dir / site_id / "terrain"
         generator.write_case(spec, case_meta, run_directory, terrain_dir)
 
@@ -249,11 +254,14 @@ def run_sph_campaign(
         conn.execute(
             "INSERT INTO runs (run_id, scenario_id, model, status, run_dir, meta_json)"
             " VALUES (?, ?, 'sph', 'queued', ?, ?)",
-            (run_id, scenario_id, str(run_directory), json.dumps(case_meta)),
+            (run_id, scenario_id, str(run_directory), json.dumps({**case_meta, "case_dir": str(run_directory / "case")})),
         )
         conn.commit()
         results.append(CampaignCaseResult(scenario_id, run_id, "queued"))
         jobs.log_event(conn, job_id, f"queued {run_id} (dp={case_meta['dp_m']} m)")
+
+    jobs.update_payload(conn, job_id, run_ids=[r.run_id for r in results if r.status == "queued"])
+    jobs.set_progress(conn, job_id, 0, sum(r.status == "queued" for r in results), "runs")
 
     return job_id, results
 

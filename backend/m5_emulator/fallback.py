@@ -50,7 +50,7 @@ from backend.m5_emulator import confidence as conf
 from backend.m5_emulator import synthetic as sw
 from backend.shared.grid import CanonicalGrid, FLOAT_NODATA
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 
 #: docs/m5_specs.md §4 defaults (also emulator.EmulatorSettings' defaults).
 EXTENT_THRESHOLD_M = 0.3

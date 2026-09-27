@@ -73,6 +73,58 @@ Zanaga, D. et al. (2022). *ESA WorldCover 10 m 2021 v200.* doi:
 Used for: `data/<site_id>/raw/landcover_esa_worldcover.tif` (`backend/m1_terrain/download.py`),
 a landcover candidate feeding M1's `roughness.tif` (Manning's n lookup by class).
 
+## src_043 — Historical Teesta III project parameters (existing CFRD)
+
+Government of India, Ministry of Environment, Forest and Climate Change. *Minutes of the 19th
+Meeting of the Expert Appraisal Committee (River Valley and Hydroelectric Projects), Teesta
+Stage III HE Project agenda/site-visit materials*, 2024. [PARIVESH document](https://parivesh.nic.in/utildoc/114429141_1733834917785.pdf).
+Use the table column labelled **Existing Salient Features** for the historical 2023 dam: CFRD,
+60 m maximum height above riverbed, FRL EL 1585 m, MDDL EL 1565 m, gross storage 5.08 MCM
+(EL 1530–1585 m), live storage 3.33 MCM (EL 1565–1585 m), and catchment 2786.7 km². The same
+document separately describes a proposed replacement concrete-gravity dam; that replacement is
+not the 2023 structure and must not be used for the historical event.
+
+## src_044 — Sikkim 2023 flood reconstruction and cascade impacts
+
+Authors, *The Sikkim flood of October 2023: Drivers, causes and impacts of a multihazard cascade*.
+[White Rose repository record and paper](https://eprints.whiterose.ac.uk/id/eprint/224098/).
+The paper reports its reconstruction reaching Chungthang at about 00:30 IST on 4 October and a
+modelled peak discharge of about 5340 m³/s there. It does **not** provide the complete observed
+hydrograph needed by M3. These values differ from the 03:20 / 7355 m³/s MVP reconstruction
+targets; the latter must remain explicitly imposed targets, not attributed to this source.
+
+## src_045 — South Lhonak GLOF discharge reconstruction (2025)
+
+Gaikwad, D., Tiwari, R.K. & Goswami, A. (2025). *Reconstruction of the 2023 South Lhonak Lake
+outburst flood and modelling future scenarios in the Sikkim Himalaya*. Natural Hazards.
+doi: [10.1007/s11069-025-07350-9](https://doi.org/10.1007/s11069-025-07350-9). The abstract reports
+modelled (not observed) peak discharge of approximately 7355 m³/s at Chungthang for the actual
+event reconstruction. This is one reconstruction result, not a complete measured hydrograph.
+
+## src_046 — CWC preliminary Teesta basin incident report
+
+Central Water Commission / National Dam Safety Authority, *Preliminary report on incident
+occurred on 04.10.2023 in Teesta Basin of Sikkim*, in the [3rd NCDS meeting agenda pack](https://cwc.gov.in/sites/default/files/agenda-3rd-ncds-meeting.pdf).
+Records the 4 October event in the Teesta basin and impacts to Teesta III. Use for incident
+context only; it is not a complete discharge time series.
+
+## src_048 — OpenStreetMap exposure extract
+
+OpenStreetMap contributors, data under the Open Database License (ODbL). Attribution and
+licence: [OpenStreetMap copyright and licence](https://www.openstreetmap.org/copyright).
+Project extracts are stored in `data/<site_id>/exposure/{buildings,roads,facilities,places}.gpkg`.
+The Teesta files present at MVP time were retained pre-existing extracts; their original fetch
+timestamp and exact Overpass request are not recorded in `data/teesta/exposure/provenance.json`.
+Treat coverage and currency as unknown; do not infer that omitted assets are absent.
+
+## src_049 — WorldPop 2020 India, 1 km, UN-adjusted population counts
+
+WorldPop, University of Southampton. *Global 2000–2020, 1 km, UN-adjusted population counts*.
+[Dataset description](https://hub.worldpop.org/Global1_2000-2020) and [2020 India raster](https://data.worldpop.org/GIS/Population/Global_2000_2020_1km_UNadj/2020/IND/).
+The stored Teesta raster derives from the 2020 India raster, is clipped and sum-preserving
+resampled to the project's 30 m far-field grid, and uniformly disaggregates source-cell counts;
+it is not building-level detail or a current census. License: CC BY 4.0.
+
 ## src_037 — CartoDEM, NRSC Bhoonidhi
 
 National Remote Sensing Centre (ISRO), *CartoDEM* (version and release TBD — no public bulk-download

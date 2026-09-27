@@ -1,5 +1,38 @@
 # Team decisions
 
+## 2026-09-27 — M3→M4 routed discharge manifest (contract 0.3.0)
+
+**Status:** artifact shape implemented; real routing-section selection and extraction are blocked
+pending approved site inputs/engineering method. `routed_discharge/timeseries.csv` uses `t_s,q_m3s`;
+`routed_discharge.json` records site/scenario/M3 run IDs, units, section LineString+CRS, routing
+method, provenance and artifact-validation status (`contracts/schemas/routed_discharge.schema.json`).
+The M4 builder accepts this manifest and derives its inlet velocity from the CSV values; it never
+accepts a manually typed representative discharge in this path. Controlled fixtures prove file
+handoff and consumption only; no scientific routing is claimed. Production remains blocked until
+each site's cross-section, coordinate reference, extraction variable/integration method, and time
+alignment convention are approved and sourced.
+
+## 2026-09-27 — Cascade trigger representation remains unresolved
+
+**Status: CONTRACT DECISION REQUIRED.** The 2026-09-24 `two_stage_imposed` decision explicitly left
+per-dam `Dam.trigger` pending agreement against the site-level `cascade.trigger` sketch in handoff
+§3.1. The choice affects M2 site-config validation and `cascade.py`, M3's stage-1 routed-discharge
+extraction and stage-2 source/forcing construction, M4 scenario/inlet selection, and contract
+schemas. Required fields include trigger scope (site default vs per-dam override), upstream
+dam/run/scenario reference, threshold value/unit/source/status, routed inflow series reference,
+crossing/interpolation convention, and downstream hydrograph `t_offset_s` provenance. The
+threshold itself also requires real source data; it is not supplied by this contract decision. No
+trigger representation or threshold is selected here.
+
+## 2026-09-27 — Contract 0.3.0 routed-discharge and direct-run identifiers
+
+Added `routed_discharge.schema.json` and documented M3→M4 artifacts under §4.4. The flood-response
+`method` enum now includes `delft3d_direct` and `sph_direct`, matching provenance methods already
+allowed in 0.2.0, so registered solver artifacts can be represented without pretending they came
+from an emulator. Direct solver responses must identify their source run and confidence remains
+LOW until a separately validated emulator exists. No production query is enabled until a run is
+registered and its site inputs are cleared.
+
 ## 2026-09-24 — Site config schema: YAML v1 vs contract §3.1 (PENDING team decision)
 
 **Status:** RESOLVED 2026-09-25 by user instruction — see "Site config: YAML v1 canonical, contract

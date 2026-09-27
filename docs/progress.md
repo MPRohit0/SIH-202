@@ -1882,3 +1882,34 @@ Teesta base flow and other physical data need sourcing before production use.
   the corrected inlet orientation with the solver, then proceed only if the run completes and its
   existing postprocessor emits georeferenced artifacts. Otherwise retain the unavailable comparison
   state. No real-site campaign, M4 production coupling, or scientific validation is implied here.
+
+## 2026-09-27 — Teesta MVP comparison: corrected SPH run completed
+
+- **Built:** the corrected `teesta_2023_mvp__dualsphysics` case was prepared and launched through
+  the existing M0 worker as attempt `a02`. GenCase and DualSPHysics 5.4.355 both returned 0; the
+  solver completed the 600 s window in 705 s, with 993 MiB peak VRAM and 375.9 MiB sampled peak
+  process RSS. Its inlet direction matches the local channel tangent and its inlet width axis is
+  perpendicular. The run produced 121 PART frames, georeferenced 10 m summary rasters, and 21
+  surface GLBs. Logs and resource samples are retained under
+  `data/teesta/runs/teesta_2023_mvp__dualsphysics/attempts/a02/`.
+- **Comparison/dashboard:** the real D-Flow and SPH runs are paired in
+  `data/teesta/compare/teesta_2023_mvp/compare.json`. The common EPSG:32645 footprint contains
+  3,600 valid 10 m cells; the depth-difference GeoTIFF and PNG route are live. The existing Compare
+  endpoint defaults to this Teesta MVP pair, so the page displays both run IDs, the difference
+  layer, computed metrics, and caveats. Only the Compare screenshot was updated for the genuine
+  paired result.
+- **Still limited or stubbed:** the Teesta site configuration still has 50 placeholder fields and
+  the M3-derived inlet discharge remains an MVP approximation based on speed magnitude because no
+  velocity vector is available. The solver emitted no gauge CSVs, so no probe timeseries or arrival
+  comparison is registered. SPH mass-balance error is not computed. The solver also warned that
+  more than 100% of current fluid particles were excluded in one output; the derived depth reaches
+  259.5 m despite an 11.8 m inlet height. The resulting metrics are actual calculations from the
+  produced rasters, but are not validated model performance. Rishi Ganga, full-domain coupling, and
+  scientific/observational validation remain out of scope or unstarted.
+- **Validation:** relevant M4, M0 and Compare tests: **254 passed**; run/Compare schema and
+  georeferenced artifact checks passed; frontend typecheck and production build passed; visual suite
+  **13 passed**.
+- **Next step:** investigate the particle-exclusion warning and anomalous SPH depth field, and fix
+  the gauge-output/postprocessing gap before interpreting or presenting the comparison metrics as
+  meaningful. Preserve the current run and comparison as a caveated demo artifact; do not launch
+  another solver attempt until those issues are understood.

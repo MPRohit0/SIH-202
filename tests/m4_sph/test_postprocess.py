@@ -91,7 +91,7 @@ def test_postprocess_run_writes_the_full_contract_output(tmp_path):
     # no pois.gpkg -- load_probes returns [] (no site POIs to snap), so timeseries.csv is header-only
 
     case_meta = {
-        "contract_version": "0.2.0", "site_id": "synth", "scenario_id": "synth_s001", "model": "sph",
+        "contract_version": "0.3.0", "site_id": "synth", "scenario_id": "synth_s001", "model": "sph",
         "t_start_s": 1000.0, "t_end_s": 1002.0, "dp_m": 0.3,  # realistic near-field dp -- > 0.1 m,
         # so `sph_arrival_below_resolution` should fire below
         "caveats": ["clear_water", "fixed_area_inlet"],

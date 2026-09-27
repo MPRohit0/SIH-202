@@ -1,5 +1,5 @@
 {
-  "contract_version": "0.2.0",
+  "contract_version": "0.3.0",
   "site_id": "teesta",
   "model": "delft3d",
   "n_runs": 30,

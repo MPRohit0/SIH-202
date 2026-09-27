@@ -67,7 +67,7 @@ def _write_site(raw: dict, sites_dir: Path) -> None:
 
 def _write_design(data_dir: Path, site_id: str, scenario_ids: list[str]) -> None:
     design = {
-        "contract_version": "0.2.0", "site_id": site_id, "model": "delft3d",
+        "contract_version": "0.3.0", "site_id": site_id, "model": "delft3d",
         "method": "maximin_lhs", "seed": 42, "n": len(scenario_ids),
         "inputs": [], "extra": [],
         "scenarios": [

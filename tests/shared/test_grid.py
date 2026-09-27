@@ -137,7 +137,7 @@ def test_grid_json_round_trip(far, tmp_path):
     far.to_json(path)
     raw = json.loads(path.read_text())
     assert set(raw) == GRID_JSON_KEYS
-    assert raw["contract_version"] == "0.2.0"
+    assert raw["contract_version"] == "0.3.0"
     assert CanonicalGrid.from_json(path) == far
 
 

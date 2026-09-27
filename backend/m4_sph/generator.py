@@ -30,7 +30,7 @@ from backend.shared.site_config import SiteConfig, load_site_config
 from .case_xml import CaseSpec, E, InOutZone, SwlGauge, TimeValue, VelocityGauge, write_case_xml
 from .settings import SphSettings, load_sph_settings
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 
@@ -84,8 +84,8 @@ def hydrograph_to_velocity(
 class InletGeometry:
     """A vertical rectangular inlet, `width_m` x `height_m`, centred on the inflow point (SPH
     frame, §1.3), bottom at bed elevation. `direction_xyz`/`rotate_deg` orient it perpendicular
-    to the local channel tangent (unverified against a real GenCase run -- check `rotateaxis`'s
-    sign convention with the `DSPH_BIN_DIR` smoke test before trusting the flow direction)."""
+    to the local channel tangent. The shipped DualSPHysics build's `rotateaxis` is clockwise;
+    the sign is checked against a real solver-generated inlet-geometry error artifact."""
 
     x_utm_m: float
     y_utm_m: float
@@ -114,6 +114,13 @@ def _tangent_at_point(centreline, x_m: float, y_m: float, ds: float = 1.0) -> tu
     return dx / norm, dy / norm
 
 
+def inlet_rotation_for_tangent(tx: float, ty: float) -> float:
+    """DualSPHysics clockwise rotation placing the inlet face normal to downstream flow."""
+    # Its +x width axis rotates clockwise; this sign makes its width axis the channel normal
+    # and its unrotated (0,-1) flow direction the downstream tangent.
+    return -math.degrees(math.atan2(tx, -ty))
+
+
 def inlet_geometry(
     inflow_lon_lat: tuple[float, float],
     grid_near: CanonicalGrid,
@@ -133,9 +140,10 @@ def inlet_geometry(
         raise ValueError(f"inflow location ({lon}, {lat}) is nodata in dem_nearfield.tif")
 
     tx, ty = _tangent_at_point(centreline, x_utm, y_utm)
-    # Unrotated zone flow direction is (0,-1,0) (case_xml.InOutZone); rotating by theta about z maps
-    # it to (sin theta, -cos theta) -- solve for theta so that maps onto the channel tangent (tx, ty).
-    rotate_deg = math.degrees(math.atan2(tx, -ty))
+    # Unrotated flow is (0,-1,0). DualSPHysics applies `rotateaxis` clockwise, so
+    # `inlet_rotation_for_tangent` supplies the sign that maps that vector to (tx, ty).
+    # The convention was confirmed from Teesta's solver-generated CfgInOut_ErrorParticles.vtk.
+    rotate_deg = inlet_rotation_for_tangent(tx, ty)
 
     x_local = x_utm - frame["origin_x"]
     y_local = y_utm - frame["origin_y"]
@@ -213,6 +221,8 @@ def check_vram(
 def build_nearfield_case(
     site_id: str, scenario_id: str, params: dict, settings: SphSettings | None = None,
     data_dir: str | Path | None = None, sites_dir: str | Path | None = None,
+    routed_discharge_path: str | Path | None = None,
+    terrain_dir: str | Path | None = None,
 ) -> tuple[CaseSpec, dict]:
     """Build the near-field GenCase spec for `scenario_id` on `site_id`, from M1 terrain
     (`data/<site_id>/terrain/`) and an M2 hydrograph for `params`. Returns `(spec, case_meta)`.
@@ -224,7 +234,7 @@ def build_nearfield_case(
     settings = settings or load_sph_settings()
     data_dir = Path(data_dir) if data_dir is not None else DATA_DIR
     cfg = load_site_config(site_id, sites_dir=sites_dir)
-    terrain_dir = data_dir / site_id / "terrain"
+    terrain_dir = Path(terrain_dir) if terrain_dir is not None else data_dir / site_id / "terrain"
 
     grid_near = CanonicalGrid.from_json(terrain_dir / "grid_nearfield.json")
     frame = json.loads((terrain_dir / "nearfield_frame.json").read_text(encoding="utf-8"))
@@ -234,15 +244,25 @@ def build_nearfield_case(
 
     nf = cfg.domains.near_field
     dam_id = nf.inflow.from_
-    if dam_id == "far_field":
+    routed_record = None
+    if routed_discharge_path is not None:
+        from backend.m3_dflowfm.routed_discharge import read_routed_discharge
+        hydro_t_s, hydro_q_m3s, routed_record = read_routed_discharge(
+            routed_discharge_path, site_id=site_id, scenario_id=scenario_id,
+        )
+        hydro_method = "m3_routed_discharge"
+    elif dam_id == "far_field":
         raise InflowUnavailable(
             f"{site_id}: near_field.inflow.from is 'far_field' -- the SPH inlet needs a routed "
             f"far-field discharge series, which only M3 (Delft3D) can produce; not available yet."
         )
 
-    hydro = m2_hydrograph(site_id, dam_id, params, sites_dir=sites_dir)
+    else:
+        hydro = m2_hydrograph(site_id, dam_id, params, sites_dir=sites_dir)
+        hydro_t_s, hydro_q_m3s = hydro.t_s, hydro.q_m3s
+        hydro_method = hydro.method
     t_start_s = settings.t_start_s
-    t_end_s = settings.t_end_s if settings.t_end_s is not None else float(hydro.t_s[-1])
+    t_end_s = settings.t_end_s if settings.t_end_s is not None else float(hydro_t_s[-1])
 
     inflow_location = nf.inflow.location.value
     inlet = inlet_geometry(
@@ -250,7 +270,7 @@ def build_nearfield_case(
         settings.inlet_width_m, settings.inlet_height_m,
     )
 
-    tau_s, v_ms = hydrograph_to_velocity(hydro.t_s, hydro.q_m3s, inlet.area_m2, t_start_s, t_end_s)
+    tau_s, v_ms = hydrograph_to_velocity(hydro_t_s, hydro_q_m3s, inlet.area_m2, t_start_s, t_end_s)
     velocity_times = [TimeValue(float(t), float(v)) for t, v in zip(tau_s, v_ms)]
     inout_zone = InOutZone(
         point_xyz=inlet.point_xyz, size_xyz=inlet.size_xyz, direction_xyz=inlet.direction_xyz,
@@ -364,7 +384,8 @@ def build_nearfield_case(
         "has_placeholders": cfg.has_placeholders,
         "placeholder_fields": cfg.placeholder_fields,
         "caveats": caveats,
-        "provenance": {"method": "m4_sph.generator.build_nearfield_case", "hydrograph_method": hydro.method},
+        "provenance": {"method": "m4_sph.generator.build_nearfield_case", "hydrograph_method": hydro_method,
+                       **({"routed_discharge": routed_record} if routed_record is not None else {})},
     }
     return spec, case_meta
 

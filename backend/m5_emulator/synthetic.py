@@ -44,7 +44,7 @@ import numpy as np
 
 from backend.shared.grid import CanonicalGrid, FLOAT_NODATA, write_grid_raster
 
-CONTRACT_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3.0"
 
 # =============================================================================
 # Thresholds (docs/handoff_contract.md §1.5 defaults)
