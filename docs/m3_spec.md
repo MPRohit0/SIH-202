@@ -114,6 +114,14 @@
 
 [SOURCED] Kernel: D-Flow FM 1.2.184 / DIMR 2.00, build package 2026.01. The launch script is `~/delft3d/dflowfm-2026.01/lnx64/bin/run_dflowfm.sh`.
 
+[CHOSEN IN PILOT — 2026-09-27] Runs on this machine use the serial D-Flow FM kernel only. The
+reference `.dia` reports `MPI : no` and `OpenMP : unavailable`; the installed kernel bundle has
+no MPI launcher or mesh partitioning executable, and its `generate_parallel_mdu.sh` requires
+pre-partitioned `_0000_net.nc`-style inputs. Therefore a partitioned MPI run cannot be started
+with the installed tools, so no MPI timing comparison is available. Do not enable MPI for this
+machine unless an MPI-enabled kernel, partitioner, and partitioned network are installed and
+verified together.
+
 [SOURCED] Case-writing libraries: hydrolib-core 1.4.0 and meshkernel 8.3.0, from the project `.venv`.
 
 [SOURCED] File versions observed in the pilot: MDU 1.09; `.ext` 2.01; ini-field `.ini` 2.00; hydrolib boundary `.bc` 1.01; source `.tim` is the legacy unversioned ASCII series format; netCDF is CF-1.8 / UGRID-1.0. `.pli` and `.xyn` are plain-text support-point files with no embedded version field.

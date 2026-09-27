@@ -1,5 +1,19 @@
 # Progress log
 
+## 2026-09-27 — M3 detached D-Flow FM launcher
+- Added `backend/m3_dflowfm/launcher.py`: starts the kernel detached, strips `/mnt/*` from `PATH`,
+  writes combined process output to the M0 run log, parses simulation-time markers from `.dia`, and
+  evaluates success only by M3 rule 1 (`.dia` has no `** ERROR` line and map/history outputs exist).
+- Connected M0 campaign jobs carrying a `case_dir` payload to the D-Flow FM launch/poll/recovery
+  path; other jobs retain the existing fake solver path. The kernel return code is not consulted.
+- MPI check: the reference `.dia` says `MPI : no` and `OpenMP : unavailable`; this kernel bundle
+  has no MPI launcher or partitioner, and its parallel-MDU helper requires partitioned network
+  files. Partitioned MPI cannot be run here, so serial remains the supported mode (details in
+  `docs/m3_spec.md`).
+- Added focused launcher contract tests. `py_compile` and direct success/progress assertions pass;
+  pytest could not initialize because this machine's active Python lacks `geopandas`, imported by
+  the M3 test conftest before test selection.
+
 ## 2026-09-24 — backend/shared: site config loader + canonical grids
 - `backend/shared/site_config.py`: Pydantic v2 model of the `sites/*.yaml` v1 format. Every value must carry
   `unit`/`source`/`status`; typed values check units, bbox/point ranges, UTM EPSG, enums, ISO dates; cross-checks ids,
@@ -1251,3 +1265,9 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Built:** a frozen D-Flow FM pilot with recorded depth, velocity, arrival, and POI histories; a separate active case generator; 60-second map output in generated cases; pilot face/raster/time-series diagnostics; and a successful FM rerun of the generated reproduction case.
 - **Still stubbed or placeholder:** the backend pilot folder is legacy ANUGA material, not the FM implementation. M3 contract post-processing is not implemented yet (canonical summary rasters, contract-format `timeseries.csv`, validated `run_meta.json`). Pilot site and physical inputs are placeholders. Phase 3 reproduction remains failed: mesh/inputs diverge, generated POIs are dry, and generated maxima are implausible relative to the frozen pilot.
 - **Next step:** make the generator consume equivalent frozen-pilot geometry and source fields, then implement contract-compliant post-processing and rerun the full reproduction comparison. Keep the result marked failed until all comparisons pass; source placeholder site inputs before production use.
+
+## 2026-09-27 — M3 launcher and M0 queue handoff
+
+- **Built:** `backend/m3_dflowfm/launcher.py` launches a generated FM case detached, captures stdout/stderr in the M0 run log, parses simulation time from `.dia`, and applies only rule 1 to determine success. M0 campaign jobs with a `case_dir` payload now use this path for launch, polling, progress, and recovery; Windows launches go through WSL with converted paths. Added focused rule/progress tests.
+- **Still stubbed or placeholder:** M0's other pipeline stages and default runs remain fake; the queue expects a generated `case_dir` payload and does not yet generate an M3 case itself. Contract-compliant M3 post-processing remains unfinished, Phase 3 reproduction remains failed, and pilot/site inputs remain placeholders. This machine's installed kernel reports `MPI : no` and `OpenMP : unavailable`; no MPI partition run or timing comparison is possible with its current tools, so M3 is serial here.
+- **Next step:** wire M1/M2 case generation into campaign job creation, then implement contract-format summary outputs and validate the end-to-end generated run against the frozen pilot. Keep production use blocked on sourcing the placeholder inputs. Pytest could not initialize in this environment because its test conftest imports unavailable `geopandas`; syntax and direct launcher checks passed.

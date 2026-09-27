@@ -42,6 +42,7 @@ import time
 from datetime import datetime
 
 from backend.m0_api import jobs, registry, runner, site_status
+from backend.m3_dflowfm import launcher as m3_launcher
 from backend.m7_gee import fetch as gee_fetch
 
 log = logging.getLogger("m0.worker")
@@ -110,19 +111,29 @@ class Worker:
                 if run["status"] != "running":
                     continue
                 pid = json.loads(run["meta_json"] or "{}").get("pid")
-                alive = pid is not None and runner.is_alive(pid, run["run_id"])
-                progress = runner.read_progress(runner.log_path(run["run_dir"]))
-                if progress.finished:
-                    self._finish_run(row, run, progress.ok)
-                elif alive:
-                    jobs.log_event(self.conn, row["job_id"], f"re-attached to run {run['run_id']} (pid {pid})")
+                run_meta = json.loads(run["meta_json"] or "{}")
+                if run_meta.get("solver") == "dflowfm":
+                    case_dir = run_meta["case_dir"]
+                    alive = pid is not None and m3_launcher.is_alive(pid, case_dir)
+                    result = m3_launcher.check_success(case_dir, run_meta["model_stem"])
+                    if result["success"]:
+                        self._finish_run(row, run, True)
+                    elif not alive:
+                        self._finish_run(row, run, False)
                 else:
-                    self._mark_run(run["run_id"], "failed", error="process gone without DONE line")
-                    jobs.fail(
-                        self.conn, row["job_id"], row["stage"], "worker_lost_run",
-                        f"Run {run['run_id']} stopped while no worker was watching it.",
-                        {"run_id": run["run_id"], "pid": pid},
-                    )
+                    alive = pid is not None and runner.is_alive(pid, run["run_id"])
+                    progress = runner.read_progress(runner.log_path(run["run_dir"]))
+                    if progress.finished:
+                        self._finish_run(row, run, progress.ok)
+                    elif not alive:
+                        self._mark_run(run["run_id"], "failed", error="process gone without DONE line")
+                        jobs.fail(
+                            self.conn, row["job_id"], row["stage"], "worker_lost_run",
+                            f"Run {run['run_id']} stopped while no worker was watching it.",
+                            {"run_id": run["run_id"], "pid": pid},
+                        )
+                if alive:
+                    jobs.log_event(self.conn, row["job_id"], f"re-attached to run {run['run_id']} (pid {pid})")
 
     def run_forever(self, poll_s: float = 1.0) -> None:
         self.acquire_lock()
@@ -255,7 +266,7 @@ class Worker:
         n_existing = self.conn.execute(
             "SELECT COUNT(*) FROM scenarios WHERE site_id = ? AND kind = ?", (site_id, kind)
         ).fetchone()[0]
-        n = _env_int("SIH26_FAKE_N_RUNS", 3)
+        n = 1 if jobs.payload(row).get("case_dir") else _env_int("SIH26_FAKE_N_RUNS", 3)
         now = registry.utc_now()
         run_ids = []
         with self.conn:
@@ -278,23 +289,54 @@ class Worker:
     def _launch(self, row: sqlite3.Row, run: sqlite3.Row) -> None:
         run_id = run["run_id"]
         index = jobs.payload(row)["run_ids"].index(run_id) + 1
-        cmd = [
-            sys.executable, "-m", "backend.m0_api.fake_solver",
-            "--run-id", run_id,
-            "--steps", str(_env_int("SIH26_FAKE_RUN_STEPS", 5)),
-            "--step-s", str(_env_float("SIH26_FAKE_RUN_STEP_S", 2.0)),
-        ]
-        if os.environ.get("SIH26_FAKE_FAIL_RUN") == str(index):  # test hook: make run N fail
-            cmd += ["--fail-at", "1"]
-        env = dict(os.environ, PYTHONPATH=os.pathsep.join(filter(None, [str(registry.REPO_ROOT), os.environ.get("PYTHONPATH")])))
-        proc = runner.launch_detached(cmd, run["run_dir"], env=env)
+        job_payload = jobs.payload(row)
+        case_dir = job_payload.get("case_dir")
+        if case_dir:
+            model = job_payload.get("model", "model.mdu")
+            proc = m3_launcher.launch_case(case_dir, run["run_dir"], model=model)
+            model_stem = Path(model).stem
+            solver_meta = {"solver": "dflowfm", "case_dir": str(Path(case_dir).resolve()),
+                           "model_stem": model_stem}
+        else:
+            cmd = [
+                sys.executable, "-m", "backend.m0_api.fake_solver",
+                "--run-id", run_id,
+                "--steps", str(_env_int("SIH26_FAKE_RUN_STEPS", 5)),
+                "--step-s", str(_env_float("SIH26_FAKE_RUN_STEP_S", 2.0)),
+            ]
+            if os.environ.get("SIH26_FAKE_FAIL_RUN") == str(index):  # test hook: make run N fail
+                cmd += ["--fail-at", "1"]
+            env = dict(os.environ, PYTHONPATH=os.pathsep.join(filter(None, [str(registry.REPO_ROOT), os.environ.get("PYTHONPATH")])))
+            proc = runner.launch_detached(cmd, run["run_dir"], env=env)
+            solver_meta = {}
         self._procs[run_id] = proc
         started = time.time()
-        self._mark_run(run_id, "running", meta={"pid": proc.pid, "started_epoch_s": started}, started_at=registry.utc_now())
+        self._mark_run(run_id, "running", meta={"pid": proc.pid, "started_epoch_s": started, **solver_meta}, started_at=registry.utc_now())
         jobs.log_event(self.conn, row["job_id"], f"run {run_id} started (pid {proc.pid})")
 
     def _poll_run(self, row: sqlite3.Row, run: sqlite3.Row) -> bool:
         pid = json.loads(run["meta_json"] or "{}").get("pid")
+        meta = json.loads(run["meta_json"] or "{}")
+        if meta.get("solver") == "dflowfm":
+            case_dir, model_stem = meta["case_dir"], meta["model_stem"]
+            progress = m3_launcher.read_progress(case_dir, model_stem)
+            alive = pid is not None and m3_launcher.is_alive(pid, case_dir)
+            if progress.steps_total:
+                jobs.set_progress(self.conn, row["job_id"], progress.steps_done,
+                                  progress.steps_total, "s")
+            if progress.steps_done and meta.get("last_dflow_time_s") != progress.steps_done:
+                meta["last_dflow_time_s"] = progress.steps_done
+                self._mark_run(run["run_id"], "running", meta=meta)
+                jobs.log_event(self.conn, row["job_id"], f"D-Flow FM simulation time {progress.steps_done} s")
+            if progress.ok:
+                self._finish_run(row, run, True)
+            elif not alive:
+                result = m3_launcher.check_success(case_dir, model_stem)
+                self._mark_run(run["run_id"], "failed", error="D-Flow FM failed M3 rule 1", meta=meta,
+                               finished_at=registry.utc_now())
+                jobs.fail(self.conn, row["job_id"], row["stage"], "run_failed",
+                          f"Run {run['run_id']} failed M3 rule 1.", {"run_id": run["run_id"], **result})
+            return not progress.ok or alive
         alive = pid is not None and runner.is_alive(pid, run["run_id"])  # check before reading the log (no race)
         progress = runner.read_progress(runner.log_path(run["run_dir"]))
         if progress.finished:
