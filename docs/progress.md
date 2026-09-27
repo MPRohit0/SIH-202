@@ -1371,3 +1371,21 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Built:** `/scene3d/{query_id}` now assembles downsampled terrain and median water-surface float32 grids, a shared UTM local frame, vertical exaggeration metadata, and available near-field Delft3D/SPH surfaces. Added restricted asset routes and an aggregate 20 MB cap. Documented the response and binary format in `contracts/scene3d.md`, the schema/example, and handoff §5.9.
 - **Still stubbed or placeholder:** M0 still serves the contract example when a query has no persisted `depth_p50.tif` or site terrain. It does not run the emulator or create query artifacts. Delft3D comparison geometry is derived from near-field DEM plus cellwise maximum depth, not a simultaneous timestep; SPH frames are only included when run IDs appear in query provenance.
 - **Next step:** connect real query creation/persistence to this route so it reliably writes median-depth assets and provenance run IDs; then validate the assembled scene and cap against an actual paired Delft3D/SPH query. No tests were run in this session.
+
+## 2026-09-27 — M0 status review and frontend session rules
+
+- **Built:** reviewed `backend/m0_api` against handoff contract 0.2.0 and recorded the current
+  implementation gaps for this session. Added `frontend/CLAUDE.md` with rules to preserve the
+  existing design, follow `STYLE_GUIDE.md`, reuse and pattern-match existing components, avoid UI
+  libraries and global styling changes, keep work in the data layer unless directed otherwise, and
+  run Playwright visual checks after every change. The instructions point to the screenshot and
+  diff commands in `frontend/visual`.
+- **Still stubbed or placeholder:** most M0 routes use contract examples or mock files. Flood query
+  execution/persistence, impact and validation data, and exports are not wired to real results;
+  onboarding stages and solver runs are placeholders. Campaign job stages are undefined, and rerun
+  currently queues onboarding rather than reusing terrain. Timeline, compare, and Scene3D use real
+  artifacts only when other modules have written them, otherwise falling back to examples. Site
+  listing/detail data are also mock-backed, with lookup limited to known sites.
+- **Next step:** wire flood query creation and polling to M5 outputs and persist query artifacts
+  according to the contract; use those artifacts to connect the remaining result endpoints. Define
+  contract-consistent campaign and rerun job behavior before implementing those workflows.
