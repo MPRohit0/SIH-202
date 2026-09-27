@@ -1417,6 +1417,47 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Still placeholder/stubbed:** M3 pilot data are placeholders, and the independent M3 generator has not passed Phase 3 reproduction. The refined timing mesh runs but its net writer reread loses 134 edges. M4 has only stock dam-break benchmarks: no terrain-cut Teesta/Chamoli case or representative M4 post-processing timing. Chamoli site/event inputs are absent; its 2021 event was a mass flow, not a dam breach.
 - **Next:** fix the M3 mesh writer/reproduction mismatches, then rerun the reproduction checks before accepting a production mesh. Source and add the Chamoli site/event inputs; then run a terrain-cut M4 case at multiple particle spacings and measure post-processing. Revisit the run-budget choice after those measurements; no option has been recorded in `decisions.md`.
 
+## 2026-09-27 — Teesta MVP timeline and impact artifacts
+
+- Added a direct-run timeline path for registered `delft3d_direct` queries. It reads the retained
+  D-Flow FM map NetCDF (901 water-depth snapshots at 120 s cadence through 108,000 s), selects
+  five actual records across wet-area growth, rasterizes those records to the same 611×623,
+  EPSG:32645, 90 m grid as the solver summary, and renders/caches them through M0's existing PNG
+  layer renderer. The existing `median/high/possible` timeline URLs all alias the same real
+  deterministic snapshot; UI caveats explain that these are not uncertainty bands. Timeline
+  hydrograph values come from the solver's actual input CSV and remain labelled reconstructed.
+- Updated the existing playback map adapter in `source.ts`/`app.tsx` to display the selected
+  contract timeline raster URL through the existing image-overlay map component. Browser E2E
+  confirmed the slider changes the map URL to an actual `/timeline/median_t*.png`, loaded at
+  611×623 with no browser errors; no layout redesign or snapshot changes.
+- Added M0's direct-run impact derivation, triggered only for registered `delft3d_direct` queries
+  without a stored impact file. It intersects the real 0.3 m threshold depth layer with stored
+  exposure: 287.8 WorldPop persons, 346 OSM building footprints, 26,596.5 m OSM roads, and 17
+  bridges; no affected hospitals/schools or matched warning POIs beyond Chungthang. Monetary loss
+  remains null. All impacted counts go in the contract's POSSIBLE column with an explicit caveat
+  that one deterministic run is not a probability class. Population carries no artificial range.
+- Added source records for OpenStreetMap and WorldPop. Provenance/caveats explicitly state that
+  the OSM extraction timestamp and request are missing, the site bbox used for exposure remains
+  placeholder-marked, WorldPop is a 2020 ~1 km product disaggregated to 30 m, and cropland /
+  hydropower layers are absent. The numbers are limited raster/exposure intersections, not a full
+  Teesta impact assessment. FX, price-index, and road-width placeholders still block loss pricing.
+- Generated and schema-validated timeline and impact responses for
+  `q_20260927T200323Z_042554`; M0 returned timeline (5 frames) and impact (HTTP 200), and each
+  real timeline PNG is non-empty. The UI rendered the real timeline frame and displayed the
+  exposure values, LOW confidence, missing-input caveats, and unavailable loss. This is an MVP
+  dashboard demonstration, not scientific validation.
+- Direct snapshot rasters now carry GeoTIFF tags for `REAL_SIMULATION_ARTIFACT`, source run ID,
+  source map path, exact model time, and rasterization method. Repeated the complete browser path
+  against `q_20260927T204044Z_254686`; all query/impact/timeline schemas validate, M0 query/impact/
+  frame endpoints return HTTP 200, and the 611×623 frame image loads in the existing map. The
+  direct-run warning table labels its `1` indicator “Inundated” rather than showing it as 100%
+  probability; the timeline inspector describes the aliased contract URLs as one deterministic
+  frame. Browser screenshots are retained locally at `data/teesta_mvp/dashboard_timeline.png` and
+  `data/teesta_mvp/dashboard_impact.png` (ignored runtime artifacts; no visual snapshots changed).
+- Validation: `tests/m0_api` + `tests/m6_impact`: **211 passed, 1 hardware-gated skip**; direct
+  artifact adapter tests: **2 passed**; frontend typecheck passed, Vite production build passed
+  (existing large-chunk advisory), and the full frontend visual suite passed **12/12**.
+
 ## 2026-09-27 — M3/M4 run budget reconciled
 
 - **Built:** revised `docs/run_budget.md` to use retained FM metadata for the two short runs
@@ -1587,3 +1628,257 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Next step:** migrate the map and summary flow to the active site's contract flood-query,
   scene/timeline layer files and `Estimate` uncertainty shapes, preserving explicit awaiting and
   placeholder states where the API has no usable result.
+
+## 2026-09-27 — I-1 deterministic synthetic E2E plumbing
+
+- Added the explicitly synthetic `demo_valley` site fixture (`sites/demo_valley.yaml` and
+  `tests/fixtures/i1/site_config.json`) and a bounded deterministic artifact producer in
+  `backend/m0_api/synthetic_demo.py`. The 48×48 EPSG:32645 fixture writes canonical terrain,
+  domain, depth, velocity, arrival and extent artifacts plus schema-shaped run metadata.
+- `POST /sites` with `site_id: demo_valley` and `demo_mode: true` persists the accepted config and
+  queues the existing SQLite onboarding job. The existing worker advances the normal lifecycle,
+  creates the synthetic files, skips all physical solvers, and reaches `ready`. Other demo sites
+  retain their prior M1/M2/M5/D-Flow FM onboarding path.
+- `POST /flood/query` reads the generated run rasters, writes query-layer GeoTIFFs, extent GeoJSON,
+  timeline inputs, result and impact artifacts, and registers the query. Polling, styled raster PNG,
+  extent, impact, timeline frames, compare-unavailable status, validation-unavailable status, and
+  GeoJSON/KML/shapefile/PDF exports now use or identify the same demo artifacts. Missing demo query
+  artifacts return 404; result values carry LOW confidence, `demo_mode`, synthetic caveat, and
+  inherited placeholder fields.
+- Added `getFloodRasterOverlays()` in the frontend source seam: it passes contract image URLs,
+  bounds, style IDs and units through without inventing a legacy Grid array. The current UI map still
+  consumes the legacy Grid/Result shape and does not display this contract overlay; panel wiring
+  was intentionally left unchanged per I-1 scope.
+- Focused I-1 integration test passed and compares the API maximum depth to the generated depth
+  GeoTIFF, validates run/result/impact/timeline schemas, checks a real shapefile bundle, and covers
+  invalid site/query and missing layer errors. The backend suite excluding `tests/m3_dflowfm` passed:
+  886 passed, 6 skipped. The stale `test_get_file_geojson` assertion now checks the intended 404
+  rather than expecting an unrelated example fallback. Full pytest collection remains blocked by
+  pytest's rejection of `pytest_plugins` in `tests/m3_dflowfm/conftest.py`.
+- Frontend TypeScript check, production build and all 12 visual snapshots passed; no snapshots
+  changed. This verifies software artifact handling only, not Delft3D, DualSPHysics, breach
+  equations or scientific forecast accuracy.
+
+## 2026-09-27 — I-1 frontend contract raster bridge
+
+- `source.floodRasterOverlay()` now adapts the `FloodQueryResponse` layer reference already
+  returned by the query flow into a typed image overlay (API-resolved URL, bounds, style ID, unit).
+  It does not create a legacy `Grid` or refetch the query. Mock mode alone may select the example's
+  `p_inundation` layer when `depth_p50` is absent; real mode reports the missing layer as empty.
+- `TerrainMap` keeps its existing canvas path for legacy `Grid`/`Result` data and renders a
+  contract raster PNG when supplied. The backend style colors/breaks drive the existing legend;
+  the layer bounds are retained with the overlay, which occupies the map extent. The app selects
+  the 2D tab for a raster response. Synthetic area/depth/velocity estimates remain visible when
+  peak discharge is null.
+- Browser verification against the live M0 API loaded the generated `depth_p50.png` (48×48,
+  EPSG:32645 source GeoTIFF); its 966 opaque pixels match the source raster's 966 wet cells, and
+  the rendered summary shows 9.7 km², 5.2 m, and 2.9 m/s. The response bounds/style ID are present
+  on the map element. DEMO MODE, PLACEHOLDER and LOW confidence are visible.
+- Mock mode renders its contract-example `p_inundation` URL and receives the existing 1×1
+  transparent mock PNG. The interactive synthetic screen was visually inspected; the 12 existing
+  screenshot snapshots pass unchanged. Frontend typecheck/build pass; focused M0 I-1/endpoints/
+  schema tests: 94 passed. This closes the I-1 display gap only; no real-solver or science claim.
+
+## 2026-09-27 — I-2 implementation blockers: controlled reproduction and artifact seams
+
+- Audited the retained D-Flow FM pilot against prior generated cases. The 3,234-face generated
+  result was pre-boundary-segmentization; the 77,415-face version still used the full M1 domain,
+  connected components and POIs, and a derived outlet, while the retained 33,018-face pilot uses
+  clipped L002/L004/L006 reach geometry and its explicit outlet. Historical `sourcesink_discharge`
+  errors came from rejected boundary experiments; current pilot forcing is a point source.
+- Added a pilot-only reference mode to the existing M3 generator. Its mesh (18,034/51,051/33,018),
+  bed and Manning samples, outlet, POIs and source time series match the frozen pilot; generated
+  inputs pass net round-trip checks. A controlled 30-hour D-Flow FM rerun completed with no `.dia`
+  errors, nonempty 481,977,476-byte map and readable history, and all common solver map/history
+  variables equal the retained pilot exactly. Runtime 468.5 s; peak RAM 228.1 MiB. This closes
+  reproduction for the frozen pilot setup only; the production M1 domain and Teesta input gate
+  remain unresolved. Details: `docs/m3_reproduction.md`.
+- Added the controlled M4 launcher to campaign/worker execution and reran the stock 3D DualSPHysics
+  benchmark through both direct launcher and registered-worker paths. Solver/GenCase return codes
+  were 0; about 11 s; sampled peak VRAM 845 MiB. Logs and sampling evidence are retained under
+  `backend/m4_pilot/controlled_launcher_20260927/`. This is not a terrain or target-site run.
+- Added contract 0.3.0 `routed_discharge.json` + `timeseries.csv` (§4.4) and M4 input consumption.
+  Controlled M3-series fixture round-trips and M4 converts its values to inlet velocity; it does
+  not establish a production flow-extraction method. Site-specific section geometry, integration
+  method and time alignment remain blocked. Cascade trigger scope remains `CONTRACT DECISION
+  REQUIRED` with dependencies/fields recorded in `docs/decisions.md`.
+- Added `backend/m0_api/real_query.py`: a direct query now requires an explicit registered scenario
+  and completed/postprocessed run, validates its run metadata and georeferenced summary rasters,
+  copies actual depth/velocity/arrival rasters into query paths, derives extent from actual depth,
+  and returns direct-solver estimates with LOW confidence and source run provenance. Missing real
+  runs/artifacts return errors rather than contract examples. Controlled M0 test exercises
+  registration → response → polling → rendered raster/extent and schema validation.
+- Added `docs/real_input_checklist.json` for Teesta and Rishi Ganga. Both production gates are
+  BLOCKED; no scientific/site configuration values were changed. Chamoli's 2021 mass-flow event
+  remains incompatible with the current dam-breach setup pending an event representation decision.
+- Focused checks: M3 reproduction/artifact tests passed; final M0/M3/M4/contracts regression run:
+  **116 passed, 1 skipped**. Full repository suite: **903 passed, 8 skipped**. The one M4 skip is
+  the optional controlled binary test when `DSPH_BIN_DIR` is unset; both controlled DualSPHysics
+  launcher/worker tests were separately run with the installed binaries and passed. `git diff
+  --check` and machine-readable input-checklist JSON parsing pass. No target-site production solver
+  run or campaign was started.
+
+## 2026-09-27 — Teesta MVP forcing prepared; solver launch awaits run-scope resolution
+
+- Verified the historical Teesta III figures against PARIVESH's explicit "Existing Salient
+  Features" column, separately from the proposed replacement concrete-gravity dam. Added
+  `src_043`–`src_046` entries in `docs/data_sources.md`. The cited White Rose reconstruction
+  reports a modelled ~5,340 m³/s Chungthang peak and arrival near 00:30 IST; a separate 2025
+  reconstruction reports a modelled ~7,355 m³/s Chungthang peak. Neither is a complete observed
+  hydrograph. Kept the user's 7,355 m³/s / 03:20 constraints explicitly as MVP reconstruction
+  targets, not observations.
+- Added `backend/m3_dflowfm/mvp_forcing.py` and tests. The generated ignored input
+  `data/teesta_mvp/inputs/teesta_2023_mvp_forcing.csv` is a 60-second sampled triangle above
+  500 m³/s, with 50,000,000 m³ integrated excess volume and a 03:20 IST peak. Duration is
+  14,587.892 s (T = 2V/(Qpeak-Qbase)); sidecar says `MVP_RECONSTRUCTED` and
+  `NOT_OBSERVED_HYDROGRAPH`. The sampled trapezoidal volume matches the target exactly.
+- Exercised M2 methods using only the supplied Teesta III reservoir/dam facts plus overtopping
+  mode. F95/F8 yield method-specific width estimates 76.89/57.85 m; failure-time methods F95/F8
+  yield 822.07/757.99 s. The contract's recommended width pair remains blocked because XZ9 needs
+  unsourced rockfill erodibility; M2 also requires a breach-height input. No width/depth was
+  selected or added to site configuration.
+- **No solver launched:** the frozen pilot's single source is at South Lhonak, whereas the
+  7,355 m³/s and 03:20 constraints are at Chungthang; applying them at that source cannot be
+  interpreted as a Chungthang hydrograph match. The pilot M3 case has one source, so adding the
+  Teesta III reservoir breach would be a second source/cascade behavior not present in that case.
+  Awaiting MVP run-scope clarification; no solver or frontend result is being represented as real.
+- Tests: `tests/m2_breach`, `tests/m3_dflowfm` (including MVP forcing), and M0 schema tests:
+  **170 passed**. No M0 query, dashboard, export, frontend, or production solver run was attempted.
+
+
+## 2026-09-27 — Teesta MVP real D-Flow FM run reached the dashboard
+
+- Prepared `backend/m3_dflowfm/mvp_case.py` to copy the retained frozen pilot case and replace
+  only the South Lhonak source `.tim` with the existing deterministic MVP forcing. Geometry,
+  source point, bed/Manning samples, boundaries, POIs, 30-hour stop and pilot solver configuration
+  are retained. Metadata records `MVP_PILOT_DOMAIN`, `MVP_RECONSTRUCTED`,
+  `NOT_OBSERVED_HYDROGRAPH`, single source, and explicitly no Teesta III breach/cascade.
+- First solver attempt exited 0 but was rejected by rule 1: `.dia` reported end-of-file on the
+  source series at 14,610 s, before TStop. Preserved its `.dia`, partial map/history and resource
+  record. Fixed only the input coverage defect: the D-Flow `.tim` now holds the existing 500 m³/s
+  baseline through 108,000 s. One retry completed with return code 0, no `** ERROR`, 108,000 s
+  simulated, 750.08 s runtime, 750 s wall time, 223.90 MB peak RSS and 574,455,934 bytes
+  measured run-directory size. The NetCDF map has 901 records/33,018 faces; history has 1,801
+  records/4 stations; both are readable and reach model end.
+- Existing M3 post-processing wrote canonical 611×623 90 m rasters on EPSG:32645, the extent
+  vector, POI time series, and schema-valid run metadata. Depth has 2,423 wet cells and 66.8905 m
+  maximum; velocity maximum is 32.7657 m/s; M0-derived inundated area is 19,043,100 m². The
+  query's copied depth TIFF is cell-for-cell identical to the registered run's source depth TIFF.
+  The raw FM NetCDF emits EPSG:0 metadata, but canonical rasters use the frozen pilot's validated
+  EPSG:32645 grid transform. The frozen configuration did not emit mass-balance output.
+- Registered `teesta_2023_mvp__delft3d` in M0 and created real direct query artifacts. The current
+  query ID and complete machine-readable evidence are in
+  `data/teesta_mvp/mvp_execution_summary.json` (gitignored with run artifacts). M0 polling, map
+  PNGs, extent GeoJSON and all four export formats returned success. Frontend real mode fetched
+  the generated PNG through `api.ts → source.ts → TerrainMap`; browser measured 611×623 pixels,
+  displayed 19.0 km² / 66.9 m / 32.8 m/s, LOW confidence and the explicit reconstructed-forcing
+  warning. Screenshot: `data/teesta_mvp/dashboard.png`.
+- Impact and timeline are explicitly unavailable (404 `artifact_not_found`): no impact result or
+  timeline frames were produced. No examples were substituted. Compare has no paired solver or
+  validation artifact. There is no M5 training result and no scientific validation claim.
+- Verification: selected M2/M3/M0/schema tests **244 passed**; frontend `tsc --noEmit` and
+  production build passed; visual suite **12 passed** after updating only the dashboard and
+  simulation snapshots for the intentional real-mode change from “demo people” to “people”. No
+  campaign, M4 run, second source, or additional target-site solver run was started.
+
+## 2026-09-27 — Real Teesta timeline and impact dashboard artifacts
+
+- Added `backend/m0_api/real_timeline.py` to select five snapshots directly from the registered
+  D-Flow FM map NetCDF (source cadence 120 s, 901 records through 108,000 s), rasterize actual
+  water depth onto the canonical 90 m EPSG:32645 grid, and record the source run, map file,
+  snapshot times, POI history and reconstructed-forcing provenance. The real Teesta query
+  `q_20260927T204044Z_254686` now serves five playback frames through the existing timeline
+  endpoint. Timeline URL bands alias the same deterministic snapshot because this single-run MVP
+  has no probabilistic percentiles; UI copy states this explicitly.
+- Added `backend/m0_api/real_impact.py` to derive the contract impact response from the query's
+  real solver depth/extent and stored exposure layers. It reports 287.8 WorldPop persons,
+  346 OSM buildings, 26,596.5 m of OSM roads and 17 bridges intersecting the direct footprint;
+  the warning table uses registered FM histories. INR loss stays null because required conversion
+  and road-width inputs remain placeholders. Impact labels one-run extent as a deterministic
+  possible footprint, not a probability. Coverage records the placeholder bbox, unknown OSM
+  fetch date, coarse 2020 population raster and absent cropland/hydropower layers.
+- Connected the existing map/playback component to timeline frame overlays through a typed
+  `source.ts` adapter. Direct-run labels say “In this run” rather than probability, and the
+  playback inspector shows the single D-Flow snapshot honestly. No map redesign or new data-fetch
+  path was added.
+- Checked the dashboard in real mode against the already registered run: map/timeline showed
+  the generated FM snapshot, impact showed the run-derived exposure counts, and the UI retained
+  LOW confidence, MVP reconstructed forcing and pilot-domain caveats. Browser console had no
+  errors. Screenshots: `data/teesta_mvp/dashboard_timeline.png` and
+  `data/teesta_mvp/dashboard_impact.png` (ignored runtime artifacts).
+- Validation: M0/M6 impact and direct-adapter tests **211 passed, 1 skipped**; latest direct
+  adapter rerun **2 passed**; frontend typecheck, production build and visual suite **12 passed**.
+  API returned schema-valid impact and timeline responses (five frames); the final timeline PNG
+  was nonempty and 611×623. No snapshots were updated in this task. No solver was rerun and no
+  scientific or historical-event validation is claimed.
+
+## 2026-09-27 — Teesta MVP dashboard stabilization
+
+- Connected the home/landing Teesta entry to the registered direct D-Flow FM query. The landing
+  page now names the Teesta MVP run and leaves extent blank until a result has loaded instead of
+  showing the legacy screening model's zero result. An expected `getTerrain()` awaiting response
+  is no longer surfaced as an API error banner; terrain remains explicitly unavailable in the
+  legacy Grid view while the contract raster renders in the flood map.
+- Monitoring no longer shows a nonfunctional observed-vs-simulated swipe when no georeferenced
+  observed extent is registered. It reports that limitation and displays the two actual cached
+  Sentinel-2 images with acquisition dates (2023-09-26 and 2023-10-26).
+- Captured `data/teesta_mvp/demo_ready_dashboard.png`: the real M0 depth PNG loads at 611×623 and
+  shows the real D-Flow FM run's 19.0 km² flooded area, 66.9 m maximum depth and 32.8 m/s maximum
+  cell velocity. Timeline playback loads a solver-derived 611×623 frame PNG. Impact reports the
+  registered WorldPop/OSM-derived output; loss remains null/placeholder and confidence LOW.
+- In one browser session, the Teesta Demo entry opened the registered result and all major routes
+  rendered without console errors or failed requests. Cached satellite images loaded at 902×1010.
+  SHP/KML/PDF exports from the generated query downloaded at 132,194 / 358 / 827 bytes.
+- Compare correctly remains UNAVAILABLE: the only actual SPH execution is the controlled stock
+  tank benchmark, which is not spatially or scenario-wise comparable to the Teesta river run.
+  No Teesta paired SPH artifacts or defensible comparison metrics exist; no metrics were fabricated.
+  Validation correctly reports no validation runs. This comparison gap means the requested MVP
+  with a meaningful Delft3D-vs-DualSPHysics result is **not complete**.
+- Reviewed and updated the 12 existing route snapshots for intentional demo-state/data changes and
+  added the new Validation snapshot. Full visual suite: 13 passed. Frontend typecheck and production
+  build pass. `.venv/bin/pytest -q tests/m0_api tests/m5_emulator/test_compare.py`: 175 passed,
+  1 skipped. With `DSPH_BIN_DIR` set, M4 launcher/worker suite: 77 passed. No Teesta solver was run.
+
+## 2026-09-27 — Teesta MVP SPH comparison attempt (blocked)
+
+- Added `backend/m4_sph/teesta_mvp.py`: it derives an MVP-only 300 m section at the retained
+  Chungthang POI from the actual M3 UGRID `waterdepth` and `ucmag` variables, integrates
+  depth × speed magnitude × intersected face length, and writes the existing routed-discharge
+  manifest/CSV with provenance. The lack of an M3 velocity vector is explicit; magnitude is treated
+  as section-normal velocity only for this MVP approximation. The 600 s window is taken from M3
+  history around the real Chungthang peak. The M4 inlet width is based on the actual wet-face span.
+- Cropped the existing EPSG:32645 M1 Teesta DEM to 600×600 m at 10 m resolution around the retained
+  Chungthang POI, and recorded bounds, CRS, source path and transform method. An STL opening was
+  cut only across the M3-wet inlet segment, keeping the input terrain values unchanged. Case
+  generation passed GenCase (`returncode=0`, about 1.8 s); predicted VRAM was 393 MiB.
+- Registered `teesta_2023_mvp__dualsphysics` via the existing M0 campaign worker. Both attempts
+  stopped before simulation progress at `JSphInOut::InitCheckProximity`: actual solver-generated
+  `CfgInOut_ErrorParticles.vtk` points have x/y correlation −0.997, showing the inlet width plane
+  aligned along the channel rather than across it. GenCase returned 0; DualSPHysics returned 1.
+  Attempt 0: 3.686 s total, 867 MiB sampled GPU memory. Retry attempt 1: 3.026 s, 877 MiB. Both
+  logs and failed raw artifacts are retained under
+  `data/teesta/runs/teesta_2023_mvp__dualsphysics/attempts/`.
+- Fixed the demonstrated DualSPHysics clockwise `rotateaxis` sign in `generator.py`, with a unit
+  regression check. Also fixed M0 campaign failure handling so a failed M4 campaign attempt uses
+  its configured single retry and a failed/queued case cannot be labelled as a real solver output.
+  The corrected rotation was not run: the one retry was consumed before the VTK orientation was
+  fully diagnosed. No third solver attempt was made.
+- Added a common-footprint comparison builder and a strict M0 file route. It requires successful,
+  postprocessed artifacts from both real runs; no comparison sidecar or difference raster was
+  produced because the SPH run failed. `GET /compare/teesta?scenario_id=teesta_2023_mvp` returns
+  `available:false` and only the D-Flow run ID, not the Compare example. Therefore the dashboard
+  still has no paired Teesta SPH result and the Model Comparison acceptance criterion remains
+  blocked.
+- Validation after the implementation changes: relevant M4 and M0 tests **142 passed, 8 skipped**;
+  frontend typecheck and build passed; visual suite **13 passed** with no snapshot updates. These
+  controlled tests validate the software seams only, not a successful Teesta SPH execution.
+- **Still blocked/stubbed:** no successful Teesta DualSPHysics integration, postprocessed SPH depth
+  raster, common-footprint difference raster, paired-run metrics, or available Model Comparison
+  response. The current run remains classified as a failed solver attempt; the route correctly
+  returns `available: false`. The corrected inlet rotation is covered by a unit test but has not
+  been verified in a solver run. The M3-derived inlet also remains an MVP approximation because
+  the retained map provides speed magnitude, not section-normal velocity.
+- **Next step:** after deciding whether to authorize another controlled Teesta SPH attempt, verify
+  the corrected inlet orientation with the solver, then proceed only if the run completes and its
+  existing postprocessor emits georeferenced artifacts. Otherwise retain the unavailable comparison
+  state. No real-site campaign, M4 production coupling, or scientific validation is implied here.
