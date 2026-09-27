@@ -933,3 +933,74 @@ triangular finite-volume shallow-water solver), not Delft3D 4 FLOW.
   `teesta_pilot.yaml` header) is a separate pass.
 - **Known limitation:** ANUGA, like Delft3D, is clear-water. Debris/sediment-laden flow is not
   represented (CLAUDE.md "Known limitations").
+
+## 2026-09-26 — M3: back to Delft3D FM, superseding "ANUGA replaces Delft3D 4 FLOW" (M3-B, DECIDED with user this session)
+
+**Decision:** the M3 far-field solver is **D-Flow FM** (Delft3D DIMRset 2026.01), not ANUGA. ANUGA
+is kept as a fallback for the record (`backend/m3_pilot/`), not the M3 reference.
+
+**Why:** the SIH problem statement requires a Delft3D-vs-SPH comparison, which ANUGA can't
+provide. The reason ANUGA was chosen over Delft3D — no runnable Delft3D kernel — no longer holds:
+a D-Flow FM kernel now builds and runs from Deltares' own unmodified source
+(`docs/dflowfm_kernel_build.md`; D-Flow FM 1.2.184 + DIMR 2.00, Intel oneAPI 2024.2, built in WSL),
+verified against Deltares' own example and D-Flow FM tutorial06 (0 errors) and against a case
+written by hydrolib-core (0 errors).
+
+**`model: "delft3d"` now means D-Flow FM.** No contract/schema change: `run_meta.schema.json` and
+`scenario_design.schema.json` already have `"delft3d"` in their `model` enum (added when the plan
+was the classic FLOW kernel); it is repurposed rather than renamed, since `docs/handoff_contract.md`
+§1.7's `run_id`/`model` patterns, `backend/m0_api`'s `runs` table, and `backend/campaign.py`
+(`model: "sph"` sibling) all already use the string `"delft3d"` and none of that needs to change.
+`docs/handoff_contract.md` §1.7 now has a one-line note next to the `model` row saying so.
+
+**Consequences**
+- **Module:** `backend/m3_delft3d/` (never written) is M3's home again, building D-Flow FM cases
+  with hydrolib-core 1.4.0 + meshkernel 8.3.0 and reading output with dfm_tools 0.47.0/xugrid
+  (pinned in `environment.yml`/`requirements.txt`, verified against the built kernel with no
+  version drift in anything already installed — `docs/dflowfm_kernel_build.md`).
+- **Pilot:** `m3_pilot/`/`m3_cascade_pilot/` (D-Flow FM) are created in M3-1/M3-4. The ANUGA pilot
+  at `backend/m3_pilot/` (`teesta_pilot_s001__anuga.py` + its exporter) stays as a kept-for-record
+  fallback, not the M3 reference — `CLAUDE.md`'s "Working pilot cases" bullet updated to say so.
+  `backend/m3_pilot/inputs/teesta_pilot.yaml`'s header rewritten to record both solver pivots
+  honestly (Delft3D 4 FLOW GUI plan → ANUGA → D-Flow FM) rather than only the most recent one.
+- **Rules for M3 (M3-1 case generation, M3-3 launch/post-processing, M3-5 run budget) —** learned
+  building and running the kernel this session, to be copied into `docs/m3_spec.md` /
+  `docs/run_budget.md` once those files exist:
+  1. **Run success** = the `.dia` has no line starting `** ERROR` AND the expected `*_map.nc` and
+     `*_his.nc` exist in the output dir. Never trust the exit code alone: `run_dflowfm.sh` exited
+     0 in three separate runs where the kernel actually rejected its input.
+  2. **`.ext` version:** any `.ext` file written by hydrolib-core must have `fileVersion = 2.01`
+     (`ExtModel.general.fileversion = "2.01"`). hydrolib-core 1.4.0 writes 3.00, and this kernel
+     then logs `Unsupported format … Ignoring this file` and silently runs with no boundaries.
+  3. **Net-file writer:** hydrolib-core's net writer failed on an old (2015) real-world net
+     (meshkernel dropped 1 of 8916 nodes on read; the writer then tried to write `node_z`'s
+     original 8916 values against the reduced node count and raised a shape mismatch). Before
+     trusting the writer for real cases, M3-1 must show on our own meshkernel-built meshes that a
+     written net re-reads with identical node/edge/face counts and that the kernel runs it.
+  4. **Paths:** case files reference each other with relative paths so cases are relocatable.
+  5. **Output size:** D-Flow FM tutorial06 wrote an 805 MB `_map.nc` for a 10-day run at default
+     map settings (8355 cells, 1200 s map interval, default `Wrimap_*` variables). M3-1 sets
+     `MapInterval` and the `Wrimap_*` switches to only what post-processing needs (summary maps:
+     max depth, max velocity, arrival time, …), and `docs/run_budget.md` must list **disk per
+     run**, not just wall time and RAM.
+  6. **Running the kernel:** strip `/mnt/*` from `PATH` before running it (the Windows dirs WSL
+     adds otherwise make cmake — and presumably other tools — pick up Windows-side packages
+     instead of the Linux ones; use `run_dflowfm.sh` for plain MDUs and `run_dimr.sh -m
+     dimr_config.xml` for DIMR configs). Runs launch as detached jobs (CLAUDE.md rule 14).
+- **P5 (proposed, DEFERRED to M3-1):** moving solver-independent code from the ANUGA pilot into
+  `backend/m3_common/` was proposed and not applied. On inspection, three of the four proposed
+  pieces don't actually exist as reusable code yet: the pilot reads its own flat-file export
+  (`.pol`/`.xyz`/`.tim`, hand-portable-format-specific), not M1's real Python output, so the real
+  generator should read M1 directly instead (as `backend/m4_sph/generator.py` already does); its
+  POI/gauge sampling is ANUGA-mesh-specific ("triangle containing point"; D-Flow FM's meshkernel
+  mesh needs its own version of the same pattern); and it has no canonical-grid/`run_meta.schema.
+  json` post-processing at all (it writes triangle-centroid CSVs and its own ad-hoc
+  `run_meta_pilot.json`) for M3-1 to build on `backend/m4_sph/postprocess.py`'s patterns instead.
+  Only `inflow_point()` (DEM priority-flood + closed-basin spill-point relocation) and
+  `discharge(t)` (edge-clamped hydrograph sampling) are genuinely solver-independent as-is. Rather
+  than move code that would save M3-1 little or nothing, `backend/m3_common/` (spill-point
+  relocation + hydrograph sampler) will be **new-written from the pilot's logic, with tests, in
+  M3-1 Phase 2** when the real generator needs it — not moved ahead of that need.
+- **Known limitation, unchanged:** clear-water, not debris/sediment-laden (CLAUDE.md "Known
+  limitations"); the moraine/embankment breach-equation caveats already in the contract still
+  apply regardless of far-field solver.

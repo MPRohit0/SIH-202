@@ -19,3 +19,9 @@ scipy>=1.11
 scikit-learn>=1.4
 joblib>=1.3
 matplotlib>=3.8
+
+# backend/m3 (D-Flow FM case generation + output), pinned to versions verified
+# against the DIMRset 2026.01 kernel (docs/dflowfm_kernel_build.md)
+hydrolib-core==1.4.0
+meshkernel==8.3.0
+dfm_tools==0.47.0

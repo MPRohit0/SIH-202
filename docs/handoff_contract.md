@@ -135,7 +135,7 @@ fixing so every module emits the same derived id.
 |`dam_id`|derived, `<site_id>__<dam.id>`|`teesta__south_lhonak`, `teesta__teesta_iii`|
 |`scenario_id`|`<site_id>_s<NNN>` (design), `<site_id>_hist_<event>` (historical), `<site_id>_demo_s<NNN>` (demo mode), `<site_id>_n_<slug>` (named extra)|`teesta_s007`, `teesta_hist_2023`|
 |`run_id`|`<scenario_id>__<model>`|`teesta_s007__delft3d`, `teesta_s003__sph`|
-|`model`|`delft3d` \| `sph`||
+|`model`|`delft3d` \| `sph`|`delft3d` means **D-Flow FM** (`docs/decisions.md` 2026-09-26 "M3: back to Delft3D FM"); no enum change|
 |`query_id`|`q_<YYYYMMDDTHHMMSSZ>_<6 hex>`|`q_20260924T101500Z_3fa9c1`|
 |`job_id`|`job_<YYYYMMDDTHHMMSSZ>_<6 hex>`|`job_20260924T101500Z_b17e02`|
 |`event_id`|`<site-or-place>_<year>`|`teesta_2023`, `chamoli_2021`|

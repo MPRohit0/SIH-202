@@ -1,12 +1,18 @@
 # =============================================================================
-# m3_pilot/inputs/teesta_pilot.yaml — PILOT-ONLY site config for the hand-built
-# Delft3D 4 FLOW reference case (docs/decisions.md 2026-09-25 "M3: Delft3D 4
-# FLOW, not FM").
+# m3_pilot/inputs/teesta_pilot.yaml — PILOT-ONLY site config, originally written
+# for a hand-built Delft3D 4 FLOW reference case (docs/decisions.md 2026-09-25
+# "M3: Delft3D 4 FLOW, not FM") that was never completed. Repurposed the same
+# session as input to the ANUGA pilot script (backend/m3_pilot/
+# teesta_pilot_s001__anuga.py, docs/decisions.md 2026-09-26 "M3: ANUGA
+# replaces Delft3D 4 FLOW"). As of docs/decisions.md 2026-09-26 "M3: back to
+# Delft3D FM", M3's far-field solver is D-Flow FM, and the ANUGA pilot is a
+# kept-for-record fallback, not the M3 reference; the real D-Flow FM pilot
+# case (M3-1/M3-4) may need its own updated site config, not necessarily this
+# one.
 #
 # This is NOT sites/teesta.yaml and is never loaded by the real Teesta site.
-# It exists only so the pilot (built by hand in the Deltares GUIs) and its
-# later programmatic reproduction (backend/m3_delft3d/generator.py, Phase 2)
-# share one small, hand-checkable input.
+# It exists only so a hand-checkable pilot input can be shared across those
+# solver pivots without re-deriving the same reach/resolution choices each time.
 #
 # Changed vs sites/teesta.yaml (everything else — dams, POIs, event dates — is
 # an unmodified copy, still placeholder):

@@ -6,7 +6,7 @@ dam-break scenarios in Himalayan India. Users are DDMA/SDMA/NDMA/CWC officials w
 GIS layers, not hydraulic modellers. Speed and honest uncertainty matter more than
 third-decimal physical accuracy.
 
-Core idea: run expensive physics (Delft3D 4 FLOW, DualSPHysics) OFFLINE over a designed scenario
+Core idea: run expensive physics (Delft3D FM / D-Flow FM, DualSPHysics) OFFLINE over a designed scenario
 set, then answer live queries in seconds with a PCA + Gaussian Process emulator
 (Donnelly et al. 2022). Breach parameters come from empirical / data-fusion equations
 (Azmi 2026). Sites without a trained emulator fall back to empirical breach + HAND flow routing.
@@ -37,7 +37,7 @@ If a file above doesn't exist yet, say so instead of guessing its contents.
 | M0 | backend/m0_api | FastAPI orchestrator (`/api/v1`), job queue + worker, rendering, serves frontend |
 | M1 | backend/m1_terrain | DEM, land cover → Manning's n, HAND, domain, centreline, POIs, near-field STL |
 | M2 | backend/m2_breach | Breach parameters, dual-method ranges, hydrographs, cascades |
-| M3 | backend/m3_delft3d | Delft3D 4 FLOW (structured grid) case generation, launch, post-processing to summary maps |
+| M3 | backend/m3_delft3d | Delft3D FM (D-Flow FM) case generation (hydrolib-core + meshkernel), launch, post-processing to summary maps |
 | M4 | backend/m4_sph | DualSPHysics near-field cases, launch, post-processing (same schema as M3) |
 | M5 | backend/m5_emulator | Scenario design, cache, PCA+GP emulator, LOOCV, Monte Carlo, confidence, fallback |
 | M6 | backend/m6_impact | Exposure overlay, warning table, loss, exports (.shp/.kml/.geojson/.pdf) |
@@ -77,21 +77,26 @@ M3 and M4 MUST produce outputs in the identical schema so SPH-vs-Delft3D compari
 ## Stack
 Python 3.11+, FastAPI, Pydantic v2, SQLite, numpy, scipy, scikit-learn (GP + PCA),
 rasterio, rioxarray, GDAL, geopandas, shapely, richdem, simplekml, pytest.
-M3 writes Delft3D 4 FLOW's plain-text structured-grid files (`.grd`/`.enc`/`.dep`/`.rgh`/`.mdf`/
-`.bnd`/`.bct`/`.obs`) directly — no `hydrolib-core`/`meshkernel`/`dfm_tools` (those are D-Flow FM
-only; see `docs/decisions.md` 2026-09-25 "M3: Delft3D 4 FLOW, not FM").
+M3 builds D-Flow FM cases with hydrolib-core 1.4.0 + meshkernel 8.3.0 and reads output with
+dfm_tools 0.47.0 / xugrid; see `docs/decisions.md` 2026-09-26 "M3: back to Delft3D FM" for the
+M3 run rules (success check, `.ext` file version, net-writer caveat, output-size limits).
 Frontend (in `frontend/`): React + Vite, Leaflet, Three.js, Recharts, Playwright.
 
 ## Simulation tools
-<!-- Fill in once installed -->
-- Delft3D 4 FLOW: version 4.07.02 (GUIs installed; kernel `d_hydro`/`flow2d3d` path NOT STATED
-  until installed — see `docs/decisions.md` 2026-09-25)
+- D-Flow FM: **1.2.184** (Delft3D DIMRset 2026.01) + DIMR 2.00, built in WSL with Intel oneAPI 2024.2
+  (`docs/dflowfm_kernel_build.md`). Install: `~/delft3d/dflowfm-2026.01/lnx64/` (not in this repo).
+  Run: `cd <case> && ~/delft3d/dflowfm-2026.01/lnx64/bin/run_dflowfm.sh <model>.mdu` (DIMR configs:
+  `run_dimr.sh -m dimr_config.xml`). **Strip `/mnt/*` from `PATH` first:**
+  `PATH=$(echo "$PATH" | tr : '\n' | grep -v '^/mnt/' | paste -sd:)`. The exit code is not a success
+  signal: check the `.dia` for `** ERROR` and check that `_map.nc`/`_his.nc` exist.
 - DualSPHysics: v5.4.3 (GenCase v5.4.354.01, DualSPHysics5.4 v5.4.355). Windows binaries +
   examples at `/mnt/d/APPS/DualSPHysics_v5.4/` (Linux binaries under `bin/linux/`, used by
   `tests/m4_sph/test_gencase_smoke.py` when `DSPH_BIN_DIR` is set) — not checked into this repo.
-- Working pilot cases: `m3_pilot/` and `m3_cascade_pilot/` (Delft3D); M4's pilot calibration run —
-  `vram_estimator.py` (in `backend/m4_sph/`, since the real case generator imports it) reads its
-  three raw logs from `backend/m4_pilot/` — see `docs/decisions.md` 2026-09-25 "M4 pilot case"
+- Working pilot cases: `m3_pilot/` and `m3_cascade_pilot/` are created in M3-1 / M3-4 (D-Flow FM);
+  the ANUGA pilot at `backend/m3_pilot/` (`docs/decisions.md` 2026-09-26 "M3: ANUGA replaces
+  Delft3D 4 FLOW") is a fallback kept for the record, not the M3 reference. M4's pilot calibration
+  run — `vram_estimator.py` (in `backend/m4_sph/`, since the real case generator imports it) reads
+  its three raw logs from `backend/m4_pilot/` — see `docs/decisions.md` 2026-09-25 "M4 pilot case"
 
 ## Commands
 - Env: `conda env create -f environment.yml && conda activate sih26`

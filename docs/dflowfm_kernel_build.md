@@ -15,7 +15,7 @@ and the D-Flow FM tutorial06 (Western Scheldt, 10 days) with 0 errors.
 | Run a plain `.mdu` | `cd <case>; ~/delft3d/dflowfm-2026.01/lnx64/bin/run_dflowfm.sh <model>.mdu` → `DFM_OUTPUT_<model>/` (or the MDU's `OutputDir`) |
 | Run via DIMR | `cd <case>; ~/delft3d/dflowfm-2026.01/lnx64/bin/run_dimr.sh -m dimr_config.xml` |
 | Build env | `source ~/delft3d/intel-env.sh` (only needed to rebuild; the run scripts set `LD_LIBRARY_PATH` themselves) |
-| Python tools (separate venv, not the project `.venv`) | `~/delft3d/fm-py-venv`: hydrolib-core 1.4.0, meshkernel 8.3.0, dfm_tools 0.47.0 |
+| Python tools | The project's own `.venv` (M3-B, 2026-09-26): hydrolib-core 1.4.0, meshkernel 8.3.0, dfm_tools 0.47.0, pinned in `environment.yml`/`requirements.txt`. Verified against this kernel with no version drift in any already-installed package. (First verified in a separate throwaway venv, `~/delft3d/fm-py-venv`, since retired.) |
 | Source + build dirs | `~/delft3d/Delft3D-DIMRset_2026.01/{build_dflowfm,build_dimr}` |
 
 "Version 1.2.184.Unknown / Source: Unknown" is expected. The tarball has no git/svn metadata, so
