@@ -2036,3 +2036,13 @@ Teesta base flow and other physical data need sourcing before production use.
   `tests/m4_sph tests/m0_api` together: **259 passed**. Frontend `tsc --noEmit` passes; the Compare
   page was checked live in the browser (screenshot, not committed) and matches the intended
   "D-Flow run only" state with no fabricated metrics.
+
+## 2026-09-27 — Demo stabilization pass, item 3: observed-extent check (nothing to build)
+
+- `data/teesta/observed/flood_extent_2023.geojson` does not exist, and no flood-extent GeoJSON
+  exists anywhere under `data/` (only `data/teesta/gee/lake_latest.geojson`, an empty lake-outline
+  FeatureCollection, which is not a flood extent). No IoU/F1 check was run because there is nothing
+  to compare against.
+- Verified live in the browser that Monitoring keeps its existing honest state: "No digitized
+  event extent available" plus the two actual cached Sentinel-2 images
+  (`sikkim_glof_2023 · pre`/`post`, 2023-09-26/2023-10-26). No code change was needed or made.
