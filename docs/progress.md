@@ -1338,3 +1338,15 @@ Teesta base flow and other physical data need sourcing before production use.
   Teesta near-field inlet. Then generate and run the real M4 `nearfield.stl` case at multiple
   `dp` values and compare its memory/count behavior with this stock 3D calibration. Keep both
   solvers' results labelled as pilot data until sourced inputs and reproduction checks pass.
+
+## 2026-09-27 — FM/SPH run-budget evidence
+
+- Added `docs/run_budget.md` with two real short serial D-Flow FM timings (33,018 and 98,121 faces), full pilot runtime/post-processing and disk figures, and the three recorded DualSPHysics 3D benchmark timings from `backend/m4_pilot/`.
+- Confirmed MPI is unavailable on this host. The refined mesh kernel run succeeded but its written-net reread dropped 134 edges, so it remains a timing-only result and does not pass M3 rule 3.
+- Presented 30-day scenario-count/resolution options with a 30% failure allowance and a provisional 90 m recommendation. Site-scale and SPH estimates are marked unverified; Chamoli site config/event inputs and an M4 post-processing benchmark are absent. No choice was added to `docs/decisions.md`.
+
+## 2026-09-27 — M3/M4 build, gaps, and next step
+
+- **Built:** documented two short serial FM timings at 33,018 and 98,121 faces, full pilot post-processing time and raw-map disk costs, plus the three M4 3D benchmark timings and a 30-day scenario-budget set of options in `docs/run_budget.md`.
+- **Still placeholder/stubbed:** M3 pilot data are placeholders, and the independent M3 generator has not passed Phase 3 reproduction. The refined timing mesh runs but its net writer reread loses 134 edges. M4 has only stock dam-break benchmarks: no terrain-cut Teesta/Chamoli case or representative M4 post-processing timing. Chamoli site/event inputs are absent; its 2021 event was a mass flow, not a dam breach.
+- **Next:** fix the M3 mesh writer/reproduction mismatches, then rerun the reproduction checks before accepting a production mesh. Source and add the Chamoli site/event inputs; then run a terrain-cut M4 case at multiple particle spacings and measure post-processing. Revisit the run-budget choice after those measurements; no option has been recorded in `decisions.md`.
