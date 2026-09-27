@@ -1933,3 +1933,68 @@ Teesta base flow and other physical data need sourcing before production use.
   the gauge-output/postprocessing gap before interpreting or presenting the comparison metrics as
   meaningful. Preserve the current run and comparison as a caveated demo artifact; do not launch
   another solver attempt until those issues are understood.
+
+## 2026-09-27 — Demo stabilization pass, item 0: checkpoint commit
+
+- All uncommitted Teesta MVP work (real D-Flow FM run wiring, timeline/impact adapters, the SPH
+  comparison attempt, frontend real-mode dashboard, visual snapshots — roughly 100 files) was
+  reviewed for secrets/large binaries and committed in two commits: backend/contracts/docs/tests,
+  then frontend. The repo was found already on `main` (not `m0-job-system`) at session start, from
+  a branch switch that happened before this session; the user chose to keep the work on `main`
+  rather than move it to a feature branch.
+- No solver run, campaign, or scientific claim was added in this item.
+
+## 2026-09-27 — Demo stabilization pass, item 1a: honest D-Flow headline caveats
+
+- **Root cause, confirmed against the actual registered run
+  (`teesta_2023_mvp__delft3d`/`case_retry1`):** the 66.9 m max-depth cell (t=15,480 s, still 63.3 m
+  at run end) sits in one of 136 closed depressions in the unconditioned M1 far-field DEM (the two
+  deepest pits are 60.8 m and 91.7 m of priority-flood fill); about 11% of the wet area at the
+  90 m grid sits in such pits. The 32.8 m/s max-velocity cell sits on a steep gorge reach (DEM
+  slope 0.12–0.74 m/m near the extreme cells); about 57% of the wet area is on reaches this steep.
+  Neither is a solver artifact — both are real numerical output of a physically-implausible input
+  (an unconditioned DEM) and an unmodelled process (clear-water flow standing in for a
+  debris-laden event).
+- Added `backend/m0_api/dem_diagnostics.py`: reuses the project's own priority-flood
+  implementation (`backend.m1_terrain.hydro.route`, chosen over adding a richdem dependency to the
+  query path) to classify each summary-grid cell as sitting in an unconditioned DEM depression
+  and/or on a steep reach, against thresholds in the new `config/m0_direct_query.yaml` (not a
+  `SourcedValue`; this is caveat-detection tuning, not a physical coefficient). Depression/slope
+  rasters are computed once per DEM and cached (`ensure_cached_diagnostics`); on the frozen pilot's
+  623×611 90 m DEM this takes under a second.
+- `backend/m0_api/real_query.py` now runs this classifier (delft3d runs only) and adds
+  `dem_depression_ponding` / `clear_water_steep_reach_velocity` caveats to the direct-run response
+  when the actual max-depth/max-velocity cell is flagged, plus a machine-readable
+  `provenance.diagnostics` block (pit/steep-reach fraction of wet area, whether each extreme cell
+  is flagged) — no contract version bump; `Provenance` already allows additional properties.
+  `max_depth_m`/`max_velocity_ms` are unchanged (still the real single-cell maxima; never tuned).
+- `backend/m0_api/real_impact.py` now flags POIs that never wet despite a wet cell within
+  `poi_snap_search_radius_m` (300 m) as a grid-snapping artifact rather than silently dropping them
+  as "not affected". On the real run this correctly separates Sangkalang bridge (127 m from a wet
+  cell) and Mangan hospital (90 m) — genuine snapping — from Lachen (597 m away — genuinely dry),
+  adding a `poi_grid_snapping` caveat and a named `data_coverage_notes` entry only for the former
+  two.
+- Frontend: added a `DirectRunMetrics` component (`app.tsx`) so the direct-run headline shows
+  flood extent plus the first affected POI's peak depth/velocity (Chungthang: 11.6 m, 5.5 m/s),
+  with the single-cell domain maxima demoted to a labelled "artifact, see caveats" line. Added the
+  four new caveat strings to `ui_text.json`. PDF export (`main.py`) appends the same caveat
+  explanations next to the printed maxima.
+- Verified against the real registered run end-to-end: direct Python calls, a temporary local
+  server (port 8010) hit over real HTTP for both `/flood/query` and `/impact/{query_id}`, and a
+  throwaway Playwright script confirmed the dashboard renders the new headline with no console
+  errors. (Separately noticed: the user's own long-running dev backend on port 8000, started at
+  22:48 before this item's edits, is serving stale code — restart it before relying on it again.)
+- Tests: `tests/m0_api/test_dem_diagnostics.py` (7, pure-function unit tests on synthetic DEMs) and
+  `tests/m0_api/test_real_query_diagnostics.py` (2, end-to-end through `resolve_registered_run`
+  with a synthetic pit+step DEM, and confirming the SPH path skips this classifier). Full
+  `tests/m0_api tests/m1_terrain` run under the `sih26` conda env: **239 passed, 1 skipped**.
+  `tests/m4_sph tests/m3_dflowfm tests/m3_common` added: **264 passed, 8 skipped, 1 failed** — the
+  one failure (`test_pilot_reference_builder_reuses_frozen_geometry_fields_and_forcing`) is
+  confirmed pre-existing (reproduces identically on the commit before this item) and unrelated to
+  this change. Frontend `tsc --noEmit` and `npm run build` pass. The visual suite (13 passed) is
+  unaffected because it never triggers a real flood query, so it never exercises the changed
+  headline path — a gap item 5's walkthrough is meant to close.
+- **Declined by user, not done:** re-running D-Flow FM with a conditioned bed (item 1b). Recorded
+  here as the actual fix: conditioning the M1 far-field DEM (breach/fill its pits) before mesh
+  generation would remove the ponding artifact; the steep-reach velocities would likely remain,
+  since they are slope-driven rather than a DEM defect.

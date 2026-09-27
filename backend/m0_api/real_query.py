@@ -13,7 +13,7 @@ from rasterio.features import shapes
 from shapely.geometry import mapping, shape
 from shapely.ops import transform as transform_geometry, unary_union
 
-from backend.m0_api import registry
+from backend.m0_api import dem_diagnostics, registry
 
 
 def _estimate(value, unit: str, run_id: str) -> dict:
@@ -99,6 +99,46 @@ def resolve_registered_run(site_id: str, scenario_id: str, model: str, query_id:
         vvalid = np.isfinite(velocity) & ((ds.nodata is None) | (velocity != ds.nodata))
         max_velocity = float(np.max(velocity[vvalid])) if vvalid.any() else None
 
+    extra_caveats: list[dict] = []
+    diagnostics: dict = {}
+    if model == "delft3d":
+        # Matches real_impact.py's existing frozen-pilot-geometry special case: this run's mesh
+        # bed levels came from the teesta_pilot 90 m DEM, not the full teesta far-field DEM.
+        dem_path = (site_dir.parent / "teesta_pilot" / "terrain" / "dem.tif"
+                    if site_id == "teesta" and row["run_id"] == "teesta_2023_mvp__delft3d"
+                    else site_dir / "terrain" / "dem.tif")
+        if dem_path.is_file():
+            settings = dem_diagnostics.load_settings()
+            cache_dir = site_dir / "_diagnostics"
+            depression_path, slope_path = dem_diagnostics.ensure_cached_diagnostics(dem_path, cache_dir)
+            with rasterio.open(sources["depth_p50"]) as ds:
+                like_transform, like_crs, like_shape = ds.transform, ds.crs, ds.shape
+            depression_depth = dem_diagnostics.resample_to(
+                depression_path, like_transform=like_transform, like_crs=like_crs, like_shape=like_shape)
+            slope = dem_diagnostics.resample_to(
+                slope_path, like_transform=like_transform, like_crs=like_crs, like_shape=like_shape)
+            pit_mask = inundated & (depression_depth >= settings.dem_depression_depth_threshold_m)
+            steep_mask = inundated & (slope >= settings.steep_reach_slope_threshold)
+            wet_count = int(inundated.sum())
+            max_depth_idx = np.unravel_index(np.nanargmax(np.where(valid, depth, -np.inf)), depth.shape)
+            max_depth_in_pit = bool(pit_mask[max_depth_idx])
+            diagnostics["dem_pit_fraction_of_wet_area"] = (
+                float(pit_mask.sum()) / wet_count if wet_count else 0.0)
+            diagnostics["max_depth_cell_in_dem_pit"] = max_depth_in_pit
+            if max_depth_in_pit or diagnostics["dem_pit_fraction_of_wet_area"] > 0.0:
+                extra_caveats.append({"id": "dem_depression_ponding", "severity": "warning",
+                                      "text_key": "caveat_dem_depression_ponding"})
+            if vvalid.any():
+                max_vel_idx = np.unravel_index(np.nanargmax(np.where(vvalid, velocity, -np.inf)),
+                                                velocity.shape)
+                max_vel_on_steep = bool(steep_mask[max_vel_idx])
+                diagnostics["max_velocity_cell_on_steep_reach"] = max_vel_on_steep
+                diagnostics["steep_reach_fraction_of_wet_area"] = (
+                    float(steep_mask.sum()) / wet_count if wet_count else 0.0)
+                if max_vel_on_steep:
+                    extra_caveats.append({"id": "clear_water_steep_reach_velocity", "severity": "warning",
+                                          "text_key": "caveat_clear_water_steep_reach_velocity"})
+
     query_dir = site_dir / "queries" / query_id
     layers_dir = query_dir / "layers"
     layers_dir.mkdir(parents=True, exist_ok=True)
@@ -157,14 +197,16 @@ def resolve_registered_run(site_id: str, scenario_id: str, model: str, query_id:
         "flags": {"outside_trained_range": False, "demo_mode": False, "library_outdated": False,
                   "has_placeholders": bool(json.loads(row["meta_json"] or "{}").get("has_placeholders", False))},
         "placeholder_fields": json.loads(row["meta_json"] or "{}").get("placeholder_fields", []),
-        "caveats": [{"id": "direct_solver_output", "severity": "warning", "text_key": "caveat_direct_solver_output"}],
+        "caveats": [{"id": "direct_solver_output", "severity": "warning",
+                     "text_key": "caveat_direct_solver_output"}, *extra_caveats],
         "provenance": {"method": f"{model}_direct", "contract_version": "0.3.0",
                        "run_ids": [row["run_id"]], "parameters": params,
                        "output_classification": run_meta.get("output_classification", "REAL_SIMULATION_ARTIFACT"),
                        "domain_status": run_meta.get("domain_status"),
                        "input_forcing_status": run_meta.get("input_forcing_status"),
                        "scientific_claim": run_meta.get("scientific_claim"),
-                       "data_sources": [str(run_meta_path.relative_to(root))]},
+                       "data_sources": [str(run_meta_path.relative_to(root))],
+                       "diagnostics": diagnostics},
         "timing_ms": {"median_phase": 0.0, "full_phase": 0.0},
     }
     result_path = query_dir / "result.json"

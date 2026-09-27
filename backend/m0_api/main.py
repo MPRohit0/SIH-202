@@ -597,6 +597,13 @@ def export_query(query_id: QueryIdPath, format: str = Query(...)) -> Response:  
                       f"maximum velocity {summary['max_velocity_ms']['value']} m/s; inundated area {summary['inundated_area_m2']['value']} m2. ")
             report += ("Software integration fixture only; not a scientific forecast." if is_synthetic else
                        "Values are direct registered solver outputs; this is not a scientific validation statement.")
+            artifact_notes = {"dem_depression_ponding": " The maximum depth is a single cell in an "
+                                   "unconditioned DEM depression, not a hydraulic peak.",
+                               "clear_water_steep_reach_velocity": " The maximum velocity is clear-water "
+                                   "flow on a steep reach; the model is clear-water only."}
+            for caveat in query_result.get("caveats", []):
+                if caveat.get("id") in artifact_notes:
+                    report += artifact_notes[caveat["id"]]
             content, filename = mock_files.text_report_pdf(report), f"{site_id}_{query_id}_report.pdf"
         return Response(content=content, media_type=_EXPORT_MEDIA_TYPES[format], headers={"Content-Disposition": f'attachment; filename="{filename}"'})
     if query is not None:

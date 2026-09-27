@@ -1,0 +1,20 @@
+# M0 direct-query caveat detection (backend/m0_api/real_query.py) -- analysis knobs for flagging
+# known artifact classes in a registered solver run's headline numbers, not physical model
+# coefficients. Not a SourcedValue (docs/handoff_contract.md rule 3 covers site facts, not this).
+
+# A depth-raster cell counts as "in an unconditioned DEM depression" when the source terrain DEM's
+# priority-flood fill (backend/m1_terrain/hydro.route) raises that location by at least this much.
+# Chosen so single-cell DEM noise doesn't trigger the caveat while real closed basins do
+# (docs/progress.md 2026-09-27 "Teesta MVP dashboard stabilization" D-Flow headline investigation:
+# the two deepest ponds showed 60.8 m / 91.7 m of fill).
+dem_depression_depth_threshold_m: 2.0
+
+# A summary-grid cell counts as being on a "steep reach" when the source DEM's local slope (central
+# difference over one DEM cell spacing) exceeds this. The investigated velocity extremes sat on
+# 0.12-0.74 m/m slopes.
+steep_reach_slope_threshold: 0.1
+
+# A POI counts as "snapped dry" when it never wets but a wet cell lies within this planar distance --
+# i.e. the 90 m grid missed a channel the POI actually sits on, rather than the POI being genuinely
+# unaffected.
+poi_snap_search_radius_m: 300.0

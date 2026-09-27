@@ -39,6 +39,10 @@
     "depth": "Maximum depth",
     "velocity": "Peak cell velocity",
     "discharge": "Peak discharge",
+    "downstreamDepth": "{name} peak depth",
+    "downstreamVelocity": "{name} peak velocity",
+    "domainMaxNote": "Single-cell domain max (see caveats)",
+    "domainMaxNoteDetail": "Not the headline result — see the artifact caveats below.",
     "range": "Range",
     "queryId": "Query",
     "caveats": {
@@ -50,7 +54,11 @@
       "mvp_reconstructed_forcing": "The South Lhonak forcing is an MVP reconstruction, not an observed hydrograph.",
       "single_run_impact": "Impact is calculated from one deterministic run. The POSSIBLE column is the run footprint, not an uncertainty probability.",
       "impact_exposure_coverage": "Exposure has limited or unrecorded coverage; missing asset classes are not assessed.",
-      "placeholder_data": "Some impact inputs remain placeholders, so monetary loss is unavailable."
+      "placeholder_data": "Some impact inputs remain placeholders, so monetary loss is unavailable.",
+      "dem_depression_ponding": "The maximum depth sits in an unconditioned DEM depression that traps water rather than a hydraulic peak; the source terrain was never hydrologically conditioned.",
+      "clear_water_steep_reach_velocity": "The maximum velocity is clear-water Manning flow on a steep gorge reach; it is not necessarily representative of a debris-laden event.",
+      "poi_grid_snapping": "One or more downstream points of interest show no inundation despite a wet cell nearby, most likely 90 m grid resolution missing the channel at that point rather than the location being unaffected.",
+      "comparison_unavailable": "No paired solver comparison is available for this run."
     },
     "unknownCaveat": "This result includes a contract caveat."
   },

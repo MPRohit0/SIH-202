@@ -19,6 +19,8 @@ from rasterio.enums import Resampling
 from shapely.geometry import shape
 from shapely.ops import unary_union
 
+from backend.m0_api import dem_diagnostics
+
 CONTRACT_VERSION = "0.3.0"
 
 
@@ -113,25 +115,30 @@ def build_impact(site_dir: Path, query_dir: Path) -> dict:
     poi_path = (site_dir.parent / "teesta_pilot" / "terrain" / "pois.gpkg"
                 if site_dir.name == "teesta" and run_id == "teesta_2023_mvp__delft3d"
                 else site_dir / "terrain" / "pois.gpkg")
-    warning_table, not_affected = [], 0
+    warning_table, not_affected, snapped_pois = [], 0, []
     if poi_path.is_file():
         pois = gpd.read_file(poi_path).to_crs(depth_crs)
+        wet_rows, wet_cols = np.nonzero(wet)
+        wet_xy = (np.column_stack(rasterio.transform.xy(depth_transform, wet_rows, wet_cols))
+                  if wet_rows.size else np.empty((0, 2)))
+        snap_radius_m = dem_diagnostics.load_settings().poi_snap_search_radius_m
         for poi in pois.to_dict("records"):
             samples = poi_rows.get(poi["poi_id"], [])
-            if not samples:
-                not_affected += 1
-                continue
-            max_depth = max(float(r["depth_m"]) for r in samples)
-            max_velocity = max(float(r["velocity_ms"]) for r in samples)
+            max_depth = max((float(r["depth_m"]) for r in samples), default=0.0)
             arrival = next((float(r["arrival_s_since_t0"]) for r in samples if r.get("arrival_s_since_t0")), None)
-            if max_depth < threshold or arrival is None:
-                not_affected += 1
+            if samples and max_depth >= threshold and arrival is not None:
+                max_velocity = max(float(r["velocity_ms"]) for r in samples)
+                warning_table.append({"poi_id": poi["poi_id"], "name": poi["name"], "kind": poi["kind"],
+                    "chainage_m": float(poi["chainage_m"]), "zone": "possible", "p_inundation": 1.0,
+                    "arrival_s": _estimate(arrival, "s", "first threshold crossing in direct M3 history", run_id),
+                    "depth_m": _estimate(max_depth, "m", "maximum direct M3 history depth at station", run_id),
+                    "velocity_ms": _estimate(max_velocity, "m/s", "maximum direct M3 history velocity at station", run_id)})
                 continue
-            warning_table.append({"poi_id": poi["poi_id"], "name": poi["name"], "kind": poi["kind"],
-                "chainage_m": float(poi["chainage_m"]), "zone": "possible", "p_inundation": 1.0,
-                "arrival_s": _estimate(arrival, "s", "first threshold crossing in direct M3 history", run_id),
-                "depth_m": _estimate(max_depth, "m", "maximum direct M3 history depth at station", run_id),
-                "velocity_ms": _estimate(max_velocity, "m/s", "maximum direct M3 history velocity at station", run_id)})
+            not_affected += 1
+            if wet_xy.shape[0]:
+                nearest_m = float(np.hypot(*(wet_xy - [poi["geometry"].x, poi["geometry"].y]).T).min())
+                if nearest_m <= snap_radius_m:
+                    snapped_pois.append((poi["name"], nearest_m))
     warning_table.sort(key=lambda row: row["arrival_s"]["value"])
 
     loss = {"value": None, "low": None, "high": None, "unit": "INR", "interval": "P10-P90",
@@ -155,6 +162,12 @@ def build_impact(site_dir: Path, query_dir: Path) -> dict:
                 "The stored exposure extract was queried using the site's then-configured bbox; site configuration coordinates are marked as placeholders. Counts are only the spatial intersection with this georeferenced MVP pilot domain.",
                 "The one deterministic FM extent is placed in the POSSIBLE bucket; this is not a probability or uncertainty classification.",
                 "No cropland or hydropower exposure layer is present; these values are not assessed."]
+    if snapped_pois:
+        names = ", ".join(f"{name} ({nearest_m:.0f} m)" for name, nearest_m in snapped_pois)
+        coverage.append(f"{len(snapped_pois)} POI(s) never wet in this run despite a wet cell nearby "
+                         f"at the 90 m grid resolution ({names}); this is a resolution/snapping "
+                         f"limitation, not necessarily a genuinely unaffected location.")
+        caveats.append({"id": "poi_grid_snapping", "severity": "warning", "text_key": "caveat_poi_grid_snapping"})
     source_files = [f"{site_dir.name}/runs/{run_id}/run_meta.json",
                     f"{site_dir.name}/runs/{run_id}/timeseries.csv",
                     f"{site_dir.name}/queries/{query_dir.name}/layers/depth_p50.tif"]
