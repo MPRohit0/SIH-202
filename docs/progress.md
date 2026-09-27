@@ -1483,3 +1483,20 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Next step:** supply the missing FailureSource fixture if it is authoritative, then implement
   real-site raster acquisition/selection and validate the same onboarding path against a real site.
   Treat SPH execution and training as a separate follow-on after its solver environment is ready.
+
+## 2026-09-27 — Frontend contract API client
+
+- **Built:** added a centralized contract-route client with `VITE_USE_MOCKS` and
+  `VITE_API_BASE_URL`; JSON mocks import the canonical `contracts/examples/` payloads and
+  `contracts/styles.json`. Updated `frontend/API_USAGE.md` to document route coverage and the
+  remaining legacy canvas adapter limits.
+- **Verified:** frontend TypeScript check and production build pass; `npm run test:visual`
+  passes all 12 screenshots with no visual changes.
+- **Still limited:** the existing canvas `Grid`/`Result` models cannot represent the contract's
+  estimate envelopes and file-backed layers. Scenario listing and saved runs still have no
+  contract routes. Impact totals are still computed from legacy local arrays rather than contract
+  `Estimate` objects. Contract API data is available through `src/data/api.ts`; affected views retain
+  their existing placeholders until migrated to consume those response shapes.
+- **Next step:** migrate the map and summary views to contract `FloodQueryResponse`, `Scene3D`,
+  `Timeline`, and `Impact` shapes, including layer file loading and estimate presentation. Keep the
+  no-route scenario and saved-run views as explicit empty states unless their contract is extended.
