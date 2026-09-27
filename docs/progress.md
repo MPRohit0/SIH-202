@@ -1500,3 +1500,19 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Next step:** migrate the map and summary views to contract `FloodQueryResponse`, `Scene3D`,
   `Timeline`, and `Impact` shapes, including layer file loading and estimate presentation. Keep the
   no-route scenario and saved-run views as explicit empty states unless their contract is extended.
+
+## 2026-09-27 — Frontend site selector and status
+
+- **Built:** added a sidebar active-site selector populated from contract `GET /sites` through
+  `src/data/api.ts` and the new `source.listSites()` adapter. The selected site's `site_id` is
+  passed to rapid and physics flood-query requests. Site status badges cover ready, onboarding,
+  demo mode, outdated and failed states. New selector copy is in `frontend/src/content/ui_text.json`.
+- **Verified:** `npx tsc --noEmit`, `npm run build`, and `npm run test:visual` passed; all 12
+  visual snapshots pass without updates. The screenshot uses the existing API contract fixtures.
+- **Still stubbed or placeholder:** site summaries do not provide terrain grids, so selecting a
+  site does not populate the legacy map `Grid`; terrain, result layers and impact views still use
+  awaiting/empty adapters or local legacy data. The selector changes the active site context, but
+  the remaining screens are not yet migrated to contract-shaped result data.
+- **Next step:** migrate the map and summary flow to the active site's contract flood-query,
+  scene/timeline layer files and `Estimate` uncertainty shapes, preserving explicit awaiting and
+  placeholder states where the API has no usable result.

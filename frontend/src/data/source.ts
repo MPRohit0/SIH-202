@@ -21,6 +21,16 @@ export type SiteSummary = {
   has_placeholders?: boolean;
 };
 
+/** Contract §5.1 — GET /sites. */
+export async function listSites(): Promise<Awaiting & {sites: SiteSummary[]}> {
+  try {
+    const sites = await api.sites() as SiteSummary[];
+    return {status: 'awaiting', reason: 'Site metadata loaded; terrain grids are not part of the site summary response.', sites};
+  } catch {
+    return {status: 'awaiting', reason: 'No site list is available. Check the backend connection.', sites: []};
+  }
+}
+
 /** Contract §5.1 — GET /sites, GET /sites/{site_id}. */
 export async function getSite(): Promise<Awaiting & {site: SiteSummary | null}> {
   try {

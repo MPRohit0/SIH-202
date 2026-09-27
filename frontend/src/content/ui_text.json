@@ -1,0 +1,16 @@
+{
+  "siteSelector": {
+    "label": "Active site",
+    "loading": "Loading sites…",
+    "empty": "No site connected",
+    "emptyDetail": "Add a site to get started",
+    "active": "ACTIVE SITE",
+    "status": {
+      "ready": "Ready",
+      "onboarding": "Onboarding",
+      "demo_mode": "Demo mode",
+      "outdated": "Outdated",
+      "failed": "Unavailable"
+    }
+  }
+}
