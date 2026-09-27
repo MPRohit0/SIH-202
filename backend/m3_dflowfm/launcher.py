@@ -59,6 +59,7 @@ def launch_case(case_dir: str | Path, run_dir: str | Path, *, model: str = "mode
     for suffix in ("dia", "map.nc", "his.nc"):
         artifact = output / f"{stem}_{suffix}" if suffix != "dia" else output / f"{stem}.dia"
         artifact.unlink(missing_ok=True)
+    (output / "resource_usage.txt").unlink(missing_ok=True)
     log = open(runner.log_path(run_dir), "ab")
     if os.name == "nt":
         wsl_case = _wsl_path(case_dir)
@@ -66,14 +67,19 @@ def launch_case(case_dir: str | Path, run_dir: str | Path, *, model: str = "mode
                       if not _KERNEL_OVERRIDE and Path(kernel) == DEFAULT_KERNEL
                       else shlex.quote(_wsl_path(Path(kernel))))
         # Quote all paths for bash; using `bash -lc` also permits the required PATH cleanup.
+        timer = ("/usr/bin/time -v -o output/resource_usage.txt "
+                 if subprocess.run(["wsl", "bash", "-lc", "test -x /usr/bin/time"],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0 else "")
         script = (f"cd {shlex.quote(wsl_case)} && "
                   "PATH=$(echo \"$PATH\" | tr : '\\n' | grep -v '^/mnt/' | paste -sd:) && "
-                  f"{wsl_kernel} {shlex.quote(model)}")
+                  f"{timer}{wsl_kernel} {shlex.quote(model)}")
         return subprocess.Popen(["wsl", "bash", "-lc", script], stdin=subprocess.DEVNULL,
                                 stdout=log, stderr=subprocess.STDOUT,
                                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
     env = _without_mnt_path(dict(os.environ))
-    return subprocess.Popen([str(kernel), model], cwd=case_dir, env=env,
+    command = (["/usr/bin/time", "-v", "-o", str(output / "resource_usage.txt"), str(kernel), model]
+               if Path("/usr/bin/time").is_file() else [str(kernel), model])
+    return subprocess.Popen(command, cwd=case_dir, env=env,
                             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                             start_new_session=True, close_fds=True)
 

@@ -230,6 +230,8 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
                 **{key: False for key in Output.model_fields if key.startswith("wrimap_") or key.startswith("wrihis_")},
                 "wrimap_waterdepth": True, "wrimap_velocity_magnitude": True,
                 "wrihis_waterdepth": True, "wrihis_velocity": True, "wrihis_waterlevel_s1": True,
+                # Required for contract run_meta.mass_balance_error_pct extraction.
+                "wrihis_balance": True,
             }))
     mdu.save(filepath=case_dir / "model.mdu", recurse=False, path_style="unix")
     mdu_path = case_dir / "model.mdu"

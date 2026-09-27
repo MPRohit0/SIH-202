@@ -1271,3 +1271,29 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Built:** `backend/m3_dflowfm/launcher.py` launches a generated FM case detached, captures stdout/stderr in the M0 run log, parses simulation time from `.dia`, and applies only rule 1 to determine success. M0 campaign jobs with a `case_dir` payload now use this path for launch, polling, progress, and recovery; Windows launches go through WSL with converted paths. Added focused rule/progress tests.
 - **Still stubbed or placeholder:** M0's other pipeline stages and default runs remain fake; the queue expects a generated `case_dir` payload and does not yet generate an M3 case itself. Contract-compliant M3 post-processing remains unfinished, Phase 3 reproduction remains failed, and pilot/site inputs remain placeholders. This machine's installed kernel reports `MPI : no` and `OpenMP : unavailable`; no MPI partition run or timing comparison is possible with its current tools, so M3 is serial here.
 - **Next step:** wire M1/M2 case generation into campaign job creation, then implement contract-format summary outputs and validate the end-to-end generated run against the frozen pilot. Keep production use blocked on sourcing the placeholder inputs. Pytest could not initialize in this environment because its test conftest imports unavailable `geopandas`; syntax and direct launcher checks passed.
+
+## 2026-09-27 — M3 contract post-processing
+
+- Added shared D-Flow FM post-processing in `backend/m3_common/postprocess.py`: max-depth,
+  max-velocity, and first `depth > 0.1 m` arrival GeoTIFFs on the canonical grid; long-format POI
+  CSV; and schema-validated `run_meta.json`. `backend/m3_pilot/postprocess_dflowfm.py` runs it on
+  the frozen pilot. Summary rasters use `domain_mask.tif`, float nodata
+  `-9999.0`, and the contract's `extent_m=0.3` / `arrival_m=0.1` metadata.
+- The launcher records GNU `time -v` resource usage where available. Generated cases enable FM
+  history water-balance output. Raw map deletion is an explicit option and defaults to keep.
+- Processed the available pilot output (3,234 mesh faces; 90 m, 623×611 canonical grid). It has no
+  positive depth inside `domain_mask.tif`, so metadata warns about mesh/domain alignment. Its
+  existing run disabled FM balance output and predates resource capture; those fields are null with
+  warnings, not estimates. A balance-enabled repeat was post-processed successfully; it produced a
+  water-balance error of -2.65e-8% and captured 104.9 MB peak RAM and solver timing.
+- Verification: post-processing, launcher, generator, optional map deletion, and a deliberately
+  broken `.mdu` case pass (9 tests). The bad `.mdu` logged `** ERROR` while the kernel returned 0;
+  the M3 success check still rejected it.
+- **Still stubbed or placeholder:** the pilot site and physical inputs remain placeholders. The
+  processed pilot has no positive depth inside its configured domain mask, so mesh/domain alignment
+  and the failed Phase 3 reproduction still block treating the result as a usable flood forecast.
+  The pilot metadata cannot recover water-balance output or solver peak RAM from its original run;
+  newly generated cases now record both.
+- **Next step:** fix the Phase 3 geometry/input mismatch so the FM mesh and `domain_mask.tif` cover
+  the same modeled area, then rerun post-processing and compare its outputs against the frozen pilot.
+  Keep reproduction unaccepted until those comparisons pass and site inputs are sourced.
