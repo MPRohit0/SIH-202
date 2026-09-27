@@ -1350,3 +1350,18 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Built:** documented two short serial FM timings at 33,018 and 98,121 faces, full pilot post-processing time and raw-map disk costs, plus the three M4 3D benchmark timings and a 30-day scenario-budget set of options in `docs/run_budget.md`.
 - **Still placeholder/stubbed:** M3 pilot data are placeholders, and the independent M3 generator has not passed Phase 3 reproduction. The refined timing mesh runs but its net writer reread loses 134 edges. M4 has only stock dam-break benchmarks: no terrain-cut Teesta/Chamoli case or representative M4 post-processing timing. Chamoli site/event inputs are absent; its 2021 event was a mass flow, not a dam breach.
 - **Next:** fix the M3 mesh writer/reproduction mismatches, then rerun the reproduction checks before accepting a production mesh. Source and add the Chamoli site/event inputs; then run a terrain-cut M4 case at multiple particle spacings and measure post-processing. Revisit the run-budget choice after those measurements; no option has been recorded in `decisions.md`.
+
+## 2026-09-27 — M3/M4 run budget reconciled
+
+- **Built:** revised `docs/run_budget.md` to use retained FM metadata for the two short runs
+  (26,888 and 33,018 faces), keep the full pilot as the measured post-processing/disk anchor,
+  report the three stock SPH calibration timings, and present 30-day resolution/scenario options.
+  Removed unsupported short-run claims for a 98,121-face mesh; no matching run artifacts exist.
+- **Still stubbed or placeholder:** Teesta pilot inputs are placeholders; the M3 generator's
+  reproduction remains failed. M4 has no terrain-cut Teesta or Chamoli run and no measured site
+  post-processing/disk delta. Chamoli config/event inputs are absent, so paired FM/SPH capacity
+  and a 15-minute end-to-end site demo remain unverified. No campaign or demo option is recorded.
+- **Next step:** choose a budget/demo option, then record that choice in `docs/decisions.md`.
+  Before committing to a site campaign, source Chamoli inputs, fix the M3 reproduction/mesh issues,
+  route discharge to the Teesta near-field inlet, and benchmark the generated M4 case through
+  post-processing. Preserve the mass-flow caveat for Chamoli 2021.
