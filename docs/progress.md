@@ -1389,3 +1389,9 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Next step:** wire flood query creation and polling to M5 outputs and persist query artifacts
   according to the contract; use those artifacts to connect the remaining result endpoints. Define
   contract-consistent campaign and rerun job behavior before implementing those workflows.
+
+## 2026-09-27 — M0 and frontend gap audit
+
+- **Built:** reviewed `backend/m0_api` and the frontend against the contract and design docs. Added `docs/frontend_gaps.md`, which classifies each requested dashboard capability and identifies the nearest existing component to reuse. The frontend has navigation, views, controls, maps, status treatments and onboarding layouts; its data seam still returns `awaiting` with empty results.
+- **Still stubbed or placeholder:** M0's API is mostly backed by contract examples/mocks. SQLite job and recheck schedule persistence exist, but onboarding stages and solver work are placeholders. Frontend integration is not connected: exports cannot download results, job progress is local scaffolding, and several views lack required uncertainty ranges, confidence layers, charts, event comparisons and GEE status controls.
+- **Next step:** connect the frontend data seam to M0 and persist real flood query artifacts from M5. Then complete uncertainty-aware summary/map and timeline features against real responses, before wiring impact, comparison, exports and GEE controls.
