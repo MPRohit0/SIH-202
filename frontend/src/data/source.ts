@@ -9,12 +9,18 @@
 // inventing routes for them.
 import type {Grid, Params, Result} from '@/lib/model';
 import type {Scenario} from '@/lib/sentriq';
-import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type JobStatus} from './api';
+import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type JobStatus, type ValidationResponse} from './api';
 import uiText from '../content/ui_text.json';
 
 export type Awaiting = {status: 'awaiting'; reason: string};
 
 export type {SiteSummary} from './api';
+
+/** Mock switch and the one registered direct solver scenario exposed for the MVP site. */
+export function isMockMode(): boolean { return useMocks; }
+export function directEventScenarioId(siteId: string): string | undefined {
+  return !useMocks && siteId === 'teesta' ? 'teesta_2023_mvp' : undefined;
+}
 
 /** Contract §5.1 — GET /sites. */
 export async function listSites(): Promise<SiteSummary[]> {
@@ -48,6 +54,34 @@ export async function queryFlood(request: FloodQueryRequest): Promise<FloodQuery
   return response;
 }
 
+/** Typed adapter from the canonical LayerRef to the existing image-overlay renderer.
+ * Uses the response already returned by queryFlood; it does not fetch a second result
+ * or infer raster values/georeferencing from the legacy Grid model. */
+export type FloodRasterOverlay = {
+  layerId: string; url: string; boundsLatLng: [[number, number], [number, number]];
+  styleId: string; unit: string | null;
+};
+export function floodRasterOverlay(response: FloodQueryResponse | null, layerId = 'depth_p50'): FloodRasterOverlay | null {
+  const refs = response?.layers.filter(layer => layer.available && layer.type === 'raster_png') ?? [];
+  // The frozen contract example only contains p_inundation. Preserve that mock
+  // fixture path while real responses must provide the requested layer.
+  const ref = refs.find(layer => layer.layer_id === layerId) ?? (useMocks ? refs[0] : undefined);
+  if (!ref || ref.bounds_latlng.length !== 2 || ref.bounds_latlng.some(point => point.length !== 2)) return null;
+  return {layerId: ref.layer_id, url: api.fileUrl(ref.url), boundsLatLng: ref.bounds_latlng as [[number, number], [number, number]], styleId: ref.style_id, unit: ref.unit};
+}
+
+/** The existing playback control selects a contract Timeline snapshot URL.
+ * Feed that file reference into the same raster image-overlay renderer used by
+ * the static depth layer; no values or bounds are reconstructed in the UI. */
+export function timelineRasterOverlay(timeline: Timeline | null, frameIndex: number): FloodRasterOverlay | null {
+  const frames = timeline?.frames ?? [];
+  if (!frames.length) return null;
+  const frame = frames[Math.max(0, Math.min(frames.length - 1, frameIndex))];
+  return {layerId: 'timeline_depth', url: api.fileUrl(frame.median_url),
+    boundsLatLng: frame.bounds_latlng as [[number, number], [number, number]],
+    styleId: 'depth_p50', unit: 'm'};
+}
+
 /** The prepared scenario library for the active site. No endpoint exists for
  * this in docs/handoff_contract.md §5 yet — ask before wiring this to a
  * real route. */
@@ -66,12 +100,19 @@ export async function getCompare(siteId: string, scenarioId?: string): Promise<C
   if (!siteId) throw new Error('A site_id is required to load model comparison.');
   return api.compare(siteId, scenarioId);
 }
+/** Contract §5.7 — GET /validation/{site_id}. */
+export async function getValidation(siteId: string): Promise<ValidationResponse> {
+  if (!siteId) throw new Error('A site_id is required to load validation status.');
+  return api.validation(siteId);
+}
 
 /** Contract §5 #19/#20 — GET /gee/{site_id}, POST /gee/{site_id}/refresh. */
 export async function getObserved(siteId: string): Promise<GeeLayers> {
   if (!siteId) throw new Error('A site_id is required to load satellite layers.');
   return api.gee(siteId);
 }
+/** Resolve a contract file reference through the shared API client origin. */
+export function fileUrl(path: string): string { return api.fileUrl(path); }
 export async function refreshObserved(siteId: string): Promise<GeeLayers> {
   if (!siteId) throw new Error('A site_id is required to refresh satellite layers.');
   return api.refreshGee(siteId);

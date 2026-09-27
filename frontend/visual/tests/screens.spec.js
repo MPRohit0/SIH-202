@@ -11,6 +11,7 @@ const screens = [
   ['data', '/data'],
   ['monitoring', '/monitoring'],
   ['exports', '/exports'],
+  ['validation', '/validation'],
   ['sites', '/sites'],
   ['settings', '/settings'],
 ];

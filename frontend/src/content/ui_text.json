@@ -6,6 +6,8 @@
     "emptyDetail": "Add a site to get started",
     "connectionError": "No site is connected yet. Add a site or connect the backend API.",
     "active": "ACTIVE SITE",
+    "resultLoaded": "Teesta solver result loaded",
+    "siteConnected": "Site connected · result not loaded",
     "status": {
       "ready": "Ready",
       "onboarding": "Onboarding",
@@ -29,6 +31,7 @@
     "lowConfidence": "LOW confidence",
     "fallback": "Empirical fallback method",
     "demoMode": "DEMO MODE",
+    "realMvp": "REAL D-FLOW FM · MVP",
     "placeholders": "PLACEHOLDER data",
     "outOfRange": "Outside trained range",
     "libraryOutdated": "Model library is outdated",
@@ -41,7 +44,13 @@
     "caveats": {
       "clear_water": "Clear-water modelling; sediment and debris are not represented.",
       "moraine_extrapolation": "Moraine-dam results extrapolate beyond the calibration data.",
-      "caveat_arrival_depth_not_joint": "Arrival and depth percentiles are marginal estimates, not a joint distribution."
+      "caveat_arrival_depth_not_joint": "Arrival and depth percentiles are marginal estimates, not a joint distribution.",
+      "direct_solver_output": "Direct D-Flow FM output; confidence is LOW and this result is not scientifically validated.",
+      "timeline_single_solver": "Playback frames are selected snapshots from one real solver run; HIGH/POSSIBLE aliases are not uncertainty bands.",
+      "mvp_reconstructed_forcing": "The South Lhonak forcing is an MVP reconstruction, not an observed hydrograph.",
+      "single_run_impact": "Impact is calculated from one deterministic run. The POSSIBLE column is the run footprint, not an uncertainty probability.",
+      "impact_exposure_coverage": "Exposure has limited or unrecorded coverage; missing asset classes are not assessed.",
+      "placeholder_data": "Some impact inputs remain placeholders, so monetary loss is unavailable."
     },
     "unknownCaveat": "This result includes a contract caveat."
   },
@@ -63,6 +72,8 @@
     "place": "Place",
     "zone": "Zone",
     "probability": "Inundation probability",
+    "thisRun": "In this run",
+    "inundated": "Inundated",
     "arrival": "Arrival",
     "depth": "Depth",
     "velocity": "Velocity",
@@ -115,6 +126,8 @@
     "placeholders": "PLACEHOLDER data"
   },
   "monitoring": {
+    "noObservedExtent": "No digitized event extent available",
+    "noObservedExtentDetail": "Cached satellite images are available below. No georeferenced observed flood polygon is registered for map comparison.",
     "loading": "Loading satellite layers…",
     "error": "Satellite layers could not be loaded. Check the API connection and try again.",
     "refresh": "Refresh satellite cache",
@@ -156,6 +169,8 @@
     "p10": "P10",
     "p90": "P90",
     "frameLayers": "Selected frame layers",
+    "solverSnapshot": "D-Flow FM snapshot",
+    "directSnapshotNote": "This is a stored frame from one real solver run. The contract's HIGH/POSSIBLE URLs alias this same deterministic frame; they are not uncertainty bands.",
     "median": "Median",
     "high": "HIGH confidence",
     "possible": "POSSIBLE extent",
@@ -188,6 +203,41 @@
     "provenance": "Provenance"
   },
   "onboarding": {
-    "missingInputs": "Onboarding cannot be submitted from this form. POST /sites requires a site ID, region and river; CRS; far-field and near-field bounds, resolutions and inflow locations; and dam IDs, types, locations and complete breach specifications. The form does not collect all these fields, and DEM/hydrology uploads are disabled. No site will be submitted."
+    "missingInputs": "Onboarding cannot be submitted from this form. POST /sites requires a site ID, region and river; CRS; far-field and near-field bounds, resolutions and inflow locations; and dam IDs, types, locations and complete breach specifications. The form does not collect all these fields, and DEM/hydrology uploads are disabled. No site will be submitted.",
+    "demoTitle": "Teesta III Demo",
+    "demoDetail": "Open the registered South Lhonak 2023 D-Flow FM result. Reconstructed forcing and pilot-domain caveats remain visible in the result.",
+    "demoOpen": "Open Teesta III Demo",
+    "validationEmpty": "No validation runs available",
+    "validationEmptyDetail": "A single real solver run is not a validation dataset. No M5 LOOCV or observed-event comparison is registered for this site.",
+    "validationDemo": "DEMO / EXAMPLE validation report",
+    "validationRuns": "Validation runs",
+    "cachedImage": "Cached satellite image",
+    "openRealRun": "Open registered Teesta event result",
+    "noPairedSph": "No paired Teesta DualSPHysics result is registered. The retained controlled SPH benchmark is a stock tank case and is not spatially or scenariowise comparable to this river run.",
+    "libraryUnavailable": "No real scenario library is registered. The Teesta MVP contains one direct solver event run, not prepared emulator nodes."
+  },
+  "dataLayers": {
+    "realDepthName": "D-Flow FM flood outputs",
+    "realDepthDesc": "Generated from the registered Teesta MVP solver run: depth, velocity, arrival and extent artifacts.",
+    "pilotTerrainName": "Terrain / model domain",
+    "pilotTerrainDesc": "The registered event run uses the retained pilot bed/domain geometry. It is not exposed as a standalone raster download on this page.",
+    "forcingName": "Event forcing",
+    "forcingDesc": "MVP reconstructed South Lhonak forcing; the complete hydrograph is not observed.",
+    "exposureName": "Population and exposure",
+    "exposureDesc": "M6 impact uses cached WorldPop population raster and OSM buildings/roads; coverage notes remain on Impact Analysis.",
+    "imageryName": "Sentinel event imagery",
+    "imageryDesc": "Cached pre/post Sentinel-2 composites with acquisition dates shown in Monitoring.",
+    "monitoringSeriesName": "Lake-area / rainfall series",
+    "monitoringSeriesDesc": "No usable lake-area history or rainfall series is registered for this demo site.",
+    "available": "REAL",
+    "mvp": "MVP",
+    "cached": "CACHED",
+    "unavailable": "UNAVAILABLE"
+  },
+  "landing": {
+    "teestaSite": "Teesta III · South Lhonak 2023",
+    "registeredRun": "Registered D-Flow FM MVP run",
+    "terrainAwaiting": "Open Teesta III Demo to load the registered flood result.",
+    "directRunInfo": "The registered Teesta MVP run is available. A prepared multi-scenario library is not connected."
   }
 }

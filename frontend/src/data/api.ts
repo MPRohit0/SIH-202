@@ -26,6 +26,7 @@ import validation from '../../../contracts/examples/validation.example.json';
 
 export type FloodQueryRequest = {
   site_id: string;
+  scenario_id?: string;
   model: 'delft3d' | 'sph';
   mode: 'scenario' | 'unknown_breach';
   inputs: Record<string, {type: 'exact'; value: number} | {type: 'slider'; position: number}>;
@@ -39,7 +40,7 @@ export type Estimate = {
 };
 export type FloodQueryResponse = {
   contract_version: string; query_id: string; site_id: string;
-  status: 'partial' | 'complete' | 'failed'; method: 'gp_emulator' | 'empirical_fallback';
+  status: 'partial' | 'complete' | 'failed'; method: 'gp_emulator' | 'empirical_fallback' | 'delft3d_direct' | 'sph_direct';
   mode: 'scenario' | 'unknown_breach';
   resolved_inputs: Record<string, Estimate>;
   summary: {
@@ -98,6 +99,11 @@ export type Timeline = {
   pois_on_profile: Array<{poi_id: string; name: string; chainage_m: number}>;
   caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
   provenance: Record<string, unknown>;
+};
+export type ValidationResponse = {
+  contract_version: string; site_id: string; model: 'delft3d' | 'sph'; n_runs: number;
+  per_run: Array<Record<string, unknown>>; summary: Record<string, unknown>;
+  baseline_linear: Record<string, unknown>; grade_thresholds_ref: string; events: string[];
 };
 export type SiteSummary = {
   site_id: string; name: string;
@@ -163,7 +169,7 @@ export const api = {
   extent: (queryId: string) => request(`/flood/${encodeURIComponent(queryId)}/extent.geojson`, {}, 'extent'),
   impact: (queryId: string) => request<ImpactResponse>(`/impact/${encodeURIComponent(queryId)}`, {}, 'impact'),
   compare: (siteId: string, scenarioId?: string) => request<CompareResponse>(`/compare/${encodeURIComponent(siteId)}${scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : ''}`, {}, 'compare'),
-  validation: (siteId: string) => request(`/validation/${encodeURIComponent(siteId)}`, {}, 'validation'),
+  validation: (siteId: string) => request<ValidationResponse>(`/validation/${encodeURIComponent(siteId)}`, {}, 'validation'),
   historicalValidation: (siteId: string, eventId: string) => request(`/validation/${encodeURIComponent(siteId)}?event=${encodeURIComponent(eventId)}`, {}, 'historicalValidation'),
   export: async (queryId: string, format: 'shp' | 'kml' | 'geojson' | 'pdf') => {
     const response = await fetch(`${baseUrl}/export/${encodeURIComponent(queryId)}?format=${format}`);
@@ -180,6 +186,12 @@ export const api = {
   file: (path: string) => {
     const relativePath = path.replace(/^\/api\/v1\/?/, '').replace(/^\/+/, '');
     return fetch(`${baseUrl}/${relativePath}`);
+  },
+  /** Resolve contract file references against the configured API origin (for image overlays). */
+  fileUrl: (path: string) => {
+    if (/^https?:\/\//i.test(path)) return path;
+    const relativePath = path.replace(/^\/api\/v1\/?/, '').replace(/^\/+/, '');
+    return `${baseUrl}/${relativePath}`;
   },
   // Contract example fixture access for contract data with no GET route.
   examples: {scenarioDesign, siteRequest, breachParams, geojson, floodRequest},

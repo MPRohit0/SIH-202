@@ -9,7 +9,7 @@ import '../app/globals.css';
 import SentriqApp from '../app/sentriq/app';
 
 const VIEWS = ['dashboard', 'simulation', 'library', 'compare', 'lab', 'impact',
-  'data', 'monitoring', 'exports', 'sites', 'settings'];
+  'data', 'monitoring', 'exports', 'validation', 'sites', 'settings'];
 
 function Root() {
   const view = location.pathname.split('/')[1] || 'home';
