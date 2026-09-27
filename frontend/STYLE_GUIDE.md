@@ -1,6 +1,6 @@
 # Frontend style guide (as built)
 
-This describes the frontend **as it exists today**: a "Sentriq"-branded **UI shell**. Every
+This describes the frontend **as it exists today**: a "TerraFlow"-branded **UI shell**. Every
 screen, component and style below is unchanged from the original prototype; only its data
 source changed (see `README.md` and `API_USAGE.md`). Nothing here is a proposal. All values
 were read from the source, and file references are relative to `frontend/`.

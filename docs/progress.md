@@ -1,5 +1,25 @@
 # Progress log
 
+## 2026-09-27 — Frontend rebrand: Sentriq → TerraFlow
+- Branding-only rename of the user-facing product name from "Sentriq" to "TerraFlow": page
+  title (`frontend/index.html`), sidebar/landing wordmark and avatar initials, eyebrow/footer/
+  dialog brand text (`frontend/app/sentriq/app.tsx`, `frontend/app/sentriq/landing.tsx`),
+  `frontend/README.md`, `frontend/STYLE_GUIDE.md` prose, and `frontend/package.json` `"name"`
+  (`sentriq-frontend` → `terraflow`, nothing else referenced it).
+- Left all code/module identifiers untouched per scope: the `frontend/app/sentriq/` folder,
+  `SentriqApp` component name, `.sentriq-sidebar`/`.sentriq-logo` CSS classes, and the
+  `frontend/lib/sentriq.ts` file path — these are file paths and code identifiers, not
+  user-facing branding. The dated 2026-09-24 log entry below describing the retired "Sentriq"
+  prototype is left as a historical record.
+- No product-name text existed in `backend/m0_api`'s FastAPI app title or in the PDF/KML/shp
+  export code (`backend/m0_api/main.py`, `mock_files.py`) — nothing to rename there.
+- Added a `SENTRIQ|Sentriq(?!App)` forbidden-string check to
+  `frontend/scripts/check-shell.mjs` (scoped to exclude the surviving lowercase folder/CSS/
+  component identifiers) so the retired brand text can't silently reappear.
+- Verified: `tsc --noEmit`, `vite build`, `check:shell`, the full Playwright visual suite (all
+  13 baselines re-recorded — the only diffs were the brand text itself, no layout/overflow
+  regressions), and `pytest tests/m0_api` (169 passed, 1 pre-existing hardware-gated skip).
+
 ## 2026-09-27 — M3 detached D-Flow FM launcher
 - Added `backend/m3_dflowfm/launcher.py`: starts the kernel detached, strips `/mnt/*` from `PATH`,
   writes combined process output to the M0 run log, parses simulation-time markers from `.dia`, and

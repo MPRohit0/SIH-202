@@ -1,4 +1,4 @@
-# Sentriq frontend — UI shell
+# TerraFlow frontend — UI shell
 
 This is a **UI shell**: every screen, layout and style from the original prototype, with
 its data source removed. There is no in-browser solver, no bundled site data, and no

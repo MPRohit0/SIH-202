@@ -24,6 +24,7 @@ const FORBIDDEN = [
   {pattern: /\/api\/records/, why: 'the removed Cloudflare D1/R2 saved-runs endpoint (Group 2, rule 11: no cloud, no auth)'},
   {pattern: /oai-authenticated/, why: 'the removed ChatGPT-auth headers (Group 2, rule 11)'},
   {pattern: /240 ?m\b/, why: "Tehri's scenario-library breach-width literal (severity x 2.4 m, Group 3)"},
+  {pattern: /SENTRIQ|Sentriq(?!App)/, why: 'the retired product name (rebranded to TerraFlow) reappearing as user-facing brand text - the lowercase `sentriq` folder, CSS classes and `SentriqApp` component name are unchanged code identifiers and do not match this'},
 ];
 
 function walk(dir, out = []) {
