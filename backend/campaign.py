@@ -1,30 +1,14 @@
-"""Runs whole scenario sets through M3/M4 (CLAUDE.md architecture table).
+"""Run M3/M4 scenario sets through the M0 job system.
 
-This session only builds the M4 (SPH) path: `run_sph_campaign` builds and
-registers a near-field GenCase case (`backend.m4_sph.generator`) for every
-scenario_id listed in a site's `simulation.sph.scenarios` (contract §4.4),
-under one shared `campaign` job (`backend.m0_api.jobs`, contract §4.5).
-
-It does NOT launch GenCase or the DualSPHysics solver -- no launcher exists
-yet anywhere in the codebase (`docs/progress.md`, this session), and
-`backend.m0_api.worker`'s `simulating` stage is explicitly fake today ("M1,
-M2 and M5 plug in here later"). A case that builds successfully is written
-to disk and its `runs` row set to `status: "queued"`; it stays queued until
-a real launcher exists. There is also no M3 (Delft3D) path yet --
-`backend/m3_delft3d` doesn't exist (only `backend/m3_pilot/`, a working case
-directory, not a module) -- so `model="delft3d"` is out of scope here too.
-
-VRAM gating is NOT reimplemented here: `generator.build_nearfield_case`
-already estimates particle count/VRAM for the case (`vram_estimator.py`,
-calibrated from the pilot run) and raises `OverVramBudget` if no feasible
-`dp_m` fits the configured budget (`config/m4_sph.yaml`'s `vram_budget_mib`/
-`vram_margin`, CLAUDE.md rule 13's 8 GB RTX 4060 budget). This module just
-catches that and reports the case as refused instead of queued.
+D-Flow FM scenarios are generated from the M5 design and persisted before
+launch, allowing the worker to resume after process or host restarts. SPH
+retains its existing case-generation path.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,7 +23,7 @@ CONTRACT_VERSION = "0.2.0"
 class CampaignCaseResult:
     scenario_id: str
     run_id: str
-    status: str  # "queued" | "refused"
+    status: str  # queued | completed | postprocessed | failed | refused
     reason: str | None = None
 
 
@@ -53,6 +37,137 @@ def _scenario_params(design: dict, scenario_id: str) -> dict | None:
 def _load_design(data_dir: Path, site_id: str) -> dict | None:
     path = data_dir / site_id / "design" / "scenario_design.json"
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+
+def write_dflowfm_status(data_dir: Path, site_id: str, conn: sqlite3.Connection, job_id: str) -> None:
+    """Atomically publish campaign counts and ETA from completed runs."""
+    row = jobs.get_job(conn, job_id)
+    if row is None:
+        return
+    runs = jobs.job_runs(conn, row)
+    dry_run = bool(jobs.payload(row).get("dry_run"))
+    done = [r for r in runs if r["status"] == "postprocessed" or (dry_run and r["status"] == "completed")]
+    active = next((r for r in runs if r["status"] == "running"), None)
+    if active is None and not dry_run:
+        active = next((r for r in runs if r["status"] == "queued"), None)
+    failed = [r for r in runs if r["status"] == "failed"]
+    durations = [json.loads(r["meta_json"] or "{}").get("wall_time_s") for r in done]
+    durations = [float(v) for v in durations if v is not None]
+    eta = (0 if dry_run else
+           round(sum(durations) / len(durations) * (len(runs) - len(done))) if durations else None)
+    body = {"job_id": job_id, "model": "delft3d", "updated_at": registry.utc_now(),
+            "done": len(done), "total": len(runs), "running": active["run_id"] if active else None,
+            "failed": [r["run_id"] for r in failed], "eta_s": eta,
+            "demo_mode": bool(jobs.payload(row).get("demo_mode")),
+              "runs": [{"run_id": r["run_id"], "scenario_id": r["scenario_id"],
+                      "status": ("done" if r["status"] == "postprocessed" or (dry_run and r["status"] == "completed") else
+                                "failed" if r["status"] == "failed" else
+                                "running" if r["status"] in {"queued", "running", "completed"} else r["status"]),
+                      "error": r["error"]} for r in runs]}
+    target = data_dir / site_id / "campaign_status.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp = target.with_suffix(".json.tmp")
+    temp.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
+    temp.replace(target)
+
+
+def run_dflowfm_campaign(site_id: str, conn: sqlite3.Connection, data_dir: str | Path | None = None,
+                         sites_dir: str | Path | None = None, *, extra: list[str] | None = None,
+                         dry_run: bool = False, demo: bool = False) -> tuple[str | None, list[CampaignCaseResult]]:
+    """Build and register M5 design scenarios and explicitly selected extras."""
+    from backend.m3_dflowfm import generator
+    from backend.m5_emulator import scenario_design
+    from dataclasses import replace
+
+    data_dir = Path(data_dir) if data_dir is not None else registry.data_dir()
+    cfg = load_site_config(site_id, sites_dir=sites_dir)
+    design = _load_design(data_dir, site_id)
+    if design is not None and (design.get("site_id") != site_id or design.get("model") != "delft3d"):
+        raise ValueError(f"M5 scenario design must be for site {site_id!r} and model 'delft3d'")
+    design_was_missing = design is None
+    if design is None:
+        settings = scenario_design.load_scenario_design_settings()
+        if demo:
+            settings = replace(settings, n=1, n_holdout=0)
+        design = scenario_design.build_scenario_design(cfg, cfg.domains.far_field.inflow.from_, settings)
+    if demo:
+        design["scenarios"] = design["scenarios"][:1]
+        design["n"] = len(design["scenarios"])
+        for index, item in enumerate(design["scenarios"], 1):
+            # The design schema uses kind=design; the registry carries kind=demo.
+            item.update(scenario_id=f"{site_id}__demo_s{index:03d}", kind="design")
+        design["extra"] = []
+    from backend.m0_api import schemas
+    schemas.validate("scenario_design.schema.json", design)
+    if design_was_missing and not demo:
+        path = data_dir / site_id / "design" / "scenario_design.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(design, indent=2) + "\n", encoding="utf-8")
+    entries = list(design.get("scenarios", []))
+    selected = set(extra or [])
+    extra_entries = []
+    for entry in design.get("extra", []):
+        sid = entry.get("scenario_id", "")
+        aliases = {sid, sid.rsplit("_", 1)[-1]}
+        if "__n_" in sid:
+            aliases.add(sid.split("__n_", 1)[1])
+        if "_n_" in sid:
+            aliases.add(sid.split("_n_", 1)[1])
+        if "_hist_" in sid:
+            aliases.add("hist_" + sid.split("_hist_", 1)[1])
+            aliases.add(sid.split("_hist_", 1)[1])
+        if aliases & selected:
+            extra_entries.append(entry)
+    entries += extra_entries
+    matched = {alias for entry in extra_entries for alias in (entry["scenario_id"],
+        entry["scenario_id"].rsplit("_", 1)[-1],
+        entry["scenario_id"].split("__n_", 1)[-1] if "__n_" in entry["scenario_id"] else "",
+        entry["scenario_id"].split("_n_", 1)[-1] if "_n_" in entry["scenario_id"] else "",
+        entry["scenario_id"].split("_hist_", 1)[-1] if "_hist_" in entry["scenario_id"] else "")}
+    unknown = selected - matched
+    if unknown:
+        raise ValueError(f"named extra scenario(s) not found in design: {', '.join(sorted(unknown))}")
+    if not entries:
+        return None, []
+    job_id = jobs.create_job(conn, "campaign", site_id, demo_mode=demo,
+        payload={"model": "delft3d", "dflowfm_campaign": True, "dry_run": dry_run,
+                 "scenario_ids": [e["scenario_id"] for e in entries], "extra": sorted(selected),
+                 "data_dir": str(data_dir.resolve()),
+                 "sites_dir": str(Path(sites_dir).resolve()) if sites_dir else None})
+    run_ids, results = [], []
+    now = registry.utc_now()
+    for entry in entries:
+        sid, params = entry["scenario_id"], entry["params"]
+        run_id = f"{sid}__delft3d"
+        run_ids.append(run_id)
+        run_dir = data_dir / site_id / "runs" / run_id
+        case_dir = run_dir / "case"
+        try:
+            from backend.m2_breach.hydrograph import hydrograph, write_hydrograph
+            dam_id = cfg.domains.far_field.inflow.from_
+            hydro_path, _ = write_hydrograph(hydrograph(site_id, dam_id, params, sites_dir=sites_dir),
+                                              site_id, sid, data_dir=data_dir)
+            case_dir, meta = generator.build_case(site_id, sid, params, data_dir=data_dir,
+                sites_dir=sites_dir, case_dir=case_dir,
+                stop_s=9000.0 if demo else generator.DEFAULT_STOP_S, demo=demo)
+            meta["hydrographs"] = [str(hydro_path.relative_to(data_dir / site_id))]
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "scenario.json").write_text(json.dumps(entry, indent=2) + "\n", encoding="utf-8")
+            state, error = ("completed", None) if dry_run else ("queued", None)
+            if dry_run:
+                meta["dry_run"] = True
+        except Exception as exc:
+            state, error, meta = "failed", str(exc), {"params": params}
+        with conn:
+            conn.execute("INSERT OR REPLACE INTO scenarios (scenario_id, site_id, kind, params_json, created_at) VALUES (?, ?, ?, ?, ?)",
+                (sid, site_id, "demo" if demo else entry.get("kind", "design"), json.dumps(params), now))
+            conn.execute("INSERT OR REPLACE INTO runs (run_id, scenario_id, model, status, run_dir, meta_json, error) VALUES (?, ?, 'delft3d', ?, ?, ?, ?)",
+                (run_id, sid, state, str(run_dir), json.dumps({**meta, "case_dir": str(case_dir), "attempt": 0}), error))
+        results.append(CampaignCaseResult(sid, run_id, state, error))
+    jobs.update_payload(conn, job_id, run_ids=run_ids)
+    jobs.set_progress(conn, job_id, 0, len(run_ids), "runs")
+    write_dflowfm_status(data_dir, site_id, conn, job_id)
+    return job_id, results
 
 
 def run_sph_campaign(
@@ -126,19 +241,33 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("site_id")
-    parser.add_argument("--model", choices=["sph"], default="sph",
-                         help="only 'sph' is implemented this session (see module docstring)")
+    parser.add_argument("--model", choices=["dflowfm", "sph"], default="dflowfm")
+    parser.add_argument("--extra", action="append", default=[], metavar="SCENARIO_ID",
+                         help="include a named/historical scenario from the M5 design (repeatable)")
+    parser.add_argument("--dry-run", action="store_true", help="generate/register cases without launching the solver")
+    parser.add_argument("--demo", action="store_true", help="one truncated 9,000 s D-Flow FM demo run")
+    parser.add_argument("--data-dir", type=Path, help="override data root (also sets SIH26_DATA_DIR)")
+    parser.add_argument("--sites-dir", type=Path, help="directory containing site YAML files")
     args = parser.parse_args(argv)
+
+    if args.data_dir is not None:
+        os.environ["SIH26_DATA_DIR"] = str(args.data_dir.resolve())
 
     registry.init_db()
     conn = registry.connect()
     try:
-        job_id, results = run_sph_campaign(args.site_id, conn)
+        if args.model == "dflowfm":
+            job_id, results = run_dflowfm_campaign(args.site_id, conn, sites_dir=args.sites_dir, extra=args.extra,
+                                                    dry_run=args.dry_run, demo=args.demo)
+        elif args.model == "sph":
+            job_id, results = run_sph_campaign(args.site_id, conn)
+        else:
+            raise ValueError("ANUGA is not an M0 registry model; use dflowfm or sph")
     finally:
         conn.close()
 
     if job_id is None:
-        print(f"{args.site_id}: simulation.sph.scenarios is empty, nothing to queue")
+        print(f"{args.site_id}: no campaign scenarios")
         return 0
     print(f"{args.site_id}: campaign job {job_id}")
     for r in results:

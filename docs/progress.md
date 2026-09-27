@@ -1412,3 +1412,21 @@ Teesta base flow and other physical data need sourcing before production use.
 - **Next step:** wire flood query creation and polling to M5 outputs and persist contract-shaped
   query artifacts; then connect dependent result routes to those artifacts. Define contract-
   consistent campaign and rerun stages before implementing those workflows.
+
+## 2026-09-27 — M3 D-Flow FM campaigns
+
+- **Built:** added M5 scenario-design generation/selection to `backend/campaign.py`, named extra
+  selection, dry-run and truncated demo options, M0 registry/worker execution, one retry, resumable
+  detached runs, contract post-processing, an M5 run-cache index, and atomic campaign progress.
+  Demo uses one 9,000 s run, 90 m mesh spacing, 120 s map output, capped at 33,018 faces.
+- **Verified:** synthetic fake-solver campaign tests retry then post-process/cache successfully;
+  targeted M0/M3/campaign tests pass. A real D-Flow FM demo completed end-to-end on synthetic M1
+  terrain (14 faces, 9,000 s simulated, 0.14 s solver runtime; placeholder caveats retained).
+- **Blocked for production campaigns:** Teesta's M5 design is blocked by the unresolved XZ9
+  `h_r` input. `sites/rishiganga.yaml` and its terrain are absent, so a Chamoli campaign cannot
+  yet be configured without sourced inputs.
+- **Still stubbed or placeholder:** M5 training, validation, and emulator publication do not run
+  after a campaign; the new M5 cache is a run index, not a trained library. SPH campaigns still
+  only generate/queue cases. Synthetic-demo outputs retain placeholder caveats.
+- **Next step:** source the missing M2/site inputs and Chamoli configuration, then run each real
+  campaign. Wire successful campaign caches into M5 training and publication afterward.

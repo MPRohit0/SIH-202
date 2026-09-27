@@ -40,6 +40,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
 from backend.m0_api import jobs, registry, runner, site_status
 from backend.m3_dflowfm import launcher as m3_launcher
@@ -119,7 +120,7 @@ class Worker:
                     if result["success"]:
                         self._finish_run(row, run, True)
                     elif not alive:
-                        self._finish_run(row, run, False)
+                        self._retry_or_fail(row, run, "D-Flow FM process ended during worker restart")
                 else:
                     alive = pid is not None and runner.is_alive(pid, run["run_id"])
                     progress = runner.read_progress(runner.log_path(run["run_dir"]))
@@ -255,6 +256,15 @@ class Worker:
             self._launch(row, queued[0])
             return True
 
+        failed = [r for r in runs if r["status"] == "failed"]
+        if failed and jobs.payload(row).get("dflowfm_campaign"):
+            jobs.fail(self.conn, job_id, row["stage"], "run_failed",
+                      f"Campaign contains failed run {failed[0]['run_id']}.",
+                      {"run_id": failed[0]["run_id"], "error": failed[0]["error"]})
+            from backend.campaign import write_dflowfm_status
+            write_dflowfm_status(self._campaign_data_dir(row), row["site_id"], self.conn, job_id)
+            return True
+
         self._advance(row)  # every run completed (a failed run already failed the job)
         return True
 
@@ -290,9 +300,10 @@ class Worker:
         run_id = run["run_id"]
         index = jobs.payload(row)["run_ids"].index(run_id) + 1
         job_payload = jobs.payload(row)
-        case_dir = job_payload.get("case_dir")
+        current_meta = json.loads(run["meta_json"] or "{}")
+        case_dir = current_meta.get("case_dir", job_payload.get("case_dir"))
         if case_dir:
-            model = job_payload.get("model", "model.mdu")
+            model = job_payload.get("model_file", "model.mdu") if job_payload.get("dflowfm_campaign") else job_payload.get("model", "model.mdu")
             proc = m3_launcher.launch_case(case_dir, run["run_dir"], model=model)
             model_stem = Path(model).stem
             solver_meta = {"solver": "dflowfm", "case_dir": str(Path(case_dir).resolve()),
@@ -311,8 +322,12 @@ class Worker:
             solver_meta = {}
         self._procs[run_id] = proc
         started = time.time()
-        self._mark_run(run_id, "running", meta={"pid": proc.pid, "started_epoch_s": started, **solver_meta}, started_at=registry.utc_now())
+        current_meta.update({"pid": proc.pid, "started_epoch_s": started, **solver_meta})
+        self._mark_run(run_id, "running", meta=current_meta, started_at=registry.utc_now())
         jobs.log_event(self.conn, row["job_id"], f"run {run_id} started (pid {proc.pid})")
+        if job_payload.get("dflowfm_campaign"):
+            from backend.campaign import write_dflowfm_status
+            write_dflowfm_status(self._campaign_data_dir(row), row["site_id"], self.conn, row["job_id"])
 
     def _poll_run(self, row: sqlite3.Row, run: sqlite3.Row) -> bool:
         pid = json.loads(run["meta_json"] or "{}").get("pid")
@@ -332,10 +347,7 @@ class Worker:
                 self._finish_run(row, run, True)
             elif not alive:
                 result = m3_launcher.check_success(case_dir, model_stem)
-                self._mark_run(run["run_id"], "failed", error="D-Flow FM failed M3 rule 1", meta=meta,
-                               finished_at=registry.utc_now())
-                jobs.fail(self.conn, row["job_id"], row["stage"], "run_failed",
-                          f"Run {run['run_id']} failed M3 rule 1.", {"run_id": run["run_id"], **result})
+                self._retry_or_fail(row, run, "D-Flow FM failed M3 rule 1", result)
             return not progress.ok or alive
         alive = pid is not None and runner.is_alive(pid, run["run_id"])  # check before reading the log (no race)
         progress = runner.read_progress(runner.log_path(run["run_dir"]))
@@ -343,9 +355,7 @@ class Worker:
             self._finish_run(row, run, progress.ok)
             return True
         if not alive:
-            self._mark_run(run["run_id"], "failed", error="process exited without DONE line")
-            jobs.fail(self.conn, row["job_id"], row["stage"], "run_failed",
-                      f"Run {run['run_id']} exited without finishing.", {"run_id": run["run_id"]})
+            self._retry_or_fail(row, run, "process exited without DONE line")
             return True
         return False  # still running; nothing changed
 
@@ -355,8 +365,42 @@ class Worker:
             meta["wall_time_s"] = round(time.time() - meta["started_epoch_s"], 3)
         job_id = row["job_id"]
         if ok:
-            self._mark_run(run["run_id"], "completed", meta=meta, finished_at=registry.utc_now())
+            if jobs.payload(jobs.get_job(self.conn, job_id)).get("dflowfm_campaign"):
+                try:
+                    from backend.m3_common.postprocess import PostprocessConfig, postprocess_dflowfm
+                    from backend.m5_emulator.run_cache import register_run
+                    data_dir = self._campaign_data_dir(row)
+                    case_dir = Path(meta["case_dir"])
+                    terrain = data_dir / row["site_id"] / "terrain"
+                    scenario_path = Path(run["run_dir"]) / "scenario.json"
+                    scenario = json.loads(scenario_path.read_text())
+                    grid_path = terrain / "grid.json"
+                    post_meta = postprocess_dflowfm(case_dir, run["run_dir"], grid_path=grid_path,
+                        domain_mask_path=terrain / "domain_mask.tif", run_id=run["run_id"],
+                        scenario_id=run["scenario_id"], hydrographs=meta.get("hydrographs", []), spinup_s=7200.0,
+                        config=PostprocessConfig(delete_raw_map=False))
+                    from backend.shared.site_config import load_site_config
+                    config = load_site_config(row["site_id"], sites_dir=jobs.payload(jobs.get_job(self.conn, job_id)).get("sites_dir"))
+                    from backend.m3_dflowfm.generator import placeholder_fields
+                    missing_facts = placeholder_fields(config)
+                    post_meta["has_placeholders"] = bool(missing_facts)
+                    post_meta["placeholder_fields"] = missing_facts
+                    post_meta.setdefault("caveats", ["clear_water"])
+                    if missing_facts and "placeholder_data" not in post_meta["caveats"]:
+                        post_meta["caveats"].append("placeholder_data")
+                    post_meta["wall_time_s"] = meta.get("wall_time_s")
+                    (Path(run["run_dir"]) / "run_meta.json").write_text(json.dumps(post_meta, indent=2) + "\n")
+                    register_run(data_dir, row["site_id"], run["run_id"], scenario["params"], post_meta)
+                    meta.update(post_meta)
+                    self._mark_run(run["run_id"], "postprocessed", meta=meta, finished_at=registry.utc_now())
+                except Exception as exc:
+                    self._retry_or_fail(row, run, f"post-processing/cache load failed: {exc}")
+                    return
+            else:
+                self._mark_run(run["run_id"], "completed", meta=meta, finished_at=registry.utc_now())
             completed = sum(r["status"] == "completed" for r in jobs.job_runs(self.conn, jobs.get_job(self.conn, job_id)))
+            if jobs.payload(jobs.get_job(self.conn, job_id)).get("dflowfm_campaign"):
+                completed = sum(r["status"] == "postprocessed" for r in jobs.job_runs(self.conn, jobs.get_job(self.conn, job_id)))
             jobs.set_progress(self.conn, job_id, completed, row["progress_total"], "runs")
             jobs.log_event(self.conn, job_id, f"run {run['run_id']} completed")
         else:
@@ -364,7 +408,35 @@ class Worker:
             jobs.fail(self.conn, job_id, row["stage"], "run_failed",
                       f"Run {run['run_id']} reported failure.", {"run_id": run["run_id"]})
 
+        payload = jobs.payload(jobs.get_job(self.conn, job_id))
+        if payload.get("dflowfm_campaign"):
+            from backend.campaign import write_dflowfm_status
+            write_dflowfm_status(self._campaign_data_dir(row), row["site_id"], self.conn, job_id)
+
+    def _retry_or_fail(self, row: sqlite3.Row, run: sqlite3.Row, message: str, details: dict | None = None) -> None:
+        """Persist one retry before making a run/job terminally failed."""
+        meta = json.loads(run["meta_json"] or "{}")
+        if jobs.payload(row).get("dflowfm_campaign") and int(meta.get("attempt", 0)) < 1:
+            meta["attempt"] = int(meta.get("attempt", 0)) + 1
+            meta.pop("pid", None)
+            meta.pop("started_epoch_s", None)
+            self._mark_run(run["run_id"], "queued", meta=meta, error=None)
+            jobs.log_event(self.conn, row["job_id"], f"retrying {run['run_id']} once: {message}")
+        else:
+            self._mark_run(run["run_id"], "failed", meta=meta, error=message, finished_at=registry.utc_now())
+            if not jobs.payload(row).get("dflowfm_campaign"):
+                jobs.fail(self.conn, row["job_id"], row["stage"], "run_failed",
+                          f"Run {run['run_id']} failed: {message}", {"run_id": run["run_id"], **(details or {})})
+        if jobs.payload(jobs.get_job(self.conn, row["job_id"])).get("dflowfm_campaign"):
+            from backend.campaign import write_dflowfm_status
+            write_dflowfm_status(self._campaign_data_dir(row), row["site_id"], self.conn, row["job_id"])
+
     # --- helpers -------------------------------------------------------------
+    @staticmethod
+    def _campaign_data_dir(row: sqlite3.Row) -> Path:
+        root = jobs.payload(row).get("data_dir")
+        return Path(root) if root else registry.data_dir()
+
     def _active_jobs(self) -> list[sqlite3.Row]:
         terminal = sorted(jobs.TERMINAL)
         return self.conn.execute(
@@ -378,7 +450,9 @@ class Worker:
         if row["stage"] in SIM_STAGES:  # run counts describe `simulating` only
             jobs.set_progress(self.conn, row["job_id"], None, None, None)
         if new in SIM_STAGES:  # so `simulating` never shows without its 0/N
-            self._register_runs(jobs.get_job(self.conn, row["job_id"]))
+            payload = jobs.payload(jobs.get_job(self.conn, row["job_id"]))
+            if not payload.get("dflowfm_campaign"):
+                self._register_runs(jobs.get_job(self.conn, row["job_id"]))
         log.info("job %s: %s -> %s", row["job_id"], row["stage"], new)
 
     def _mark_run(self, run_id: str, status: str, meta: dict | None = None, started_at: str | None = None,

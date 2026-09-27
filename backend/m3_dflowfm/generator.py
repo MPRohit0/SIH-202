@@ -61,7 +61,8 @@ def _xyz_samples(raster: Path, points_x: np.ndarray, points_y: np.ndarray) -> np
 
 def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, params: dict,
                       terrain_dir: Path, hydro_t_s: np.ndarray, hydro_q: np.ndarray,
-                      *, stop_s: float = DEFAULT_STOP_S) -> dict:
+                      *, stop_s: float = DEFAULT_STOP_S, mesh_spacing_m: float | None = None,
+                      map_interval_s: float = 60.0) -> dict:
     """Materialize FM inputs from canonical site fields and M1/M2 products."""
     from hydrolib.core.base.models import DiskOnlyFileModel
     from hydrolib.core.dflowfm import ExtModel, FMModel, NetworkModel, XYNModel
@@ -82,7 +83,7 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
     if domain.crs.to_epsg() != epsg:
         domain = domain.to_crs(epsg=epsg)
     geom = unary_union(list(domain.geometry)).buffer(0)
-    spacing = float(config.domains.far_field.grid_resolution.value)
+    spacing = float(mesh_spacing_m or config.domains.far_field.grid_resolution.value)
     dam_id = config.domains.far_field.inflow.from_
     dam = next((d for d in config.dams if d.id == dam_id), None)
     if dam is None or dam.breach_location.value is None:
@@ -226,7 +227,7 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
         physics=Physics(uniffricttype=2), numerics=Numerics(cflmax=0.7),
         external_forcing=ExternalForcing(extforcefilenew=DiskOnlyFileModel(filepath=Path("inputs/forcing.ext"))),
         output=Output(outputdir=Path("output"), obsfile=[DiskOnlyFileModel(filepath=Path("inputs/observations.xyn"))],
-            mapinterval=[60.0], hisinterval=[60.0], **{
+            mapinterval=[map_interval_s], hisinterval=[60.0], **{
                 **{key: False for key in Output.model_fields if key.startswith("wrimap_") or key.startswith("wrihis_")},
                 "wrimap_waterdepth": True, "wrimap_velocity_magnitude": True,
                 "wrihis_waterdepth": True, "wrihis_velocity": True, "wrihis_waterlevel_s1": True,
@@ -260,7 +261,7 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
         "hydrograph_includes_base_flow": False,
         "ext_file_version": "2.01", "paths_relative": True,
         "spinup_s": SPINUP_S, "stop_s": end,
-        "map_interval_s": 60.0, "history_interval_s": 60.0,
+        "map_interval_s": map_interval_s, "history_interval_s": 60.0,
         "map_variables": ["mesh2d_waterdepth", "mesh2d_ucmag"],
         "history_variables": ["waterdepth", "velocity", "waterlevel"],
         "changes_from_fm_defaults": [
@@ -280,8 +281,8 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
              "reason": "fixed pilot initial timestep"},
             {"setting": "uniffricttype", "default": 1, "new_value": 2,
              "reason": "Manning roughness samples"},
-            {"setting": "MapInterval", "default": 1200.0, "new_value": 60.0,
-             "reason": "M3 arrival threshold sampling at the 60 s history cadence"},
+            {"setting": "MapInterval", "default": 1200.0, "new_value": map_interval_s,
+             "reason": "M3 arrival threshold sampling at configured map cadence"},
             {"setting": "HisInterval", "default": 300.0, "new_value": 60.0,
              "reason": "POI history resolution"},
             {"setting": "OutputDir", "default": "", "new_value": "output",
@@ -324,9 +325,28 @@ def has_placeholder_values(config: SiteConfig) -> bool:
     return any(value.status == "placeholder" for value in _walk_sourced(config))
 
 
+def placeholder_fields(config: SiteConfig) -> list[str]:
+    """Return site-config paths whose values are explicitly marked placeholder."""
+    from pydantic import BaseModel
+    from backend.shared.site_config import SourcedValue
+    found: list[str] = []
+    def walk(value, path: str) -> None:
+        if isinstance(value, SourcedValue):
+            if value.status == "placeholder":
+                found.append(path)
+        elif isinstance(value, BaseModel):
+            for name in type(value).model_fields:
+                walk(getattr(value, name), f"{path}.{name}" if path else name)
+        elif isinstance(value, (list, tuple)):
+            for index, item in enumerate(value):
+                walk(item, f"{path}[{index}]")
+    walk(config, "")
+    return found
+
+
 def build_case(site_id: str, scenario_id: str, params: dict, *, data_dir: str | Path | None = None,
                sites_dir: str | Path | None = None, case_dir: str | Path | None = None,
-               stop_s: float = DEFAULT_STOP_S) -> tuple[Path, dict]:
+               stop_s: float = DEFAULT_STOP_S, demo: bool = False) -> tuple[Path, dict]:
     """Generate a case from canonical site config, M1 rasters and an M2 breach scenario."""
     config = load_site_config(site_id, sites_dir=sites_dir)
     if config.domains.far_field.inflow.base_flow is None or config.domains.far_field.inflow.base_flow.value is None:
@@ -336,7 +356,10 @@ def build_case(site_id: str, scenario_id: str, params: dict, *, data_dir: str | 
     root = Path(data_dir) if data_dir is not None else DATA_DIR
     terrain = root / site_id / "terrain"
     target = Path(case_dir) if case_dir is not None else root / site_id / "runs" / scenario_id / "dflowfm"
-    metadata = _write_case_files(target, config, scenario_id, params, terrain, hydro.t_s, hydro.q_m3s, stop_s=stop_s)
+    metadata = _write_case_files(target, config, scenario_id, params, terrain, hydro.t_s, hydro.q_m3s,
+        stop_s=stop_s, mesh_spacing_m=90.0 if demo else None, map_interval_s=120.0 if demo else 60.0)
+    if demo and metadata["mesh"]["face_count"] > 33018:
+        raise ValueError(f"demo mesh has {metadata['mesh']['face_count']} faces; budget is 33018")
     return target, metadata
 
 
