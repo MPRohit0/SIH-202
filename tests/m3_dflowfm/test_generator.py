@@ -22,9 +22,11 @@ def test_builds_placeholder_synthetic_case(synth_terrain_dir, synth_m3_sites_dir
     assert (case / "inputs" / "domain_net.nc").is_file()
     assert "fileVersion = 2.01" in (case / "inputs" / "forcing.ext").read_text()
     assert "inputs/initial_fields.ini" in (case / "model.mdu").read_text()
+    assert "mapInterval                       = 60.0" in (case / "model.mdu").read_text()
     assert str(case.resolve()) not in (case / "model.mdu").read_text()
     assert meta["mesh"]["roundtrip"]["node_coordinates_max_abs_error_m"] <= 1e-6
     assert json.loads((case / "case_meta.json").read_text())["has_placeholders"] is True
+    assert meta["map_interval_s"] == 60.0
 
 
 def test_requires_explicit_base_flow(synth_terrain_dir, synth_sites_dir, synth_hydrograph_params, tmp_path):

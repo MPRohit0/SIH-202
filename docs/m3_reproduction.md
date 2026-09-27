@@ -58,3 +58,9 @@
 ## Mismatches still open
 
 [UNCLEAR] Phase 3 remains incomplete and unaccepted until the generator can consume equivalent pilot M1 geometry and source fields, reproduce the pilot mesh to the specified tolerance, and meet the `.mdu`/`.ext`/boundary/initial-field and output tolerances. The current generator's independently built mesh and results do not satisfy those requirements.
+
+## 2026-09-27 map-interval follow-up
+
+[SOURCED] The generator now sets `MapInterval=60 s`, matching `HisInterval`, to sample the proposed 0.1 m arrival threshold at 60-second resolution. A fresh case was generated under `data/teesta_pilot/runs/teesta_pilot_s001/dflowfm_reproduction_map60/case/`; the frozen pilot and original Phase 3 case were not modified. D-Flow FM completed the 30-hour run with no `.dia` error and both output files present. The map contains 1,801 samples at 60-second spacing.
+
+[SOURCED] Reproduction still fails: the generated mesh remains 3,234 faces, POIs remain dry, global maximum depth is 1,841.44 m, and global maximum speed is 0.4383 m/s. The interval change improves only the time sampling and does not address the recorded geometry/input/solution mismatch.

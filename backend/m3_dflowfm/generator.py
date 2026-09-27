@@ -226,7 +226,7 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
         physics=Physics(uniffricttype=2), numerics=Numerics(cflmax=0.7),
         external_forcing=ExternalForcing(extforcefilenew=DiskOnlyFileModel(filepath=Path("inputs/forcing.ext"))),
         output=Output(outputdir=Path("output"), obsfile=[DiskOnlyFileModel(filepath=Path("inputs/observations.xyn"))],
-            mapinterval=[120.0], hisinterval=[60.0], **{
+            mapinterval=[60.0], hisinterval=[60.0], **{
                 **{key: False for key in Output.model_fields if key.startswith("wrimap_") or key.startswith("wrihis_")},
                 "wrimap_waterdepth": True, "wrimap_velocity_magnitude": True,
                 "wrihis_waterdepth": True, "wrihis_velocity": True, "wrihis_waterlevel_s1": True,
@@ -258,7 +258,7 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
         "hydrograph_includes_base_flow": False,
         "ext_file_version": "2.01", "paths_relative": True,
         "spinup_s": SPINUP_S, "stop_s": end,
-        "map_interval_s": 120.0, "history_interval_s": 60.0,
+        "map_interval_s": 60.0, "history_interval_s": 60.0,
         "map_variables": ["mesh2d_waterdepth", "mesh2d_ucmag"],
         "history_variables": ["waterdepth", "velocity", "waterlevel"],
         "changes_from_fm_defaults": [
@@ -278,8 +278,8 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
              "reason": "fixed pilot initial timestep"},
             {"setting": "uniffricttype", "default": 1, "new_value": 2,
              "reason": "Manning roughness samples"},
-            {"setting": "MapInterval", "default": 1200.0, "new_value": 120.0,
-             "reason": "M3 rule 5 arrival-time resolution"},
+            {"setting": "MapInterval", "default": 1200.0, "new_value": 60.0,
+             "reason": "M3 arrival threshold sampling at the 60 s history cadence"},
             {"setting": "HisInterval", "default": 300.0, "new_value": 60.0,
              "reason": "POI history resolution"},
             {"setting": "OutputDir", "default": "", "new_value": "output",

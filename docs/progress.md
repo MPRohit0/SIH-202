@@ -1238,3 +1238,16 @@ and nothing is queued yet.
 pilot M1/M2 inputs, then repeat the normalized-file, mesh, and 30-hour output comparisons. Keep the
 reproduction marked failed until every required tolerance passes. All pilot inputs are placeholders;
 Teesta base flow and other physical data need sourcing before production use.
+
+## 2026-09-27 — M3 output reduction and arrival sampling
+
+- Read the frozen root `m3_pilot/` map/history output with xarray. The 901 map records are 120 s apart; the 1,801 POI history records are 60 s apart. Face maxima are 65.2315 m depth and 29.4403 m/s speed; using the 0.1 m increment over the 7,200 s spin-up state gives first arrivals in 4,033/33,018 faces.
+- Exported all face summaries, 90 m EPSG:32645 raster summaries, and full POI histories under `reports/m3_pilot/`. FM map output is snapshot-based; class maps are not per-cell maxima or arrival times, so reductions still need post-processing.
+- Changed the production M3 generator map interval from 120 s to 60 s to match history cadence for arrival extraction; the frozen pilot was left unchanged. Added a generator assertion and reran `tests/m3_dflowfm/test_generator.py` (3 passed).
+- Regenerated and ran a separate Phase 3 case at `data/teesta_pilot/runs/teesta_pilot_s001/dflowfm_reproduction_map60/case/`. FM completed with 1,801 60-second map samples and passed the `.dia`/map/history success check. The POIs remain dry, depth peaks at 1,841.44 m, and speed peaks at 0.4383 m/s; reproduction remains failed for the documented mesh/input/solution mismatches. Details are appended to `docs/m3_reproduction.md`.
+
+## M3 handoff summary — 2026-09-27
+
+- **Built:** a frozen D-Flow FM pilot with recorded depth, velocity, arrival, and POI histories; a separate active case generator; 60-second map output in generated cases; pilot face/raster/time-series diagnostics; and a successful FM rerun of the generated reproduction case.
+- **Still stubbed or placeholder:** the backend pilot folder is legacy ANUGA material, not the FM implementation. M3 contract post-processing is not implemented yet (canonical summary rasters, contract-format `timeseries.csv`, validated `run_meta.json`). Pilot site and physical inputs are placeholders. Phase 3 reproduction remains failed: mesh/inputs diverge, generated POIs are dry, and generated maxima are implausible relative to the frozen pilot.
+- **Next step:** make the generator consume equivalent frozen-pilot geometry and source fields, then implement contract-compliant post-processing and rerun the full reproduction comparison. Keep the result marked failed until all comparisons pass; source placeholder site inputs before production use.
