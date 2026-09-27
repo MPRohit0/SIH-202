@@ -4,7 +4,15 @@ import json
 
 import pytest
 
-from backend.m3_dflowfm.generator import build_case, check_run_success
+from backend.m3_dflowfm.generator import _densified_ring, build_case, check_run_success
+
+
+def test_densified_ring_obeys_mesh_spacing_and_closes():
+    ring = _densified_ring([(0, 0), (1000, 0), (1000, 1000), (0, 1000), (0, 0)], 90)
+    lengths = [((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+               for (x0, y0), (x1, y1) in zip(ring, ring[1:])]
+    assert max(lengths) <= 90
+    assert ring[0] == ring[-1] == (0.0, 0.0)
 
 
 def test_builds_placeholder_synthetic_case(synth_terrain_dir, synth_m3_sites_dir, synth_hydrograph_params, tmp_path):

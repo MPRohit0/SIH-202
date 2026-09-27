@@ -60,6 +60,22 @@ def _xyz_samples(raster: Path, points_x: np.ndarray, points_y: np.ndarray) -> np
     return result
 
 
+def _densified_ring(coords, spacing_m: float) -> list[tuple[float, float]]:
+    """Split each polygon boundary segment so MeshKernel sees the requested local scale."""
+    if spacing_m <= 0:
+        raise ValueError(f"mesh spacing must be positive, got {spacing_m!r}")
+    ring = list(coords)
+    if len(ring) < 2:
+        raise ValueError("polygon ring must contain at least two coordinates")
+    dense = [(float(ring[0][0]), float(ring[0][1]))]
+    for (x0, y0), (x1, y1) in zip(ring, ring[1:]):
+        segments = max(1, int(math.ceil(math.hypot(x1 - x0, y1 - y0) / spacing_m)))
+        dense.extend((float(x0 + (x1 - x0) * step / segments),
+                      float(y0 + (y1 - y0) * step / segments))
+                     for step in range(1, segments + 1))
+    return dense
+
+
 def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, params: dict,
                       terrain_dir: Path, hydro_t_s: np.ndarray, hydro_q: np.ndarray,
                       *, stop_s: float = DEFAULT_STOP_S, mesh_spacing_m: float | None = None,
@@ -118,9 +134,12 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
         if xs:
             xs.append(-999.0)
             ys.append(-999.0)
-        for x, y in part.exterior.coords:
-            xs.append(float(x))
-            ys.append(float(y))
+        # MeshKernel derives the interior triangle scale from polygon edge lengths.
+        # Simplification alone does not impose mesh_spacing_m: long raster-domain edges
+        # otherwise become kilometre-scale faces (and leave narrow channels unresolved).
+        ring = _densified_ring(part.exterior.coords, spacing)
+        xs.extend(x for x, _ in ring)
+        ys.extend(y for _, y in ring)
     polygon = GeometryList(x_coordinates=xs, y_coordinates=ys)
     network_model = NetworkModel()
     network_model.network.mesh2d_create_triangular_within_polygon(polygon)
@@ -263,6 +282,7 @@ def _write_case_files(case_dir: Path, config: SiteConfig, scenario_id: str, para
                                                                         np.max(np.abs(ny-check.node_y))))},
         },
         "crs_epsg": epsg, "base_flow_m3s": base_flow,
+        "mesh_spacing_m": spacing,
         "hydrograph_includes_base_flow": False,
         "ext_file_version": "2.01", "paths_relative": True,
         "spinup_s": SPINUP_S, "stop_s": end,

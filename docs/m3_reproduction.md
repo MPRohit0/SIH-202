@@ -64,3 +64,28 @@
 [SOURCED] The generator now sets `MapInterval=60 s`, matching `HisInterval`, to sample the proposed 0.1 m arrival threshold at 60-second resolution. A fresh case was generated under `data/teesta_pilot/runs/teesta_pilot_s001/dflowfm_reproduction_map60/case/`; the frozen pilot and original Phase 3 case were not modified. D-Flow FM completed the 30-hour run with no `.dia` error and both output files present. The map contains 1,801 samples at 60-second spacing.
 
 [SOURCED] Reproduction still fails: the generated mesh remains 3,234 faces, POIs remain dry, global maximum depth is 1,841.44 m, and global maximum speed is 0.4383 m/s. The interval change improves only the time sampling and does not address the recorded geometry/input/solution mismatch.
+
+## 2026-09-27 mesh-spacing fix attempt
+
+[SOURCED] Inspection of the generated map showed that the configured 90 m spacing was not
+constraining the mesh: the 3,234-face mesh had a median face-edge length of 185 m, p90 504 m,
+and maximum 8,296 m. The frozen pilot's 33,018-face mesh had median 90.4 m, p90 122.7 m, and
+maximum 156.2 m. `backend/m3_dflowfm/generator.py` now densifies polygon boundary segments to at
+most the requested spacing before MeshKernel triangulates them.
+
+[SOURCED] A generated 90 m pilot case (`data/teesta_pilot/runs/teesta_pilot_s001__delft3d_seg90/`)
+ran for 30 simulated hours with D-Flow FM 1.2.184. The `.dia` has no `** ERROR`; both expected
+NetCDF outputs exist. The net has 77,415 faces and passed writer round-trip checks. Runtime was
+994.7 s (16 min 35 s); the raw map is about 1.13 GB. Contract post-processing passed
+`run_meta.schema.json` validation and wrote 623 x 611 summary rasters aligned to the pilot's
+canonical grid. Maximum depth was 67.38 m and maximum velocity 33.14 m/s; 1,878 in-domain cells
+were wet.
+
+[SOURCED] The behavioral gate still fails: all four generated POIs remained dry, including
+Chungthang (depth 0 m, no arrival), while the frozen pilot reaches Chungthang (11.13 m, 5.16 m/s,
+arrival 55,860 s). The nearest generated wet face was 3.70 km from Chungthang. The generated case
+contains only the South Lhonak source; the configured Teesta III cascade cannot be triggered
+because `sites/teesta.yaml` has no trigger threshold and `backend/m2_breach/cascade.py` correctly
+blocks a null threshold. The pilot also uses different domain and terrain samples, so the missing
+stage-2 hydrograph is a concrete mismatch but is not yet proven to be the only cause. Keep Phase 3
+reproduction unaccepted and do not begin the 2–3 scenario smoke campaign.

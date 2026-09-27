@@ -80,6 +80,22 @@ def _rasterize(values: np.ndarray, polygons: list[np.ndarray], grid: dict,
     return out
 
 
+def _accumulate_map_chunk(depth: np.ndarray, velocity: np.ndarray, elapsed_s: np.ndarray,
+                          max_depth: np.ndarray, max_velocity: np.ndarray,
+                          arrival_s: np.ndarray, arrival_threshold_m: float) -> None:
+    """Merge a bounded time-by-face block into the three per-face summary arrays."""
+    finite_depth = np.where(np.isfinite(depth), depth, -np.inf)
+    finite_velocity = np.where(np.isfinite(velocity), velocity, -np.inf)
+    np.maximum(max_depth, finite_depth.max(axis=0), out=max_depth)
+    np.maximum(max_velocity, finite_velocity.max(axis=0), out=max_velocity)
+
+    wet = depth > arrival_threshold_m
+    newly_arrived = wet.any(axis=0) & ~np.isfinite(arrival_s)
+    if newly_arrived.any():
+        first_index = wet.argmax(axis=0)
+        arrival_s[newly_arrived] = elapsed_s[first_index[newly_arrived]]
+
+
 def _balance_error(case_dir: Path) -> float | None:
     """Return FM's emitted mass-balance error percent, if balance output was enabled."""
     candidates = [*case_dir.glob("**/*balance*.txt"), *case_dir.glob("**/*balance*.csv")]
@@ -198,21 +214,29 @@ def postprocess_dflowfm(case_dir: str | Path, run_dir: str | Path, *,
         if missing:
             raise ValueError(f"FM map is missing required variables: {sorted(missing)}")
         model_time = _time_seconds(ds.time.values)
-        selected = model_time >= spinup_s
-        if not selected.any():
+        selected_indices = np.flatnonzero(model_time >= spinup_s)
+        if not selected_indices.size:
             raise ValueError("FM map contains no samples at or after t0")
-        depth = np.asarray(ds.mesh2d_waterdepth.values[selected], dtype=np.float32)
-        velocity = np.asarray(ds.mesh2d_ucmag.values[selected], dtype=np.float32)
-        max_depth = np.nanmax(depth, axis=0)
-        max_velocity = np.nanmax(velocity, axis=0)
-        threshold = depth > config.arrival_m
-        has_arrival = threshold.any(axis=0)
-        arrival = np.full(max_depth.shape, np.nan, dtype=np.float32)
-        first = np.argmax(threshold, axis=0)
-        elapsed = model_time[selected] - spinup_s
-        arrival[has_arrival] = elapsed[first[has_arrival]]
+        n_faces = int(ds.mesh2d_waterdepth.shape[1])
+        max_depth = np.full(n_faces, -np.inf, dtype=np.float32)
+        max_velocity = np.full(n_faces, -np.inf, dtype=np.float32)
+        arrival = np.full(n_faces, np.nan, dtype=np.float32)
+        # Keep both input variables and finite-value copies below roughly 128 MiB.
+        # Production grids can have >1M faces; never materialize the full time×face stacks.
+        max_values_per_chunk = 8 * 1024 * 1024
+        chunk_records = max(1, min(64, max_values_per_chunk // max(1, 2 * n_faces)))
+        for offset in range(0, len(selected_indices), chunk_records):
+            indices = selected_indices[offset:offset + chunk_records]
+            depth = np.asarray(ds.mesh2d_waterdepth.isel(time=indices).values, dtype=np.float32)
+            velocity = np.asarray(ds.mesh2d_ucmag.isel(time=indices).values, dtype=np.float32)
+            elapsed = model_time[indices] - spinup_s
+            _accumulate_map_chunk(depth, velocity, elapsed, max_depth, max_velocity,
+                                  arrival, config.arrival_m)
+        max_depth[~np.isfinite(max_depth)] = np.nan
+        max_velocity[~np.isfinite(max_velocity)] = np.nan
+        has_arrival = np.isfinite(arrival)
         polygons = _faces(ds)
-        cell_count = int(len(max_depth))
+        cell_count = n_faces
         sim_duration_s = float(max(0.0, model_time[-1] - spinup_s))
 
     summary_dir = run_dir / "summary"

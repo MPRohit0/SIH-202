@@ -6,10 +6,35 @@ from pathlib import Path
 
 import rasterio
 
-from backend.m3_common.postprocess import PostprocessConfig, postprocess_dflowfm
+from backend.m3_common.postprocess import (
+    PostprocessConfig,
+    _accumulate_map_chunk,
+    postprocess_dflowfm,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 CASE = ROOT / "data/teesta_pilot/runs/teesta_pilot_s001/dflowfm_reproduction_map60/case"
+
+
+def test_chunked_summary_reduction_matches_full_series():
+    import numpy as np
+
+    depth = np.array([[0.0, 0.0, np.nan], [0.2, 0.0, 0.0],
+                      [0.4, 0.1, np.nan], [0.0, 0.3, 0.0]], dtype=np.float32)
+    velocity = np.array([[0.0, 0.0, np.nan], [1.0, 2.0, 0.0],
+                         [3.0, 0.5, np.nan], [0.0, 4.0, 1.0]], dtype=np.float32)
+    elapsed = np.array([0.0, 60.0, 120.0, 180.0])
+    max_depth = np.full(3, -np.inf, dtype=np.float32)
+    max_velocity = np.full(3, -np.inf, dtype=np.float32)
+    arrival = np.full(3, np.nan, dtype=np.float32)
+    for start, stop in ((0, 2), (2, 4)):
+        _accumulate_map_chunk(depth[start:stop], velocity[start:stop], elapsed[start:stop],
+                              max_depth, max_velocity, arrival, 0.1)
+    max_depth[~np.isfinite(max_depth)] = np.nan
+    max_velocity[~np.isfinite(max_velocity)] = np.nan
+    assert np.allclose(max_depth, [0.4, 0.3, 0.0], equal_nan=True)
+    assert np.allclose(max_velocity, [3.0, 4.0, 1.0], equal_nan=True)
+    assert np.allclose(arrival, [60.0, 180.0, np.nan], equal_nan=True)
 
 
 def test_postprocess_pilot_outputs_match_contract(tmp_path: Path) -> None:

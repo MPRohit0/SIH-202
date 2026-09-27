@@ -132,3 +132,15 @@ Used for: `backend/m7_gee/provider.py` `catchment` — the rainfall catchment (t
 level-12 basin containing the lake, plus every basin upstream of it via `NEXT_DOWN`) that
 `rainfall.csv` is averaged over. `docs/decisions.md` "M7 GEE fetch" has the reasoning for why
 HydroBASINS was picked over an M1-derived flow-accumulation catchment.
+
+## src_042 — Chamoli 2021 rock–ice avalanche reconstruction
+
+Shugar, D. H. et al. (2021). *A massive rock and ice avalanche caused the 2021 disaster at
+Chamoli, Indian Himalaya.* Science, 373, eabh4455. doi:
+[10.1126/science.abh4455](https://doi.org/10.1126/science.abh4455). Open author manuscript and
+supplementary materials: <https://eprints.whiterose.ac.uk/id/eprint/175202/>.
+
+Used for: `docs/events/chamoli_2021.md`'s event onset, source-volume estimate, flow-process
+classification, and the reported discharge/velocity bounds near the Rishiganga and Tapovan
+projects. The paper does not provide a machine-ready discharge hydrograph or a catchment-wide
+observed flood-depth raster; see the event record for M3 limits.

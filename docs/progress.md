@@ -14,6 +14,77 @@
   pytest could not initialize because this machine's active Python lacks `geopandas`, imported by
   the M3 test conftest before test selection.
 
+## 2026-09-27 — M3 mesh-spacing correction and Teesta generated-run check
+
+- Reconciled the earlier blocker report against the current tree: D-Flow generation is in
+  `backend/m3_dflowfm/` (not `backend/m3_delft3d/`), shared pilot post-processing is in
+  `backend/m3_common/`, and M0 detached launch/retry plus M5 scenario-design/LOOCV code exist.
+  `docs/m5_specs.md` is present; the README's singular `docs/m5_spec.md` reference is stale.
+- Fixed a concrete generator defect: the nominal mesh spacing was only used for simplification
+  and corridor widths, while long polygon edges were passed directly to MeshKernel. Added
+  boundary segmentization at the requested spacing. Before the fix, the generated 90 m mesh had
+  3,234 faces, median edge 185 m, p90 504 m, max 8.30 km. A 30 m trial failed the existing
+  orthogonality gate (`max cos(phi)=0.996558`), so it was not launched.
+- Generated and launched one corrected 90 m Teesta-pilot case as a detached real D-Flow FM run.
+  It ran 30 simulated hours, with no `** ERROR`, and wrote map/history outputs. Net: 77,415 faces,
+  round-trip exact. Runtime 994.7 s, peak RSS not captured, raw map ~1.13 GB. Post-processing
+  wrote 623 x 611 far-field rasters; `run_meta.json` validated against `run_meta.schema.json`.
+  Max depth 67.38 m, max velocity 33.14 m/s, 1,878 wet in-domain cells. Inputs remain pilot
+  placeholders (`has_placeholders=true`).
+- The generated run does not pass the smoke acceptance gate: all four POIs are dry, including
+  Chungthang, while the frozen pilot reaches it (11.13 m depth, 5.16 m/s, arrival 55,860 s). The
+  nearest generated wet face is 3.70 km from Chungthang. The generated run includes only South
+  Lhonak; the configured Teesta III cascade needs a routed discharge series and a sourced trigger
+  threshold, but `sites/teesta.yaml` leaves `teesta_iii.trigger.value` null/placeholder. Pilot and
+  M1 terrain/domain inputs also differ, so this is the known mismatch, not yet an isolated single
+  cause. `docs/m3_reproduction.md` retains the failed status and records the run.
+- Added a focused boundary-spacing unit test; `tests/m3_dflowfm/test_generator.py`: 4 passed.
+- No scenario campaign was started: the required pilot/smoke gate failed. No new campaign-run
+  failures or retries occurred. The old source-boundary `.dia` errors remain historical artifacts.
+- Remaining decisions/data before proceeding: source/approve the Teesta III trigger input for
+  cascade campaigns; agree a contract artifact for M3-routed discharge consumed by M4 (contract
+  §4.4 `timeseries.csv` currently contains POI depth/velocity/WSE only); provide Chamoli/Rishi
+  Ganga site/event inputs; and set a resource-valid production plan. No emulator scores can be
+  claimed until accepted real training runs exist.
+
+## 2026-09-27 — bounded-memory M3 post-processing
+
+- Changed `backend/m3_common/postprocess.py` to reduce map depth and velocity in bounded time
+  chunks. It keeps per-face maxima and first-arrival times without materializing the full
+  timestep-by-face arrays. Chunk working arrays are capped near 128 MiB, independent of the
+  number of stored map timesteps.
+- Added a reduction-equivalence unit test. `tests/m3_common/test_postprocess.py` and
+  `tests/m3_dflowfm/test_generator.py`: 9 passed.
+- Reprocessed the completed 77,415-face Teesta 90 m pilot with the chunked path. The resulting
+  `run_meta.json` validates against the contract schema; run metrics remain 994.7 s solver
+  runtime, 1.13 GB raw map, 67.38 m maximum depth, 33.14 m/s maximum velocity, and 1,878 wet
+  in-domain cells. POI acceptance remains failed (all four POIs dry), so this is not a production
+  smoke pass and no campaign jobs have been started. No campaign status registry/file is present.
+- Production peak memory/disk remain unmeasured and require an output-size preflight. This
+  removes the previously identified unbounded timestep-array allocation, but does not change the
+  failed physics acceptance or unlock site campaigns.
+
+## 2026-09-27 — M3 pilot status and next step
+
+- **Built and reusable:** `backend/m3_pilot/` holds the frozen Teesta D-Flow FM case, inputs,
+  builder, pilot metrics and historical attempts (plus the retained ANUGA record). Production
+  execution lives in `backend/m3_dflowfm/`; M0 detached launch/recovery and one retry, shared
+  contract post-processing, scenario/campaign infrastructure, and M5 design/LOOCV code already
+  exist elsewhere in `backend/`. Fixed the generated mesh boundary spacing and bounded the M3
+  postprocessor's map reductions; focused tests pass (9/9).
+- **Still placeholder or incomplete:** Teesta site/breach inputs and Teesta III trigger remain
+  placeholders; the generated real 90 m pilot has all four POIs dry, so it does not pass smoke
+  acceptance. M3's contract timeseries is POI depth/velocity/WSE, with no agreed routed-discharge
+  artifact for M4. `sites/rishiganga.yaml`, Chamoli terrain, and a sourced M3-compatible event
+  input are absent; the 2021 rock/ice avalanche cannot honestly be encoded as a dam breach.
+  Production resource/storage estimates remain unmeasured. No site campaigns, real-data M5
+  training/LOOCV scores, or frontend emulator handoff are available.
+- **Next:** source/approve the Teesta III trigger and decide the M3→M4 discharge artifact/location;
+  resolve Teesta input/domain differences until one generated run wets the expected POIs, then
+  run a small contract-valid smoke set. In parallel, provide Chamoli terrain and approve a
+  source-backed event representation. Only after those gates should the recorded campaign design
+  run serially, followed by per-site validation, M5 training/LOOCV, and frontend handoff.
+
 ## 2026-09-24 — backend/shared: site config loader + canonical grids
 - `backend/shared/site_config.py`: Pydantic v2 model of the `sites/*.yaml` v1 format. Every value must carry
   `unit`/`source`/`status`; typed values check units, bbox/point ranges, UTM EPSG, enums, ISO dates; cross-checks ids,
