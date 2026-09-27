@@ -1208,3 +1208,33 @@ memory — labeled as a reconstruction, not a session-log entry.
 ask (queue and run Teesta's SPH scenarios) was blocked at the very first step — no real scenario
 design exists for Teesta until `XZ9`'s `h_r` is sourced, so `simulation.sph.scenarios` stays empty
 and nothing is queued yet.
+
+## 2026-09-27 — M3 D-Flow FM pilot, specification, and generator
+
+- **Built Phase 0 pilot:** `m3_pilot/build_teesta_pilot_s001__dflowfm.py` writes a relocatable
+  D-Flow FM case from the M3 common pilot loaders. It uses a MeshKernel mesh, positive-up DEM
+  bed levels, Manning samples, 2-hour base-flow spin-up, breach point source, downstream Neumann
+  boundary, named POIs, and lean map/history output. The 30-hour run met the M3 success rule
+  (no `** ERROR` in `.dia`, `_map.nc` and `_his.nc` present). It has 33,018 faces, ran in 475.09 s,
+  and produced a 481,977,476-byte map. The compact metrics and quick map are kept in `m3_pilot/`;
+  large NetCDFs and per-face CSVs stay local and are ignored by Git.
+- **Specified Phase 1:** `docs/m3_spec.md` records the six M3 rules, pilot choices, kernel and
+  file-format versions, CRS, and provisional reproduction tolerances. `sites/template.yaml` now
+  declares optional `domains.far_field.inflow.base_flow`; Teesta's value remains null/placeholder.
+  The Phase 2 generator requires a non-null configured value. Pilot hydrograph exports already
+  include base flow; M2 hydrographs do not, so the generator adds configured base flow once.
+- **Built Phase 2:** `backend/m3_dflowfm/generator.py` builds FM cases from site config, M1 terrain,
+  and M2 scenario hydrographs; checks mesh round-trip and quality; writes `.ext` version 2.01,
+  relative paths and lean output; strips `/mnt/*` from `PATH` for detached kernel runs; and exposes
+  an M3 `.dia` plus NetCDF success check. Synthetic-site tests pass (3 passed).
+- **Phase 3 was run but not accepted:** `docs/m3_reproduction.md` records the comparisons. The
+  generated mesh has 3,234 faces vs the pilot's 33,018; all four POIs are dry, and maximum depth is
+  1,841.44 m vs 65.23 m. The generated kernel run formally succeeded, but the results and text/net
+  comparisons fail the reproduction tolerances. The generator used the pilot config, M1 products,
+  and M2 sidecar, but rebuilt geometry from `data/teesta_pilot/terrain/domain.gpkg` rather than the
+  hand-staged pilot `domain.pol`/XYZ exports.
+
+**Next step:** resolve the Phase 3 input-geometry and field mismatches, generate against equivalent
+pilot M1/M2 inputs, then repeat the normalized-file, mesh, and 30-hour output comparisons. Keep the
+reproduction marked failed until every required tolerance passes. All pilot inputs are placeholders;
+Teesta base flow and other physical data need sourcing before production use.
