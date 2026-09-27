@@ -30,3 +30,6 @@ Known gaps, not yet resolved (see `docs/decisions.md`):
 - `docs/m5_spec.md`, `docs/equations.md` and `docs/events/` don't exist yet, so
   the schemas here don't encode the confidence-rule thresholds or per-event
   specifics — only the shapes contract §2-§5 already spell out.
+
+`scene3d.md` documents the raw binary grids, shared local metric frame, comparison GLB assets,
+and aggregate size limit for Scene3D (§5.9).

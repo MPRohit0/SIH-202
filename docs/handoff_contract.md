@@ -787,7 +787,7 @@ Base URL: `http://localhost:8000/api/v1`. JSON unless stated. Errors per §2.7. 
 |18|`GET /export/{query_id}?format=shp\|kml\|geojson\|pdf`|download|file|
 |19|`GET /gee/{site_id}`|satellite layers (from cache)|`GeeLayers`|
 |20|`POST /gee/{site_id}/refresh`|try live fetch, fall back to cache|`GeeLayers`|
-|21|`GET /scene3d/{query_id}`|3D view data|`Scene3D`|
+|21|`GET /scene3d/{query_id}?vertical_exaggeration=`|3D view data|`Scene3D`|
 |22|`GET /files/{path}`|static result files referenced by URLs above|file|
 
 ### 5.1 SiteSummary / SiteDetail
@@ -1018,19 +1018,38 @@ Extent at time t = cells whose arrival ≤ t.
 
 ### 5.9 Scene3D
 
+`GET /scene3d/{query_id}?vertical_exaggeration=1.5` returns scene metadata. The optional
+`vertical_exaggeration` query parameter defaults to 1.5 and is bounded to 0.1–10. It is a client
+scale applied to local Z only; all stored positions and heights remain physical metres. The scene
+uses the lower-left `nearfield_frame.json` origin from §4.1 as a shared local frame: x=easting−origin_x,
+y=northing−origin_y, z=elevation, with axis order east/north/up. Query data that is unavailable
+uses the existing mock response.
+
 ```jsonc
 {
-  "query_id": "q_...", "frame": { "crs_epsg": 32645, "origin_x": 0.0, "origin_y": 0.0, "vertical_exaggeration": 1.5 },
-  "terrain": { "url": "...bin", "encoding": "float32_le_row_major", "width": 500, "height": 375, "cell_size_m": 120.0, "min_elev_m": 0.0, "max_elev_m": 0.0 },
-  "flood_surface": { "url": "...bin", "encoding": "float32_le_row_major", "nodata": -9999.0, "basis": "terrain + depth_p50" },
-  "comparison": {
-    "nearfield_bounds_local": [[0, 0], [0, 0]],
-    "delft3d_surface_url": "...bin",
-    "sph_surfaces": [ { "t_s": 300, "url": "...glb" } ]
-  },
-  "max_payload_mb": 20
+  "contract_version": "0.2.0", "query_id": "q_...",
+  "frame": { "crs_epsg": 32645, "origin_x_utm_m": 0.0, "origin_y_utm_m": 0.0,
+              "vertical_exaggeration": 1.5, "vertical_exaggeration_applies_to": "z_axis",
+              "units": "m", "axis_order": "east,north,up" },
+  "terrain": { "url": "...terrain.bin", "encoding": "float32_le_row_major", "width": 500,
+               "height": 375, "cell_size_x_m": 120.0, "cell_size_y_m": 120.0,
+               "origin_x_utm_m": 0.0, "origin_y_utm_m": 0.0, "origin_local_x_m": 0.0,
+               "origin_local_y_m": 0.0, "transform": [120, 0, 0, 0, -120, 0],
+               "crs_epsg": 32645, "min_elev_m": 0.0, "max_elev_m": 0.0,
+               "nodata": -9999.0, "byte_length": 750000 },
+  "flood_surface": { "url": "...flood_surface.bin", "encoding": "float32_le_row_major",
+                     "nodata": -9999.0, "basis": "terrain + depth_p50", "width": 500,
+                     "height": 375, "byte_length": 750000 },
+  "comparison": { "nearfield_bounds_local": [[0, 0], [0, 0]],
+                  "delft3d_surface_url": null, "delft3d_surface_basis": null, "sph_surfaces": [] },
+  "payload_bytes": 1500000, "max_payload_mb": 20
 }
 ```
+
+The binary array format, nodata behavior, asset paths, GLB frame and 20 MB aggregate asset
+budget are specified in [`contracts/scene3d.md`](../contracts/scene3d.md). `payload_bytes` is
+the sum of binary assets referenced by the response, including near-field GLBs. Terrain is
+downsampled and up to 128 SPH frames are included in time order while they fit the aggregate limit.
 
 ---
 

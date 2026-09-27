@@ -1,34 +1,56 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "scene3d.schema.json",
-  "title": "Scene3D (contract \u00a75.9)",
+  "title": "Scene3D (contract §5.9)",
   "type": "object",
-  "required": [
-    "query_id",
-    "frame",
-    "terrain",
-    "flood_surface",
-    "comparison",
-    "max_payload_mb"
-  ],
+  "required": ["contract_version", "query_id", "frame", "terrain", "flood_surface", "comparison", "payload_bytes", "max_payload_mb"],
   "properties": {
-    "query_id": {
-      "type": "string"
-    },
+    "contract_version": { "const": "0.2.0" },
+    "query_id": { "type": "string", "pattern": "^q_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{6}$" },
     "frame": {
-      "type": "object"
+      "type": "object",
+      "required": ["crs_epsg", "origin_x_utm_m", "origin_y_utm_m", "vertical_exaggeration", "vertical_exaggeration_applies_to", "units", "axis_order"],
+      "properties": {
+        "crs_epsg": { "type": "integer" }, "origin_x_utm_m": { "type": "number" }, "origin_y_utm_m": { "type": "number" },
+        "vertical_exaggeration": { "type": "number", "minimum": 0.1, "maximum": 10 },
+        "vertical_exaggeration_applies_to": { "const": "z_axis" }, "units": { "const": "m" }, "axis_order": { "const": "east,north,up" }
+      }, "additionalProperties": false
     },
     "terrain": {
-      "type": "object"
+      "type": "object",
+      "required": ["url", "encoding", "width", "height", "cell_size_x_m", "cell_size_y_m", "origin_x_utm_m", "origin_y_utm_m", "transform", "crs_epsg", "origin_local_x_m", "origin_local_y_m", "min_elev_m", "max_elev_m", "nodata", "byte_length"],
+      "properties": {
+        "url": { "type": "string" }, "encoding": { "const": "float32_le_row_major" },
+        "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 },
+        "cell_size_x_m": { "type": "number", "exclusiveMinimum": 0 }, "cell_size_y_m": { "type": "number", "exclusiveMinimum": 0 },
+        "origin_x_utm_m": { "type": "number" }, "origin_y_utm_m": { "type": "number" },
+        "origin_local_x_m": { "type": "number" }, "origin_local_y_m": { "type": "number" },
+        "transform": { "type": "array", "items": { "type": "number" }, "minItems": 6, "maxItems": 6 },
+        "crs_epsg": { "type": ["integer", "null"] }, "min_elev_m": { "type": ["number", "null"] }, "max_elev_m": { "type": ["number", "null"] },
+        "nodata": { "type": "number" }, "byte_length": { "type": "integer", "minimum": 4 }
+      }, "additionalProperties": false
     },
     "flood_surface": {
-      "type": "object"
+      "type": "object",
+      "required": ["url", "encoding", "nodata", "basis", "width", "height", "byte_length"],
+      "properties": {
+        "url": { "type": "string" }, "encoding": { "const": "float32_le_row_major" }, "nodata": { "type": "number" },
+        "basis": { "const": "terrain + depth_p50" }, "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 },
+        "byte_length": { "type": "integer", "minimum": 4 }
+      }, "additionalProperties": false
     },
     "comparison": {
-      "type": "object"
+      "type": "object",
+      "required": ["nearfield_bounds_local", "delft3d_surface_url", "delft3d_surface_basis", "sph_surfaces"],
+      "properties": {
+        "nearfield_bounds_local": { "type": "array", "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }, "minItems": 2, "maxItems": 2 },
+        "delft3d_surface_url": { "type": ["string", "null"] },
+        "delft3d_surface_basis": { "type": ["string", "null"] },
+        "sph_surfaces": { "type": "array", "items": { "type": "object", "required": ["t_s", "url"], "properties": { "t_s": { "type": "number", "minimum": 0 }, "url": { "type": "string" } }, "additionalProperties": false } }
+      }, "additionalProperties": false
     },
-    "max_payload_mb": {
-      "type": "number"
-    }
-  }
+    "payload_bytes": { "type": "integer", "minimum": 0, "maximum": 19950000 },
+    "max_payload_mb": { "const": 20 }
+  },
+  "additionalProperties": false
 }

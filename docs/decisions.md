@@ -1043,3 +1043,12 @@ The D-Flow FM pilot implementation, case, and diagnostic attempts live in
 case under `dflowfm/`; relative solver paths keep the case relocatable. A copy of the moved case
 ran from a temporary location with no `.dia` errors and produced map and history outputs, without
 changing the kept pilot outputs.
+
+## 2026-09-27 — Scene3D response format
+
+M0's Scene3D response uses raw float32 little-endian row-major height grids for terrain and the
+emulated median water-surface elevation. It shares M1's near-field local metric origin with SPH
+meshes; vertical exaggeration is renderer metadata applied on Z, preserving physical metre values.
+The aggregate referenced binary asset budget is below 20 MB decimal, leaving 50 kB for JSON metadata. Terrain is downsampled, while up to 128 SPH surface
+snapshots are included in time order only while the combined scene assets fit the budget. M0 can
+build a Delft3D near-field water surface from the paired near-field DEM and maximum-depth raster.

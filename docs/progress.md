@@ -1365,3 +1365,9 @@ Teesta base flow and other physical data need sourcing before production use.
   Before committing to a site campaign, source Chamoli inputs, fix the M3 reproduction/mesh issues,
   route discharge to the Teesta near-field inlet, and benchmark the generated M4 case through
   post-processing. Preserve the mass-flow caveat for Chamoli 2021.
+
+## 2026-09-27 — M0 Scene3D endpoint
+
+- **Built:** `/scene3d/{query_id}` now assembles downsampled terrain and median water-surface float32 grids, a shared UTM local frame, vertical exaggeration metadata, and available near-field Delft3D/SPH surfaces. Added restricted asset routes and an aggregate 20 MB cap. Documented the response and binary format in `contracts/scene3d.md`, the schema/example, and handoff §5.9.
+- **Still stubbed or placeholder:** M0 still serves the contract example when a query has no persisted `depth_p50.tif` or site terrain. It does not run the emulator or create query artifacts. Delft3D comparison geometry is derived from near-field DEM plus cellwise maximum depth, not a simultaneous timestep; SPH frames are only included when run IDs appear in query provenance.
+- **Next step:** connect real query creation/persistence to this route so it reliably writes median-depth assets and provenance run IDs; then validate the assembled scene and cap against an actual paired Delft3D/SPH query. No tests were run in this session.

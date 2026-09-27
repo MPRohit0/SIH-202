@@ -20,8 +20,9 @@ base response; `PUT /sites/{id}/recheck` persists the schedule for real.
 `jobs.STAGES` has no `rerun` entry yet (contract §5.3 lists no stages for it),
 so this does not actually skip terrain the way "re-run" implies.
 
-Still mocked: every other endpoint. `site_id` is checked only against a short
-list of sites this server "knows about" (`mocks.KNOWN_SITE_IDS`).
+Still mocked: most endpoints. Scene3D builds real assets when a query's median depth and its
+site terrain are present, otherwise it serves the contract example. `site_id` is checked only
+against a short list of sites this server "knows about" (`mocks.KNOWN_SITE_IDS`).
 
 Run: `uvicorn backend.m0_api.main:app --reload --port 8000`
 """
@@ -38,6 +39,7 @@ from fastapi.responses import JSONResponse, Response
 
 from backend.m0_api import jobs, mock_files, mocks, registry, rendering, schemas, site_status
 from backend.m0_api import compare as api_compare
+from backend.m0_api import scene3d as api_scene3d
 from backend.m0_api import timeline as api_timeline
 from backend.m7_gee import cache as gee_cache
 from backend.m7_gee import fetch as gee_fetch
@@ -407,8 +409,18 @@ def refresh_gee(site_id: SiteIdPath) -> JSONResponse:
 # 21. GET /scene3d/{query_id}
 # =============================================================================
 @app.get(f"{API}/scene3d/{{query_id}}")
-def get_scene3d(query_id: QueryIdPath) -> JSONResponse:
-    return _validated_json("scene3d.schema.json", mocks.mock_response("scene3d.example.json", query_id=query_id))
+def get_scene3d(
+    query_id: QueryIdPath,
+    vertical_exaggeration: float = Query(api_scene3d.DEFAULT_VERTICAL_EXAGGERATION, ge=0.1, le=10.0),
+) -> JSONResponse:
+    try:
+        payload = api_scene3d.build_scene(query_id, vertical_exaggeration)
+    except ValueError as exc:
+        raise HTTPException(status_code=413, detail=mocks.error("scene_too_large", str(exc))) from exc
+    if payload is None:
+        payload = mocks.mock_response("scene3d.example.json", query_id=query_id)
+        payload["frame"]["vertical_exaggeration"] = vertical_exaggeration
+    return _validated_json("scene3d.schema.json", payload)
 
 
 #: A timeline frame PNG's path, anchored end to end so no other shape of
@@ -438,12 +450,38 @@ GEE_OBSERVED_PATH_RE = re.compile(
     rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/gee/observed/(?P<filename>[A-Za-z0-9_]+_observed\.geojson)$"
 )
 
+SCENE_ASSET_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/queries/(?P<query_id>q_\d{{8}}T\d{{6}}Z_[0-9a-f]{{6}})"
+    r"/scene3d/(?P<filename>terrain\.bin|flood_surface\.bin|delft3d_surface\.glb)$"
+)
+SPH_SURFACE_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/runs/(?P<run_id>[A-Za-z0-9_]+__sph)/surfaces/(?P<filename>t\d+\.glb)$"
+)
+
 
 # =============================================================================
 # 22. GET /files/{path}
 # =============================================================================
 @app.get(f"{API}/files/{{path:path}}")
 def get_file(path: str) -> Response:
+    m = SCENE_ASSET_PATH_RE.match(path)
+    if m is not None:
+        asset_path = registry.data_dir() / m["site_id"] / "queries" / m["query_id"] / "scene3d" / m["filename"]
+        if asset_path.is_file():
+            media_type = "model/gltf-binary" if asset_path.suffix == ".glb" else "application/octet-stream"
+            return Response(content=asset_path.read_bytes(), media_type=media_type)
+        if m["filename"] in {"terrain.bin", "flood_surface.bin"}:
+            # Contract example grid is 500 x 375 float32 samples (750,000 bytes).
+            return Response(content=b"\x00" * 750_000, media_type="application/octet-stream")
+        raise HTTPException(status_code=404, detail=mocks.error("file_not_found", f"No scene asset at '{path}'.", {"path": path}))
+
+    m = SPH_SURFACE_PATH_RE.match(path)
+    if m is not None:
+        asset_path = registry.data_dir() / m["site_id"] / "runs" / m["run_id"] / "surfaces" / m["filename"]
+        if asset_path.is_file():
+            return Response(content=asset_path.read_bytes(), media_type="model/gltf-binary")
+        raise HTTPException(status_code=404, detail=mocks.error("file_not_found", f"No SPH surface at '{path}'.", {"path": path}))
+
     m = TIMELINE_FRAME_PATH_RE.match(path)
     if m is not None:
         timeline_dir = registry.data_dir() / m["site_id"] / "queries" / m["query_id"] / "timeline"
