@@ -2,9 +2,9 @@
 
 The only HTTP boundary is [`src/data/api.ts`](src/data/api.ts). It implements the
 REST routes in `../docs/handoff_contract.md` §5 and imports mock payloads directly
-from `../contracts/examples/` and `../contracts/styles.json`; the fixture files are
-the contract examples, so they stay in sync with the source of truth. UI code should
-use `src/data/source.ts`, never call `fetch()` directly.
+from `../contracts/examples/` and `../contracts/styles.json`; the fixtures are the
+contract examples. UI code should use `src/data/source.ts`, never call `fetch()`
+directly.
 
 ## Configuration
 
@@ -25,22 +25,23 @@ file/export responses use `fetch()` because their contract responses are binary.
 
 The flood mock uses `flood_query_response.example.json`, and mock POST calls use the
 corresponding contract request/accepted examples. Other mock routes use their named
-example JSON. No route or response shape is invented for scenario listing or saved
-runs: neither has a REST endpoint in the current contract, so those legacy UI seams
-continue to return empty states.
+example JSON. Scenario listing and Saved Runs have no REST endpoint in the current
+contract, so their legacy UI seams return empty states.
 
 ## Current UI adapter limits
 
-The API client returns contract payloads unchanged. `source.ts` retains a small
-compatibility adapter for the current canvas UI, whose `Grid` and `Result` types
-require decoded raster arrays that the contract supplies as files/URLs. Those data
-cannot be converted honestly without loading the corresponding scene and layer
-files, so unsupported legacy values remain `null` and render as empty states. The
-impact view still computes its old summary totals from local assets and result arrays;
-they are not contract `Estimate` objects and must be replaced when that view is wired
-to `/impact/{query_id}`.
+Flood Summary, Impact Analysis, Model Comparison, Monitoring/GEE, Playback/Timeline,
+and Exports consume their corresponding contract responses through `source.ts`. The
+current canvas `Grid` and `Result` types require decoded raster arrays; the contract
+supplies raster/file references instead. `getTerrain()` therefore leaves the legacy
+grid empty, and the map does not yet render the returned flood raster layers.
 
-`getTerrain()` can read site metadata but does not manufacture a raster grid from
-the contract's scene metadata. The existing scenario list, saved-run list and
-save-run functions remain empty because no matching routes exist. Contract APIs
-are ready for screens to consume as they move off the legacy canvas models.
+`GET /sites` and `GET /jobs/{job_id}` preserve API errors for shell/onboarding error
+handling. Site creation remains unavailable from the current form: it does not collect
+enough fields to construct the complete `site_config` required by `POST /sites`.
+
+M0 is not a live scientific backend for most result endpoints yet. Its implementation
+serves contract examples when flood, impact, validation, comparison, or timeline
+results are absent. Accessible file URLs can likewise resolve to generated mock or
+zero-filled files. A successful response must not be described as a fresh model result
+unless M0 has real backing data for that response.

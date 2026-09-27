@@ -24,6 +24,97 @@ import styles from '../../../contracts/styles.json';
 import timeline from '../../../contracts/examples/timeline.example.json';
 import validation from '../../../contracts/examples/validation.example.json';
 
+export type FloodQueryRequest = {
+  site_id: string;
+  model: 'delft3d' | 'sph';
+  mode: 'scenario' | 'unknown_breach';
+  inputs: Record<string, {type: 'exact'; value: number} | {type: 'slider'; position: number}>;
+  options?: {n_samples?: number; seed?: number | null};
+};
+export type Estimate = {
+  value: number | null; low: number | null; high: number | null;
+  unit: string | null; interval: 'P10-P90' | 'method_range' | 'zone_range' | 'none';
+  kind: 'predicted' | 'observed' | 'input'; confidence?: 'HIGH' | 'MODERATE' | 'LOW' | null;
+  basis?: string; source?: string;
+};
+export type FloodQueryResponse = {
+  contract_version: string; query_id: string; site_id: string;
+  status: 'partial' | 'complete' | 'failed'; method: 'gp_emulator' | 'empirical_fallback';
+  mode: 'scenario' | 'unknown_breach';
+  resolved_inputs: Record<string, Estimate>;
+  summary: {
+    inundated_area_m2: Estimate; max_depth_m: Estimate; max_velocity_ms: Estimate;
+    peak_discharge_m3s: Estimate;
+    first_arrival: {poi_id: string; name: string; arrival_s: Estimate};
+  };
+  confidence: Record<'overall' | 'extent' | 'depth' | 'arrival' | 'velocity', {
+    level: 'HIGH' | 'MODERATE' | 'LOW'; components: Record<string, string>; reason_key: string | null;
+  }>;
+  layers: Array<{layer_id: string; label_key?: string; type: string; url: string; bounds_latlng: number[][]; style_id: string; unit: string | null; available: boolean}>;
+  vectors: {extent_url: string};
+  flags: {outside_trained_range: boolean; demo_mode: boolean; library_outdated: boolean; has_placeholders: boolean};
+  placeholder_fields: string[];
+  caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
+  provenance: Record<string, unknown>;
+  timing_ms: {median_phase: number; full_phase: number};
+};
+export type ImpactResponse = {
+  contract_version: string; query_id: string; site_id: string;
+  population_persons: Estimate;
+  assets: {
+    buildings: {high: number; possible: number}; roads_m: {high: number; possible: number};
+    bridges: {high: number; possible: number}; hospitals: {high: number; possible: number};
+    schools: {high: number; possible: number}; cropland_m2: {high: number; possible: number};
+    hydropower: Array<{name: string; zone: 'high' | 'possible'; depth_m: Estimate}>;
+  };
+  loss_inr: Estimate;
+  warning_table: Array<{poi_id: string; name: string; kind: string; chainage_m: number; zone: 'high' | 'possible'; p_inundation: number; arrival_s: Estimate; depth_m: Estimate; velocity_ms: Estimate}>;
+  not_affected_poi_count: number; data_coverage_notes: string[];
+  has_placeholders: boolean; placeholder_fields: string[];
+  caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
+  provenance: Record<string, unknown>;
+};
+export type CompareResponse = {
+  site_id: string; scenario_id: string;
+  sph_vs_delft3d: {available: boolean; domain: string; time_window_s: number; metrics: {iou?: number; f1_0_3?: number; depth_rmse_wet_m?: number; velocity_mae_ms?: number}; probes: Array<{poi_id: string; arrival_delft3d_s: number; arrival_sph_s: number; diff_s: number}>; layers: FloodQueryResponse['layers']; run_ids: string[]};
+  emulator_vs_physics: {available: boolean; held_out_run_id: string | null; metrics: {iou?: number; depth_rmse_wet_m?: number; arrival_mae_s?: number}; layers: FloodQueryResponse['layers']};
+  gp_vs_linear: {iou_median_gp?: number; iou_median_linear?: number; arrival_mae_s_gp?: number; arrival_mae_s_linear?: number}; when_to_use_key: string;
+  caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
+};
+export type GeeLayers = {
+  site_id: string; source: 'live' | 'cache' | 'screenshot_fallback'; fetched_at: string;
+  lake_area_series: Array<{date: string; area_m2: number; method: 's2_water_index' | 's1_threshold'; cloud_pct: number | null}>;
+  lake_latest: {type: 'FeatureCollection'; features: Array<{type: 'Feature'; geometry: {type: string; coordinates: unknown}; properties: Record<string, unknown>}>};
+  rainfall: Array<{date: string; precip_mm: number; dataset: 'chirps' | 'gpm_imerg'}>;
+  imagery: Array<{event_id: string; phase: 'pre' | 'post'; date: string; url: string; bounds_latlng: number[][]}>;
+  observed_extents: Array<{event_id: string; url: string; method: 'manual_digitized' | 'change_detection'}>;
+  recheck: {outdated: boolean; change_pct: number | null; threshold_pct: number};
+};
+export type Timeline = {
+  query_id: string; interval_s: number; t_end_s: number;
+  frames: Array<{t_s: number; median_url: string; high_url: string; possible_url: string; bounds_latlng: number[][]}>;
+  hydrographs: Array<{dam_id: string; t_offset_s: number; points: Array<{t_s: number; q_m3s: number}>}>;
+  arrival_profile: Array<{chainage_m: number; arrival_p10_s: number|null; arrival_p50_s: number; arrival_p90_s: number|null}>;
+  pois_on_profile: Array<{poi_id: string; name: string; chainage_m: number}>;
+  caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
+  provenance: Record<string, unknown>;
+};
+export type SiteSummary = {
+  site_id: string; name: string;
+  status: 'onboarding' | 'demo_mode' | 'ready' | 'outdated' | 'failed';
+  status_reason_key?: string | null; bbox_lonlat?: [number, number, number, number];
+  has_placeholders?: boolean;
+};
+export type JobStatus = {
+  job_id: string; kind: 'onboarding' | 'campaign' | 'recheck' | 'rerun';
+  site_id: string; stage: string; stage_label_key: string;
+  progress: {current: number | null; total: number | null; unit: string | null};
+  eta_s?: number | null; demo_mode?: boolean; started_at: string | null;
+  updated_at: string; log_tail?: string[]; error: Record<string, unknown> | null;
+};
+export type SiteCreateRequest = {site_config: Record<string, unknown>; demo_mode?: boolean};
+export type SiteCreateAccepted = {job_id: string; site_id: string};
+
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1').replace(/\/$/, '');
 export const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
 
@@ -60,23 +151,31 @@ const json = (body: unknown): RequestInit => ({method: 'POST', body: JSON.string
 export const api = {
   health: () => request('/health', {}, 'health'),
   styles: () => request('/styles', {}, 'styles'),
-  sites: () => request('/sites', {}, 'sites'),
+  sites: () => request<SiteSummary[]>('/sites', {}, 'sites'),
   site: (siteId: string) => request(`/sites/${encodeURIComponent(siteId)}`, {}, 'site'),
-  createSite: (body: unknown) => request('/sites', json(useMocks ? siteRequest : body), 'siteAccepted'),
-  job: (jobId: string) => request(`/jobs/${encodeURIComponent(jobId)}`, {}, 'jobStatus'),
+  createSite: (body: SiteCreateRequest) => request<SiteCreateAccepted>('/sites', json(useMocks ? siteRequest : body), 'siteAccepted'),
+  job: (jobId: string) => request<JobStatus>(`/jobs/${encodeURIComponent(jobId)}`, {}, 'jobStatus'),
   recheck: (siteId: string, body: unknown) => request(`/sites/${encodeURIComponent(siteId)}/recheck`, {method: 'PUT', body: JSON.stringify(body)}, 'siteSummary'),
   rerun: (siteId: string) => request(`/sites/${encodeURIComponent(siteId)}/rerun`, {method: 'POST'}, 'jobAccepted'),
-  floodQuery: (body: unknown) => request('/flood/query', json(useMocks ? floodRequest : body), 'floodResponse'),
-  flood: (queryId: string) => request(`/flood/${encodeURIComponent(queryId)}`, {}, 'floodResponse'),
-  timeline: (queryId: string, intervalS = 300) => request(`/flood/${encodeURIComponent(queryId)}/timeline?interval_s=${intervalS}`, {}, 'timeline'),
+  floodQuery: (body: FloodQueryRequest) => request<FloodQueryResponse>('/flood/query', json(useMocks ? floodRequest : body), 'floodResponse'),
+  flood: (queryId: string) => request<FloodQueryResponse>(`/flood/${encodeURIComponent(queryId)}`, {}, 'floodResponse'),
+  timeline: (queryId: string, intervalS = 300) => request<Timeline>(`/flood/${encodeURIComponent(queryId)}/timeline?interval_s=${intervalS}`, {}, 'timeline'),
   extent: (queryId: string) => request(`/flood/${encodeURIComponent(queryId)}/extent.geojson`, {}, 'extent'),
-  impact: (queryId: string) => request(`/impact/${encodeURIComponent(queryId)}`, {}, 'impact'),
-  compare: (siteId: string, scenarioId?: string) => request(`/compare/${encodeURIComponent(siteId)}${scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : ''}`, {}, 'compare'),
+  impact: (queryId: string) => request<ImpactResponse>(`/impact/${encodeURIComponent(queryId)}`, {}, 'impact'),
+  compare: (siteId: string, scenarioId?: string) => request<CompareResponse>(`/compare/${encodeURIComponent(siteId)}${scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : ''}`, {}, 'compare'),
   validation: (siteId: string) => request(`/validation/${encodeURIComponent(siteId)}`, {}, 'validation'),
   historicalValidation: (siteId: string, eventId: string) => request(`/validation/${encodeURIComponent(siteId)}?event=${encodeURIComponent(eventId)}`, {}, 'historicalValidation'),
-  export: (queryId: string, format: 'shp' | 'kml' | 'geojson' | 'pdf') => fetch(`${baseUrl}/export/${encodeURIComponent(queryId)}?format=${format}`),
-  gee: (siteId: string) => request(`/gee/${encodeURIComponent(siteId)}`, {}, 'geeLayers'),
-  refreshGee: (siteId: string) => request(`/gee/${encodeURIComponent(siteId)}/refresh`, {method: 'POST'}, 'geeLayers'),
+  export: async (queryId: string, format: 'shp' | 'kml' | 'geojson' | 'pdf') => {
+    const response = await fetch(`${baseUrl}/export/${encodeURIComponent(queryId)}?format=${format}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => undefined);
+      const message = (payload as {error?: {message?: string}} | undefined)?.error?.message;
+      throw new ApiError(message || `API request failed (${response.status})`, response.status, payload);
+    }
+    return response;
+  },
+  gee: (siteId: string) => request<GeeLayers>(`/gee/${encodeURIComponent(siteId)}`, {}, 'geeLayers'),
+  refreshGee: (siteId: string) => request<GeeLayers>(`/gee/${encodeURIComponent(siteId)}/refresh`, {method: 'POST'}, 'geeLayers'),
   scene3d: (queryId: string, verticalExaggeration = 1.5) => request(`/scene3d/${encodeURIComponent(queryId)}?vertical_exaggeration=${verticalExaggeration}`, {}, 'scene3d'),
   file: (path: string) => {
     const relativePath = path.replace(/^\/api\/v1\/?/, '').replace(/^\/+/, '');
