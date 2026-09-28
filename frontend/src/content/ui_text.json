@@ -1,4 +1,16 @@
 {
+  "offline": {
+    "cachedBadge": "Offline — cached {time}",
+    "reasonBanner": "Offline: new simulations, satellite refresh and Add a dam need a live connection. Showing the last cached copy.",
+    "saveButton": "Save for offline",
+    "saving": "Saving…",
+    "estimating": "Estimated download",
+    "saved": "Saved for offline",
+    "saveError": "Could not save this scenario for offline use.",
+    "noQueryToSave": "Run a query first — there is nothing to save yet.",
+    "noSavedCopy": "No scenario saved for offline use yet.",
+    "savedCopyDetail": "Last saved {time} · {size} MB · {count} files."
+  },
   "siteSelector": {
     "label": "Active site",
     "loading": "Loading sites…",

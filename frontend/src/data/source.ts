@@ -11,10 +11,14 @@ import type {Grid, Params, Result} from '@/lib/model';
 import type {Scenario} from '@/lib/sentriq';
 import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type SiteDetail, type JobStatus, type ValidationResponse, type HistoricalValidationResponse, type Scene3DResponse} from './api';
 import uiText from '../content/ui_text.json';
+import * as offlineCache from '../offline/cache-store';
+import {collectGlobalUrls, collectResourceUrls, type OfflineBundle} from '../offline/resource-list';
 
 export type Awaiting = {status: 'awaiting'; reason: string};
 
 export type {SiteSummary} from './api';
+export type {SavedQuery} from '../offline/cache-store';
+export type {OfflineBundle} from '../offline/resource-list';
 
 /** Mock switch and the one registered direct solver scenario exposed for the MVP site. */
 export function isMockMode(): boolean { return useMocks; }
@@ -206,4 +210,31 @@ export async function listSavedRuns(): Promise<Awaiting & {records: unknown[]}> 
 }
 export async function saveRun(_kind: 'run' | 'site', _name: string, _data: unknown): Promise<Awaiting & {record: unknown | null}> {
   return {status: 'awaiting', reason: 'Saved-run storage is not connected yet.', record: null};
+}
+
+/** Offline caching (src/offline/) — registers the app-shell service worker
+ * once at startup; components never touch Cache Storage or the worker
+ * directly, only through this seam. */
+export function initOffline(): void { offlineCache.registerOfflineWorker(); }
+export function isOfflineCacheSupported(): boolean { return offlineCache.isCacheSupported(); }
+export function listSavedOfflineQueries() { return offlineCache.listSavedQueries(); }
+export function latestSavedOfflineQuery() { return offlineCache.latestSavedQuery(); }
+export function deleteSavedOfflineQuery(queryId: string): void { offlineCache.deleteSavedQuery(queryId); }
+
+/** Estimates the download size of a "save for offline" of this bundle without saving anything. */
+export async function estimateOfflineSaveSize(bundle: OfflineBundle) {
+  return offlineCache.estimateSaveSize([...collectGlobalUrls(), ...collectResourceUrls(bundle)]);
+}
+
+/** Fetches and stores every resource behind an already-loaded query so the
+ * dashboard can reopen it later with no connection. */
+export async function saveQueryForOffline(bundle: OfflineBundle, siteName: string, onProgress?: (p: {done: number; total: number}) => void) {
+  const urls = [...collectGlobalUrls(), ...collectResourceUrls(bundle)];
+  return offlineCache.saveForOffline(bundle.siteId, bundle.floodQuery.query_id, siteName, urls, onProgress);
+}
+
+/** Reopens a previously saved query straight from the cache — never a fresh
+ * POST /flood/query, which would mint a new, uncached query_id. */
+export async function loadSavedOfflineQuery(queryId: string): Promise<FloodQueryResponse> {
+  return api.flood(queryId);
 }
