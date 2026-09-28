@@ -799,6 +799,25 @@ def test_get_historical_validation_observed_extent_present(data_dir):
 # =============================================================================
 # 18. export
 # =============================================================================
+def _register_export_query(data_dir, *, query_id=QUERY_ID, site_id=KNOWN_SITE) -> Path:
+    """A minimal real registered query -- extent + result.json + a `queries` row -- so export
+    tests exercise the real `m6_impact.exports` path instead of the removed mock fallback (main.py
+    no longer fabricates export content for an unregistered query_id; see
+    test_export_of_unregistered_query_id_is_404 below)."""
+    query_dir = data_dir / site_id / "queries" / query_id
+    query_dir.mkdir(parents=True)
+    extent = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {},
+        "geometry": {"type": "Polygon", "coordinates": [[[88.0, 27.0], [88.1, 27.0], [88.1, 27.1], [88.0, 27.1], [88.0, 27.0]]]}}]}
+    (query_dir / "extent.geojson").write_text(json.dumps(extent))
+    (query_dir / "result.json").write_text(json.dumps({"flags": {"demo_mode": False}, "method": "delft3d_direct"}))
+    with registry.connect() as conn:
+        conn.execute("INSERT INTO queries (query_id,site_id,request_json,status,result_path,created_at) "
+                     "VALUES (?,?,?,?,?,?)",
+                     (query_id, site_id, "{}", "complete",
+                      str(query_dir / "result.json"), registry.utc_now()))
+    return query_dir
+
+
 @pytest.mark.parametrize(
     "fmt,content_type",
     [
@@ -808,7 +827,8 @@ def test_get_historical_validation_observed_extent_present(data_dir):
         ("pdf", "application/pdf"),
     ],
 )
-def test_export_formats(fmt, content_type):
+def test_export_formats(fmt, content_type, data_dir):
+    _register_export_query(data_dir)
     r = client.get(f"{API}/export/{QUERY_ID}", params={"format": fmt})
     assert r.status_code == 200
     assert r.headers["content-type"] == content_type
@@ -816,14 +836,16 @@ def test_export_formats(fmt, content_type):
     assert len(r.content) > 0
 
 
-def test_export_shp_is_a_real_zip():
+def test_export_shp_is_a_real_zip(data_dir):
+    _register_export_query(data_dir)
     r = client.get(f"{API}/export/{QUERY_ID}", params={"format": "shp"})
     with zipfile.ZipFile(BytesIO(r.content)) as zf:
         assert zf.testzip() is None
         assert zf.namelist()
 
 
-def test_export_geojson_matches_schema():
+def test_export_geojson_matches_schema(data_dir):
+    _register_export_query(data_dir)
     r = client.get(f"{API}/export/{QUERY_ID}", params={"format": "geojson"})
     assert_matches("geojson_feature_collection.schema.json", json.loads(r.content))
 
@@ -832,6 +854,19 @@ def test_export_invalid_format_400():
     r = client.get(f"{API}/export/{QUERY_ID}", params={"format": "shx"})
     assert r.status_code == 400
     assert_matches("error.schema.json", r.json()["detail"])
+
+
+def test_export_of_unregistered_query_id_is_404(data_dir):
+    """No fabricated shapefile/KML/PDF branded with a real-looking query_id -- an id nothing was
+    ever registered for (not in the `queries` table, no on-disk query dir) must 404 naming the
+    missing id, for every export format, not silently serve mock content."""
+    unregistered_id = "q_20260101T000000Z_ffffff"  # validly-formatted, never registered
+    for fmt in ("shp", "kml", "geojson", "pdf"):
+        r = client.get(f"{API}/export/{unregistered_id}", params={"format": fmt})
+        assert r.status_code == 404, fmt
+        body = r.json()
+        assert_matches("error.schema.json", body["detail"])
+        assert unregistered_id in body["detail"]["error"]["message"]
 
 
 def test_export_kml_covers_every_part_of_a_multipolygon_extent_with_holes(data_dir):

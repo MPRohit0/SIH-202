@@ -727,26 +727,12 @@ def export_query(query_id: QueryIdPath, format: str = Query(...)) -> Response:  
             )
             filename = f"{site_id}_{query_id}_report.pdf"
         return Response(content=content, media_type=_EXPORT_MEDIA_TYPES[format], headers={"Content-Disposition": f'attachment; filename="{filename}"'})
-    if query is not None:
-        raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"Registered query artifacts missing for '{query_id}'."))
-    if any(registry.data_dir().glob("*/demo_ready.json")):
-        raise HTTPException(status_code=404, detail=mocks.error("query_not_found", f"No export artifacts for query '{query_id}'.", {"query_id":query_id}))
-    site_id = "teesta"  # legacy example behavior for non-synthetic mock queries
-    if format == "shp":
-        content, filename = mock_files.mock_shapefile_zip(site_id, query_id), f"{site_id}_{query_id}_extent.zip"
-    elif format == "kml":
-        content, filename = mock_files.mock_kml(site_id, query_id), f"{site_id}_{query_id}_extent.kml"
-    elif format == "geojson":
-        content = json.dumps(mocks.mock_response("extent_geojson.example.json")).encode()
-        filename = f"{site_id}_{query_id}_extent.geojson"
-    else:
-        content = mock_files.text_report_pdf(f"Mock export -- no registered query artifacts for {site_id} {query_id}.")
-        filename = f"{site_id}_{query_id}_report.pdf"
-    return Response(
-        content=content,
-        media_type=_EXPORT_MEDIA_TYPES[format],
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    # No registered query, real or otherwise, exists for this id: a real site's export must
+    # never be fabricated content branded with someone's actual query_id (mock_files' shapefile/
+    # KML/PDF text literally say "site=teesta query=<id>", which reads as a real, computed export
+    # if someone doesn't notice the "mock" wording). Always 404, naming the missing id.
+    raise HTTPException(status_code=404, detail=mocks.error(
+        "query_not_found", f"No registered query artifacts for '{query_id}'.", {"query_id": query_id}))
 
 
 # =============================================================================
