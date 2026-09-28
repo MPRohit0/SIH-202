@@ -110,6 +110,25 @@ class TestRunEndToEnd:
         rows = cache.read_lake_area("synth", tmp_path)
         assert rows[0]["area_m2"] > rows[-1]["area_m2"]
 
+    def test_snow_bridge_does_not_inflate_area_via_nir_filter(self, tmp_path):
+        """End-to-end regression (docs/decisions.md 2026-09-28) for the South Lhonak overestimate:
+        a bright-NIR corridor that would otherwise bridge the seeded lake to a second, separate
+        water body is excluded by the NIR test, so the fetched area matches the seeded lake alone,
+        not the lake plus the bridge plus the second water body."""
+        months = fetch._month_starts(1)
+        key = months[0].strftime("%Y-%m")
+        settings = GeeSettings(months_back=1)
+
+        plain = fetch.run("synth", settings=settings, provider=SyntheticProvider(lake_radius_px=20),
+                           data_dir=tmp_path / "plain")
+        bridged = fetch.run("synth", settings=settings,
+                             provider=SyntheticProvider(lake_radius_px=20, snow_bridge_months=(key,)),
+                             data_dir=tmp_path / "bridged")
+
+        plain_area = cache.read_lake_area("synth", tmp_path / "plain")[0]["area_m2"]
+        bridged_area = cache.read_lake_area("synth", tmp_path / "bridged")[0]["area_m2"]
+        assert bridged_area == pytest.approx(plain_area, rel=0.05)
+
     def test_reference_area_override_feeds_the_recheck(self, tmp_path):
         fetch.run("synth", settings=GeeSettings(months_back=1), provider=SyntheticProvider(),
                    data_dir=tmp_path, reference_area_m2=1.0)

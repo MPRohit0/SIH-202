@@ -162,7 +162,10 @@
     "millimeters": "mm",
     "simulated": "SIMULATED",
     "satelliteHistory": "Lake and rainfall series",
-    "observationSplit": "Observed versus simulated extent"
+    "observationSplit": "Observed versus simulated extent",
+    "referenceTitle": "ISRO/NRSC reference (South Lhonak, Oct 2023)",
+    "referenceSource": "Source: ISRO/NRSC, Oct 2023",
+    "referenceNote": "Independent published reference figures, shown for comparison only. Not used to calibrate the water-mask thresholds above."
   },
   "timeline": {
     "loading": "Loading time simulation…",

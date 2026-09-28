@@ -98,13 +98,25 @@ def otsu_threshold(values: np.ndarray, clamp: tuple[float, float], bins: int = 2
     return float(np.clip(threshold, clamp[0], clamp[1]))
 
 
-def water_mask(index: np.ndarray, threshold: float, below: bool = False) -> np.ndarray:
+def water_mask(
+    index: np.ndarray, threshold: float, below: bool = False,
+    nir: np.ndarray | None = None, nir_max: float | None = None,
+) -> np.ndarray:
     """Boolean water mask: `index >= threshold` (e.g. NDWI, water is high), or `index <= threshold`
-    when `below` (e.g. SAR VV backscatter in dB, water is low/smooth)."""
+    when `below` (e.g. SAR VV backscatter in dB, water is low/smooth).
+
+    `nir`/`nir_max`: an optional extra requirement that NIR (B8) surface reflectance be at or below
+    `nir_max`. Snow and ice are bright in the NIR even when their NDWI happens to clear the Otsu
+    threshold; without this, a snow patch next to the lake can pass the NDWI mask and bridge into
+    the seeded connected component, inflating the reported area (`docs/decisions.md` 2026-09-28).
+    Only meaningful for the NDWI mask -- pass `nir=None` for a SAR mask, which has no NIR band.
+    """
     finite = np.isfinite(index)
-    if below:
-        return finite & (index <= threshold)
-    return finite & (index >= threshold)
+    mask = (index <= threshold) if below else (index >= threshold)
+    mask = finite & mask
+    if nir is not None and nir_max is not None:
+        mask &= np.isfinite(nir) & (nir <= nir_max)
+    return mask
 
 
 def seed_component(mask: np.ndarray, seed_rc: tuple[int, int]) -> np.ndarray:

@@ -145,7 +145,9 @@ def _fetch_lake_area(
                  else settings.s1_vv_threshold_clamp_db)
         below = method == "s1_threshold"
         threshold = la.otsu_threshold(raster.index, clamp)
-        mask = la.water_mask(raster.index, threshold, below=below)
+        nir = raster.nir if method == "s2_water_index" else None
+        mask = la.water_mask(raster.index, threshold, below=below,
+                              nir=nir, nir_max=settings.nir_reflectance_max)
         component = la.seed_component(mask, seed_rc)
         area_m2 = la.component_area_m2(component, grid)
 

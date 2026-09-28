@@ -196,3 +196,68 @@ Used for: `docs/events/chamoli_2021.md`'s event onset, source-volume estimate, f
 classification, and the reported discharge/velocity bounds near the Rishiganga and Tapovan
 projects. The paper does not provide a machine-ready discharge hydrograph or a catchment-wide
 observed flood-depth raster; see the event record for M3 limits.
+
+## src_071 — Teesta 2023 observed flood/scour extent (project-digitized)
+
+Project-derived dataset, digitized by the SENTRIQ team. File:
+`data/teesta/observed/flood_extent_2023.geojson` (EPSG:4326). Produced by semi-automatic
+change detection in Google Earth Engine on Copernicus Sentinel-2 Level-2A surface reflectance
+(`COPERNICUS/S2_SR_HARMONIZED`), comparing cloud-masked median composites for
+2022-10-10 to 2022-12-15 (pre) and 2023-10-10 to 2023-12-15 (post), then manually QA'd in
+QGIS. Contains modified Copernicus Sentinel data (2022–2023).
+
+Method: a pixel is flagged if it lies on the valley floor (MERIT Hydro HAND < <40> m;
+Yamazaki, D. et al. (2019). *MERIT Hydro: A high-resolution global hydrography map based on
+latest topography datasets.* Water Resources Research, 55, 5053–5073. doi:
+[10.1029/2019WR024873](https://doi.org/10.1029/2019WR024873)) and shows NDVI loss > <0.15>,
+or red-band brightening > <0.02> with post-event NDVI < 0.2, or open/turbid water
+(MNDWI > 0, B8 < 0.25), excluding residual snow. Patches under <10> connected pixels are
+removed. Manual QA deleted <describe: e.g. hillslope landslides not connected to the channel,
+cloud edges, the drained South Lhonak lake bed>. Final extent: <N> polygons, <area> km².
+Thresholds were set by visual comparison with the post-event imagery only, never against
+model output.
+
+Used for: validation only (IoU/F1/precision/recall of simulated vs observed extent in the
+Validation tab). Never used for training, calibration, or parameter tuning. Limits: optical
+imagery taken days to weeks after the event records the erosion/deposition footprint, not the
+peak water extent, and snow/cloud leave gaps in the upper valley near the lake
+(<note gaps>). It is not an official product; no Copernicus EMS or UNOSAT extent was found
+for this event.
+
+## src_072 — South Lhonak lake area before/after the GLOF (ISRO/NRSC)
+
+ISRO / National Remote Sensing Centre (2023). Satellite-based study of the South Lhonak lake
+outburst, released 4 October 2023. <Add the official ISRO/NRSC URL if you can find it;
+otherwise cite a news report of the statement:>
+<https://www.deccanherald.com/india/isro-conducts-satellite-image-based-studies-of-south-lhonak-lake-in-sikkim-2712863>.
+
+Reports a lake area of 162.7 ha (17 Sep 2023) and 167.4 ha (28 Sep 2023), falling to about
+60.3 ha (4 Oct 2023), i.e. about 105 ha drained. Used for: the reference figures shown beside
+the project's own GEE lake-area series on the Monitoring page. Not used to tune the
+project's water-mask thresholds.
+
+## src_073 — Sikkim 2023 multihazard cascade reconstruction
+
+Sattar, A. et al. (2025). *The Sikkim flood of October 2023: Drivers, causes, and impacts of
+a multihazard cascade.* Science. doi:
+[10.1126/science.ads2659](https://doi.org/10.1126/science.ads2659).
+
+Used for: event narrative (moraine collapse of about 14.7 million m³, about 50 million m³
+drained) and literature context for the Validation tab. <If this is already one of src_044 or
+src_045, merge instead of adding a duplicate.>
+
+## src_074 — Worldwide historical dam failure database (breach-equation test data)
+
+Bernard-Garcia, M. & Mahdi, T. (2020). *A Worldwide Historical Dam Failure's Database.*
+Scholars Portal Dataverse, V1. doi: [10.5683/SP2/E7Z09B](https://doi.org/10.5683/SP2/E7Z09B).
+Licence: <check on the Dataverse page>.
+
+Comparison paper for the expected error ranges: <authors — confirm on the article page>
+(2026). *An update on data-fusion-based dam breach empirical equations based on a worldwide
+historical dam failure database: a comparative assessment.* Natural Hazards. doi:
+[10.1007/s11069-026-08239-x](https://doi.org/10.1007/s11069-026-08239-x).
+
+Used for: `tests/data/breach_cases.csv`, built by `scripts/build_breach_cases.py`
+(earthfill/rockfill cases only; incomplete rows dropped per equation), to check the M2
+equations (F16, F8, F95, MCLM, Z20) against the paper's median percentage errors. Test data
+only; not used at runtime.

@@ -2382,3 +2382,41 @@ blocker to a real Compare page.
   or repeats the interactive auth.
 - Only Teesta was fetched/verified live this session; Rishi Ganga's monitoring path is unexercised
   against real Earth Engine (should work identically, same `fetch.run()` code path, untested).
+
+## 2026-09-28 — South Lhonak lake-area overestimate: NIR test, ISRO reference on Monitoring
+
+**Tool access was broken almost this entire session:** `Bash` and the `Agent` subagent tool both
+failed every call with a server-side "auto mode classifier gave no verdict" error, so nothing could
+be run — no `pytest`, no `grep`/`find`, no live GEE fetch, no `tsc`, no Playwright. Everything below
+was done read-only (the `Read`/`Edit` tools were unaffected) plus manual tracing of the logic; **none
+of it has been run**. Whoever picks this up next should run `pytest -q tests/m7_gee`, `tsc --noEmit`,
+and the Playwright visual suite before trusting it.
+
+**Diagnosis:** the prior session's live Teesta fetch (2026-09-28, Task G) reported South Lhonak lake
+area 4,348,200 m² (Sep 2023) / 1,493,200 m² (Oct 2023), about 2.6x ISRO/NRSC's published 167.4 ha /
+60.3 ha (`src_072`, added to `docs/data_sources.md` this session). `fetch.py` already restricts each
+month to the connected water-mask component containing the seeded dam location, so a separate
+unrelated lake blob was not the cause; the likely cause is a bright-NIR (snow/ice) corridor whose
+NDWI still clears the Otsu threshold, bridging the seeded lake to something else within the same
+connected component. `GeeSettings.max_snow_ice_pct` only skips a month at >30% snow/ice over the
+*whole* AOI, not a smaller connecting patch.
+
+**Fix (`docs/decisions.md` 2026-09-28 "M7 GEE fetch: NIR test excludes snow from S2 water mask"):**
+`provider.py` `s2_month` now also fetches B8 NIR reflectance; `lake_area.water_mask` gained optional
+`nir`/`nir_max` and requires `nir <= nir_max` (new `GeeSettings.nir_reflectance_max = 0.15`) on top
+of the NDWI test, S2 months only. `SyntheticProvider` gained a `snow_bridge_months` fixture that
+reproduces the exact bridging failure mode; new tests in `tests/m7_gee/test_lake_area.py` (
+`TestNirFiltersSnow`) and `tests/m7_gee/test_fetch.py`
+(`test_snow_bridge_does_not_inflate_area_via_nir_filter`) cover it end to end — **unrun**, verified
+only by hand-tracing the mask/component arithmetic.
+
+**Not done:** a live re-fetch to report the actual corrected South Lhonak numbers — needs a working
+Bash/backend session. Re-run `python -m backend.m7_gee.fetch teesta --months 37` and record the new
+Sep/Oct 2023 rows in `docs/decisions.md`.
+
+**Monitoring page:** `frontend/app/sentriq/app.tsx`'s lake-area panel now shows the ISRO/NRSC figures
+(`ISRO_SOUTH_LHONAK_REFERENCE` constant, Teesta-only) as a static, sourced reference block below the
+project's own series, captioned that it isn't used to calibrate thresholds — new `ui_text.json`
+strings, reused existing `.s-panel`/`.dataset-row`/`.fine-print`/`SourceLink` styling, no new CSS, no
+`GeeLayers` contract change (a fixed historical reference, not a live-fetched field). Visual/`tsc`
+verification not run (see tool-access note above).
