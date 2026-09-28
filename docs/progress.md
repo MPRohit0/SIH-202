@@ -2821,3 +2821,21 @@ project's own series, captioned that it isn't used to calibrate thresholds — n
 strings, reused existing `.s-panel`/`.dataset-row`/`.fine-print`/`SourceLink` styling, no new CSS, no
 `GeeLayers` contract change (a fixed historical reference, not a live-fetched field). Visual/`tsc`
 verification not run (see tool-access note above).
+
+## 2026-09-28 — Merge all feature branches into main
+
+Merged `mvp/gee-monitoring` (commits "v1": README, `.env.example`, `scripts/start.*`; "temp": ISRO
+reference panel, `src_071`–`src_074`) into `mvp/final`, which already contained every other
+`mvp/*` branch, then fast-forwarded `main`. `frontend-ui-shell` and `m0-job-system` were already
+in `main`. The NIR snow-mask work in "temp" conflicted with `mvp/final`'s later version of the same
+fix; `mvp/final`'s code and tests were kept, and the duplicated `decisions.md` entry was folded into
+one. Also committed a pending `provider.py` fix from the `mvp/final` worktree (empty `reduceRegion`
+cloud stat → treated as fully cloudy).
+
+**Checks:** `pytest -q` on `main`: 1003 passed, 8 skipped, 1 failed, the same failure as before the merge
+(`tests/m3_dflowfm/test_generator.py::test_pilot_reference_builder_reuses_frozen_geometry_fields_and_forcing`,
+`assert 18037 == 18034`). `tsc --noEmit` clean. Playwright visual tests not re-run.
+
+**Still limited:** `tests/data/breach_cases.csv` is gitignored (the `data/` pattern matches
+`tests/data/`), so `test_breach_cases.py` errors in any fresh checkout or worktree. `docs/data_sources.md`
+`src_071`/`src_073`/`src_074` still contain `<...>` fill-in placeholders.
