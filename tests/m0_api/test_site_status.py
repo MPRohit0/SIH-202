@@ -81,3 +81,42 @@ def test_overlay_leaves_status_alone_when_not_outdated(data_dir):
     summary = site_status.overlay("teesta", {"site_id": "teesta", "status": "ready", "status_reason_key": None})
     assert summary["status"] == "ready"
     assert summary["recheck"]["frequency_days"] == site_status.DEFAULT_RECHECK_FREQUENCY_DAYS
+
+
+def test_overlay_corrects_fictitious_emulator_ready_for_a_real_ready_site(data_dir):
+    """A `status: "ready"` site with no `emulator/<model>/manifest.json` on disk (e.g. Teesta,
+    served by one direct D-Flow FM run) must not claim a trained emulator just because the mocked
+    contract example it started from said so."""
+    summary = site_status.overlay(
+        "teesta", {"site_id": "teesta", "status": "ready", "status_reason_key": None,
+                   "emulator_ready": True, "models_available": ["delft3d", "sph"]},
+    )
+    assert summary["emulator_ready"] is False
+    assert summary["models_available"] == []
+    assert summary["status_reason_key"] == "real_run_no_trained_emulator"
+    assert summary["status"] == "ready"  # the site itself is still usable -- only the claim changes
+
+
+def test_overlay_reports_a_real_trained_emulator_when_the_manifest_exists(data_dir):
+    manifest_dir = data_dir / "teesta" / "emulator" / "delft3d"
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "manifest.json").write_text("{}")
+    summary = site_status.overlay(
+        "teesta", {"site_id": "teesta", "status": "ready", "status_reason_key": None,
+                   "emulator_ready": False, "models_available": []},
+    )
+    assert summary["emulator_ready"] is True
+    assert summary["models_available"] == ["delft3d"]
+    assert summary["status_reason_key"] is None
+
+
+def test_overlay_does_not_touch_emulator_fields_for_a_non_ready_status(data_dir):
+    """`onboarding`/`demo_mode` sites already set an accurate `status_reason_key` at
+    construction (main.py) -- overlay must not stomp it."""
+    summary = site_status.overlay(
+        "demo_valley", {"site_id": "demo_valley", "status": "onboarding",
+                         "status_reason_key": "synthetic_demo", "emulator_ready": False,
+                         "models_available": ["delft3d"]},
+    )
+    assert summary["status_reason_key"] == "synthetic_demo"
+    assert summary["models_available"] == ["delft3d"]  # left exactly as passed in

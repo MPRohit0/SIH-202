@@ -125,9 +125,28 @@ def record_check(
 
 
 def overlay(site_id: str, summary: dict[str, Any], data_dir: Path | None = None) -> dict[str, Any]:
-    """Patch a mocked `SiteSummary`/list entry with this site's real re-check state."""
+    """Patch a mocked `SiteSummary`/list entry with this site's real re-check state, and (for a
+    `status: "ready"` site only) its real emulator-training state.
+
+    `emulator_ready`/`models_available` come straight from `contracts/examples/*.json` when
+    nothing overlays them -- fiction for a real site with no trained emulator. Teesta's example
+    says `emulator_ready: true`, but no `data/teesta/emulator/*/manifest.json` exists; Teesta is
+    served by one direct D-Flow FM run (`method: delft3d_direct`), not the GP emulator. Scoped to
+    `status == "ready"` only: `onboarding`/`demo_mode` sites already carry an accurate
+    `status_reason_key` from their own construction (`main.py`), which this must not overwrite.
+    """
     state = load(site_id, data_dir)
     summary = dict(summary)
+    if summary.get("status") == "ready":
+        base = data_dir or registry.data_dir()
+        trained_models = sorted(
+            model for model in ("delft3d", "sph")
+            if (base / site_id / "emulator" / model / "manifest.json").is_file()
+        )
+        summary["emulator_ready"] = bool(trained_models)
+        summary["models_available"] = trained_models
+        if not trained_models and not summary.get("status_reason_key"):
+            summary["status_reason_key"] = "real_run_no_trained_emulator"
     summary["recheck"] = {
         "frequency_days": state["frequency_days"],
         "last_checked_at": state["last_checked_at"],

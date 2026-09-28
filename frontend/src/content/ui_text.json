@@ -26,6 +26,9 @@
       "demo_mode": "Demo mode",
       "outdated": "Outdated",
       "failed": "Unavailable"
+    },
+    "statusReasons": {
+      "real_run_no_trained_emulator": "Served from a direct physics run; no GP emulator has been trained for this site yet."
     }
   },
   "floodQuery": {
