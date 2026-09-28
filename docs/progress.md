@@ -2127,3 +2127,63 @@ Teesta base flow and other physical data need sourcing before production use.
   doi:10.1061/(asce)gt.1943-5606.0000162" to match.
 - No code changed in this item; `pytest --collect-only` and a read-through of the edited doc
   sections were the verification.
+
+## 2026-09-28 — Teesta MVP demo-stabilization pass: session summary
+
+Goal: a demo-ready Teesta MVP for a recorded video. Stabilization only — fix, caveat or hide what
+already existed; no new modules, no contract-version bumps, no new solver campaigns. Approved
+scope was items 0, 1a, 2 (+2b), 3, 4, 5, 6; item 1b (a conditioned-DEM D-Flow rerun) and the
+stretch real campaign were explicitly declined/deferred. Seven commits, one per item, each with
+its own detailed entry above (`c050144`…`f2c1738`).
+
+**What was built**
+- `backend/m0_api/dem_diagnostics.py`: reuses the project's own priority-flood implementation
+  (`backend.m1_terrain.hydro.route`) to classify a direct run's extreme cells as sitting in an
+  unconditioned DEM depression and/or a steep reach, feeding two new honest caveats
+  (`dem_depression_ponding`, `clear_water_steep_reach_velocity`) plus a `provenance.diagnostics`
+  block — no contract version bump.
+- POI grid-snapping detection in `real_impact.py` (flags POIs that are dry only because of 90 m
+  grid resolution, not genuine non-exposure).
+- A hard gate in `backend/m4_sph/compare_mvp.py`: no paired SPH/D-Flow metric is ever published
+  when the SPH run's `run_meta` carries `sph_particle_exclusion_warning`.
+- A real bug fix in `backend/m4_sph/measuretool.py`: `MeasureTool -elevation` re-sorts output
+  columns by position instead of preserving request order; `parse_elevation_csv` now reorders by
+  the CSV's own header. Re-postprocessing the retained SPH run (no solver rerun) corrected its
+  reported max depth from 259.5 m to 11.47 m.
+- Rishi Ganga removed from the served site list (`mocks.KNOWN_SITE_IDS`), with an explicit 404
+  reason instead of contract-example fallback payloads.
+- A real KML-export bug fix (`main.py`): the old code read only the first ring of the first
+  feature, silently dropping 69 of 70 parts of the real Teesta extent's MultiPolygon and every
+  hole. Fixed and verified against the real run (358 bytes → 81,226 bytes, 70 polygons, 1 hole).
+- Frontend: `DirectRunMetrics` headline (flood extent + affected-POI peak depth/velocity, with the
+  single-cell domain max demoted to a labelled artifact line), a real-data "Downstream impact"
+  dashboard preview, and the new caveat/message strings in `ui_text.json`.
+- Doc fixes: CLAUDE.md's M3 module path, two stale "superseded" banners in `docs/decisions.md`,
+  and a missing citation in `docs/Equations.md`.
+
+**Still stubbed or placeholder**
+- The D-Flow FM headline extremes are caveated, not fixed — item 1b (conditioning the M1
+  far-field DEM before mesh generation) was explicitly declined for this pass. Re-running with a
+  conditioned bed would remove the ponding artifact; the steep-reach velocities would likely
+  remain, since they are slope-driven.
+- The SPH near-field run still loses about 99% of its fluid almost immediately after the inlet
+  (an unfixed physics/case defect); Compare correctly stays unavailable regardless of the
+  MeasureTool parser fix.
+- No observed flood-extent GeoJSON exists, so there is no IoU/F1 validation check — Monitoring
+  says so honestly rather than showing anything.
+- Rishi Ganga has no site config at all (not even placeholders); it is out of this MVP entirely,
+  not just hidden.
+- `m5_emulator.loocv --site` is not implemented, so nothing here trains M5 on real runs; the site
+  configuration still carries dozens of placeholder fields (unchanged by this pass).
+- The 3D terrain tab silently stays on the 2D map once a real result is loaded rather than
+  rendering an explicit "unavailable" state — acceptable because it makes no false claim, but not
+  a polished state either.
+
+**Next step**
+Record the demo using the walkthrough path verified in item 5 (home → Teesta → flood map →
+timeline → impact → compare → monitoring → exports), following the commands and checklist already
+given to the user. If there's time before recording, the highest-value next investigation is
+item 1b (DEM conditioning) — it's the one open item with a known fix and a bounded scope, and it
+would remove the least-honest-looking number left on the dashboard (the 66.9 m domain max, even
+though it's already caveated). After that, the SPH particle-exclusion defect (b) is the next
+blocker to a real Compare page.
