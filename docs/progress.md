@@ -2309,3 +2309,58 @@ blocker to a real Compare page.
   failed/4xx requests on the full path (home → Teesta demo → 3D tab → hover). `tsc --noEmit` and
   backend `py_compile` clean; `.venv/bin/pytest -q tests/m0_api`: **179 passed, 1 skipped** (no
   regressions); full Playwright visual suite: **13/13 unchanged** (no baseline touches the 3D tab).
+
+## 2026-09-28 — Task F: offline mode (save-for-offline + app-shell service worker)
+
+Offline caching was removed during the prototype strip (Group 2) and the two offline buttons had
+been left permanently disabled ever since. Built it for real against the frontend/CLAUDE.md rule
+of touching only the data layer: a new `frontend/src/offline/` module (`cache-store.ts` — Cache
+Storage snapshot + localStorage manifest + size estimate; `resource-list.ts` — pure function
+listing every GET URL a loaded query touches), a hand-written service worker
+(`frontend/public/offline-worker.js`, no new dependency — this repo has no vite-plugin-pwa), and a
+thin hook in `src/data/source.ts` (`initOffline`, `saveQueryForOffline`, `estimateOfflineSaveSize`,
+`loadSavedOfflineQuery`, `listSavedOfflineQueries`) — components still never fetch directly.
+
+- **Design:** the service worker's only job is app-shell caching (it precaches `/` plus that page's
+  own `<script>`/`<link>` asset URLs during `install`, since there's no build manifest to read, and
+  falls back to the cached response — any cache, shell or data — on a failed GET; it never touches
+  POST). "Save for offline" is separate: it fetches every GET resource behind the *currently loaded*
+  query (site detail, flood/impact/compare/validation/gee JSON, layer PNGs, every timeline frame,
+  scene3d terrain+flood binaries, satellite imagery, all four export formats, plus the 3D breach
+  marker's run_meta/forcing/breach_params files) directly into a separate Cache Storage bucket via
+  the page itself, and records a small manifest entry (site, query, size, timestamp) in localStorage.
+  On a cold boot while `navigator.onLine` is false, the app now loads the latest saved query
+  straight from that cache (`GET /flood/{id}`, never a fresh `POST /flood/query`, which would mint
+  an uncached id) instead of running the normal live boot sequence.
+- **Wired in `app.tsx`:** the two previously-disabled buttons (library toolbar "Download for
+  offline", settings "Prepare offline workspace") now call the same save handler, disabled when
+  there's no loaded query or when already offline (can't fetch a fresh copy without a connection);
+  new simulation runs, the Teesta demo button, GEE refresh, and Add-a-dam's scenario generation are
+  now `disabled` (with a `title` reason and a standing `s-notice` banner) whenever `offline` is
+  true; the header/dashboard badge shows "Offline — cached `<timestamp>`" once a saved query is
+  reopened, instead of the generic "Offline workspace" string.
+- **Verified for real** with a throwaway Playwright script (not committed, matching this project's
+  established pattern): built the frontend against the real backend (no mocks), opened the real
+  Teesta MVP run, waited for impact/timeline/compare/gee/scene3d to actually finish loading (the
+  real `/impact` and `/flood/{id}/timeline` endpoints took ~14s and ~70s against this registered
+  run — not a bug, just how slow the mock/real backend's own computation is), clicked "Save for
+  offline" (27–30 resources, ~14.7 MB), then flipped the same browser context offline
+  (`context.setOffline(true)` — a *new* context has separate storage and was the wrong way to
+  simulate "reopen while offline", a dead end this session ran into first) and confirmed: the
+  "Offline — cached" badge appears, the map/3D canvas and timeline render, impact metrics render,
+  and clicking "Export selected format" produces a real download — all with **zero failed/4xx/5xx
+  requests** once offline. Also ran `tsc --noEmit`, `vite build`, and `npm run check:shell` (all
+  pass) against the built output.
+- **Real bug found and fixed along the way:** the service worker's opportunistic runtime caching
+  never actually caches the app shell in practice, because (a) a worker only controls the page that
+  registered it from that page's *next* navigation onward — never the page that just registered it
+  — and (b) this SPA never does a second full navigation (all internal routing is `pushState`), so
+  the shell HTML/JS/CSS would never get cached by runtime interception alone. Fixed by having
+  `install` explicitly fetch `/`, cache it, and parse its own asset URLs out of the markup to cache
+  those too.
+- **Still limited:** deleting a saved query only drops its manifest entry, not its Cache Storage
+  bytes (best-effort only, documented in `cache-store.ts`); only the single most-recently-saved
+  query is ever auto-reopened on a cold offline boot (this MVP only ever has one meaningfully
+  distinct query per site); HEAD-based size estimation undercounts any endpoint that 405s on HEAD
+  (this backend's FastAPI routes only implement GET) — those resources still get saved correctly,
+  just without contributing to the pre-save size estimate shown to the user.
