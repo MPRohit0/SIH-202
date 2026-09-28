@@ -68,7 +68,7 @@ export type ImpactResponse = {
     schools: {high: number; possible: number}; cropland_m2: {high: number; possible: number};
     hydropower: Array<{name: string; zone: 'high' | 'possible'; depth_m: Estimate}>;
   };
-  loss_inr: Estimate;
+  loss_inr: Estimate & {by_asset_class?: Record<string, Estimate>; assumptions?: string[]};
   warning_table: Array<{poi_id: string; name: string; kind: string; chainage_m: number; zone: 'high' | 'possible'; p_inundation: number; arrival_s: Estimate; depth_m: Estimate; velocity_ms: Estimate}>;
   not_affected_poi_count: number; data_coverage_notes: string[];
   has_placeholders: boolean; placeholder_fields: string[];

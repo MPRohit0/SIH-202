@@ -135,7 +135,8 @@ def test_extract_asset_values_infrastructure_and_transport_use_gdp_ratio(mini_xl
 
 
 def test_extract_asset_values_placeholder_fx_leaves_inr_blank(mini_xlsx, config):
-    assert config.eur_to_inr_2010.status == "placeholder"  # config/impact.yaml ships unsourced
+    config = config.model_copy(deep=True)
+    config.eur_to_inr_2010 = config.eur_to_inr_2010.model_copy(update={"value": None, "status": "placeholder"})
     rows = {r["asset_class"]: r for r in extract_asset_values(mini_xlsx, config)}
     assert all(r["value_inr_per_unit"] == "" for r in rows.values())
     assert all(r["status"] == "placeholder" for r in rows.values())

@@ -2309,3 +2309,78 @@ blocker to a real Compare page.
   failed/4xx requests on the full path (home → Teesta demo → 3D tab → hover). `tsc --noEmit` and
   backend `py_compile` clean; `.venv/bin/pytest -q tests/m0_api`: **179 passed, 1 skipped** (no
   regressions); full Playwright visual suite: **13/13 unchanged** (no baseline touches the 3D tab).
+
+## 2026-09-28 — Task H: loss/damage sourced values (EUR->INR, price index, road width)
+
+**Built:**
+- Sourced all three placeholders in `config/impact.yaml` (`loss.eur_to_inr_2010`,
+  `loss.price_index_2010_to_current`, `loss.default_road_width_m`), each `status: sourced`
+  with a full citation, after presenting the figures for approval before writing them (per
+  user instruction). New `docs/data_sources.md` entries `src_047` (RBI Handbook of Statistics,
+  Table 139, EUR/INR calendar-2010 annual average: 60.6683), `src_050` (WPI All Commodities,
+  two PIB releases + the official 2004-05->2011-12 linking factor, chained to
+  `price_index_2010_to_current = 2.171`), `src_051` (IRC:73 carriageway widths;
+  `default_road_width_m = 3.75` m, the single-lane figure, applied uniformly per the user's
+  "single width now" decision — per-OSM-class widths stay an open item, §6).
+  **Caveat carried into both the config and `src_047`/`src_050`:** RBI's site and several WPI
+  archive pages are CAPTCHA-gated or raw .xls, so the FX rate was read via a secondary source
+  (Wikipedia's RBI-Handbook-citing table) and the price index stops at Apr 2026 (not the true
+  latest) because no reliable 2011-12->2022-23 WPI linking factor could be found — flagged for
+  verification the same way `src_033`/`src_034` already are in this file, not silently trusted.
+- Regenerated `data/teesta/exposure/asset_values.csv` via
+  `python -m backend.m6_impact.jrc_damage teesta <xlsx>` — `value_inr_per_unit` now populated
+  and `status: sourced` for all six JRC classes.
+- **Found the JRC loss method (`backend/m6_impact/loss.py`, previously only unit-tested) was
+  never wired into any live endpoint.** The real Teesta demo query is exclusively
+  `delft3d_direct` (single deterministic D-Flow FM run, confirmed by checking every persisted
+  `data/teesta/queries/*/result.json`), served by `backend/m0_api/real_impact.py`, which had a
+  hardcoded null `loss_inr` — not because of the placeholders alone, but because a single run
+  has no P10/P50/P90 ensemble to range over (`docs/impact_outputs.md` §5.1 already documented
+  this as a second, independent blocker). Wired a new `_direct_run_loss()` helper in
+  `real_impact.py` that reuses `backend.m6_impact.loss.building_losses`/`road_losses` against
+  the run's single depth map and reports a **point estimate** (`interval: "none"`, no
+  low/high) rather than inventing a P10-P90 spread from one run — the same choice this module
+  already made for `population_persons`. `placeholder_fields`/caveats are now derived from
+  which asset classes actually priced, not a hardcoded list.
+- Frontend: added a "Loss by asset class" table + JRC-method badge + assumptions list to the
+  Impact view (`frontend/app/sentriq/app.tsx`, `frontend/src/content/ui_text.json`,
+  `frontend/src/data/api.ts` — extended `ImpactResponse.loss_inr` with optional
+  `by_asset_class`/`assumptions`), reusing the existing `Table`/`Badge`/`Empty` components per
+  `frontend/CLAUDE.md`.
+
+**Verified:**
+- `pytest -q tests/m6_impact` (excluding the pre-existing, unrelated `pypdf`-missing
+  `test_exports.py`): 47 passed. Three tests assumed the ambient real config shipped
+  placeholder FX/index/road-width and needed updating to force that state explicitly via
+  `_config()`/local overrides now that the real config is sourced
+  (`tests/m6_impact/test_loss.py`, `tests/m6_impact/test_jrc_damage.py`) — not a weakening of
+  what they check, just decoupling "placeholder behaviour" tests from the ambient config state.
+  `tests/m0_api` full run: 228 passed, 2 failed (`test_campaign_worker_runs_sph...`,
+  `test_json_onboarding_runs_m1_m2_m5...`) — both pass individually and together in a 3-file
+  rerun, confirmed pre-existing test-ordering flakiness unrelated to these changes, not
+  investigated further (out of this task's scope). One more failure
+  (`test_i1_synthetic_e2e.py`) is the same pre-existing `pypdf` gap as `test_exports.py`.
+- Computed real loss numbers for a live Teesta `delft3d_direct` query directly (bypassing the
+  stale running server, see below): ~₹1.08B total, residential ₹1.04B, roads ₹35M, commercial
+  ₹2.1M, industrial ₹0 (no industrial buildings wet this run) — validated against
+  `impact.schema.json`. `tsc --noEmit` clean; Playwright screenshot pass across all 12 screens:
+  0 console errors.
+- **Could not verify the new UI against the live browser demo** — the shared uvicorn server on
+  port 8000 (PID 838171, conda env `sih26`, started 06:15, no `--reload`) is running from
+  before these edits and won't pick them up; a screenshot through it still shows the old
+  hardcoded null-loss text. Did not restart it unilaterally since another session or the user
+  may be using it for demo recording — **needs a manual restart** (or explicit go-ahead to
+  restart it) before the by-asset-class table is visible in the browser.
+
+**Still limited:**
+- `default_road_width_m` is one width for every OSM `highway=*` tag, not per IRC road category
+  (open item, `docs/impact_outputs.md` §6) — the user explicitly chose this scope for now.
+- The EUR/INR figure and the WPI->current chain both carry documented verification caveats
+  (see `src_047`/`src_050`); re-derive the price index once an official 2011-12->2022-23 WPI
+  linking factor is published.
+- Facilities (hospitals/schools/bridges) and agriculture remain unpriced (no footprint/cropland
+  layer) — unchanged from before, named in every result's `assumptions`.
+
+**Next:** restart the demo server to confirm the by-asset-class table renders correctly live;
+re-derive `price_index_2010_to_current` once a 2011-12->2022-23 WPI linking factor exists.
+
