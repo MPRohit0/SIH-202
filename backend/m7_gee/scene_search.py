@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 GEE_SA_EMAIL_ENV = "GEE_SERVICE_ACCOUNT_EMAIL"
 GEE_SA_KEY_PATH_ENV = "GEE_SERVICE_ACCOUNT_KEY_PATH"
+GEE_PROJECT_ENV = "GEE_PROJECT"
 
 S2_COLLECTION = "COPERNICUS/S2_SR_HARMONIZED"
 S1_COLLECTION = "COPERNICUS/S1_GRD"
@@ -110,8 +111,12 @@ def gee_service_account_credentials() -> tuple[str, str] | None:
 
 
 def _ee_initialize(project: str | None) -> None:
+    """`project` (explicit `--ee-project`/caller-supplied), else `GEE_PROJECT` (environment or
+    `.env`) -- most modern EE accounts, including the personal-OAuth one this session was
+    authenticated against, need one explicitly; there is no server-side default to fall back to."""
     import ee
 
+    project = project or _env_value(GEE_PROJECT_ENV)
     creds = gee_service_account_credentials()
     try:
         if creds is not None:

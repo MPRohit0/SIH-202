@@ -2510,3 +2510,75 @@ the same commit, so this doesn't fork off another task's in-progress work).
 **Next:** restart the demo server to confirm the by-asset-class table renders correctly live;
 re-derive `price_index_2010_to_current` once a 2011-12->2022-23 WPI linking factor exists.
 
+## 2026-09-28 — Task G: live GEE monitoring for Teesta + Monitoring page wiring
+
+**Built**
+- `earthengine authenticate` had never been run on this machine; walked the user through it live.
+  `.env`'s existing `GEE_SERVICE_ACCOUNT_EMAIL`/`GEE_SERVICE_ACCOUNT_KEY` turned out to be a personal
+  Gmail + a Google Maps-style `AIzaSy...` API key, not a service-account email + JSON key path (what
+  `scene_search.gee_service_account_credentials()` actually reads via `GEE_SERVICE_ACCOUNT_KEY_PATH`)
+  — left as-is since replacing them wasn't asked for and the personal-OAuth path (the one that ended
+  up working) doesn't use them at all. `ee.Initialize()` still needed an explicit Cloud project (no
+  server-side default for this account); the user supplied `sih-161`. Added `GEE_PROJECT=sih-161` to
+  `.env` and a same-named fallback in `scene_search._ee_initialize()` (`backend/m7_gee/scene_search.py`)
+  so both the CLI (`--ee-project`) and `POST /gee/{site}/refresh` (which never passes a project
+  explicitly) pick it up without a code change at every call site.
+- Ran `python -m backend.m7_gee.fetch teesta --months 24` live. First run only covered Oct
+  2024-Sep 2026 — the container's clock reads 2026-09-28, so a trailing-24-month window never
+  reaches back to the real Oct 2023 GLOF. Re-ran with `--months 37` to include it.
+  **South Lhonak lake area: 2023-09-01 = 4,348,200 m², 2023-10-01 = 1,493,200 m²** — a ~66% drop,
+  consistent with the real Oct 3-4 2023 outburst (the Oct row is a whole-month S2 composite, so it's
+  already dominated by the post-drainage lake). `gee_meta.json` recorded `source: live` for both lake
+  area and rainfall, zero fetch errors. `recheck.json` correctly reports `reason: no_trained_library`
+  (teesta has no M5 emulator manifest yet, so there's nothing to compare the latest area against) —
+  an honest state, not a bug.
+- Monitoring page (`frontend/app/sentriq/app.tsx`, view `'monitoring'`) was already wired to real
+  `GeeLayers` data (no mock fallback in real mode) with working status badges, recheck-outdated
+  banner, refresh button, and imagery — but the observed-extent map panel was *always* the `Empty`
+  placeholder (never actually rendered `lake_latest`), and lake area/rainfall were tables/lists only,
+  not the "time series chart" the task asked for.
+  - Added a lake-area line chart and a rainfall bar chart using Recharts + the existing (installed
+    but previously unused anywhere) `frontend/components/ui/chart.tsx` wrapper — no new dependency,
+    kept the existing tables/lists below each chart for exact readout.
+  - Added `LakeOutlineMap` (`frontend/app/sentriq/ui.tsx`) to render the real `lake_latest` polygon:
+    a small self-contained component, not an edit to `terrain-map.tsx` (owned by task C). It scales
+    to the polygon's *own* bounding box rather than a flood-simulation `Grid`, because `Grid` is
+    `null` on the real monitoring path (no DEM/flood domain is loaded there) — same blocker last
+    session hit for the 2D breach pin. Reuses `TerrainMap`'s existing CSS classes (`.terrain-map`,
+    `.map-topline`, `.map-chip`, `.north`, `.observed-polygons`) so it looks native; explicitly
+    captioned "not a satellite photo" since it draws only the vector outline, not real pixels — real
+    satellite imagery (pre/post event RGB, already fetched and cached) is shown separately below it,
+    and combining the two would need a new bounds-carrying field on the locked `GeeLayers` contract,
+    which CLAUDE.md rule 1 says not to change silently.
+- `frontend/CLAUDE.md` forbids new UI libraries, so both additions reuse what's already installed.
+
+**Verified**
+- `pytest -q tests/m7_gee tests/m0_api`: 297 passed, 1 skipped (pre-existing, unrelated
+  `DSPH_BIN_DIR` skip) — but only after fixing a real regression the live credentials exposed:
+  `tests/m0_api/test_endpoints.py::test_refresh_gee` had zero mocking and previously stayed fast
+  only because this machine had no working EE credentials, so `_ee_initialize` failed fast and
+  `refresh_gee` fell back to cache immediately. With real credentials now present, the same test
+  triggered a real, slow live fetch + `live_render.render_event_rgb` image render inside what's
+  meant to be an offline unit suite, and hung for 10+ minutes before being killed. Fixed by
+  monkeypatching `scene_search._ee_initialize` to always raise in that test, matching how every
+  other GEE-touching test in the repo (`test_scene_search.py`, `test_imagery.py`,
+  `test_recheck_scheduling.py`) already isolates itself from ambient machine state.
+- `tsc --noEmit`: clean.
+- Playwright, `frontend/visual`: full 12-screen `shots`/`diff` against `main-baseline` (temporarily
+  added `--disable-web-security` to `shots.mjs`'s launch args to get past this session's dev server
+  running on port 5175, not the CORS-allowlisted 5173, then reverted it) — 11/12 screens
+  byte-identical (`changedPct: 0`), only `monitoring` changed (31.09%, expected: real chart/outline
+  content replacing the always-empty placeholder). Zero console errors, zero failed/4xx requests on
+  every screen. Manually verified the Refresh button end to end: badge flips from "Cached satellite
+  data" to "Live satellite data" and `fetched_at` updates after a real live refresh completes.
+
+**Still limited**
+- The lake outline is a geometry-accurate vector diagram, not the lake polygon overlaid on real
+  satellite pixels — see above; doing that properly needs a contract change (a new bounds-carrying
+  imagery field on `GeeLayers`) that's out of scope to make unilaterally.
+- `.env`'s `GEE_SERVICE_ACCOUNT_EMAIL`/`GEE_SERVICE_ACCOUNT_KEY` are still not a usable service
+  account (personal Gmail + Maps-style API key); live fetches on a machine without a prior
+  `earthengine authenticate` session will still fail until someone sets up a real service account
+  or repeats the interactive auth.
+- Only Teesta was fetched/verified live this session; Rishi Ganga's monitoring path is unexercised
+  against real Earth Engine (should work identically, same `fetch.run()` code path, untested).
