@@ -24,6 +24,9 @@ dependencies:
   - simplekml
   - joblib
   - jsonschema
+  - matplotlib
+  - pillow
+  - pypdf
   - httpx
   - openpyxl
   - earthengine-api

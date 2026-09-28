@@ -2309,3 +2309,68 @@ blocker to a real Compare page.
   failed/4xx requests on the full path (home → Teesta demo → 3D tab → hover). `tsc --noEmit` and
   backend `py_compile` clean; `.venv/bin/pytest -q tests/m0_api`: **179 passed, 1 skipped** (no
   regressions); full Playwright visual suite: **13/13 unchanged** (no baseline touches the 3D tab).
+
+## 2026-09-28 — Task A: exports (shapefile + PDF)
+
+- **Reproduced on the registered real Teesta query** (`q_20260928T050632Z_ad87ba`, method
+  `delft3d_direct`): all four formats returned 200, so nothing was crashing. The actual defects
+  were content bugs. Shapefile: the zip was named `..._artifacts.zip` and bundled `extent.shp`
+  (real geometry, real CRS) next to `result.json`, `extent.geojson` and the raw `layers/*.tif` --
+  not the contract's shapefile deliverable (`extent`/`depth_classes`/`isochrones`/`pois_warning`
+  layers, docs/handoff_contract.md §4.7), and the one polygon it did have carried only
+  `source_run_id`/`synthetic` -- none of the `zone/conf/method/dep_p50/.../caveats` attributes the
+  contract's field table names. PDF: `mock_files.text_report_pdf()` writes its report text inside a
+  `%`-prefixed PDF comment (`main.py`'s old export route, line ~690 pre-fix) -- no viewer renders a
+  PDF comment, so the export was a syntactically valid but visually blank 1-page PDF.
+- **Fix (`backend/m6_impact/exports.py`, new module; `backend/m0_api/main.py`'s export route now
+  calls into it):**
+  - `build_shapefile_zip` -- a real `extent.shp/.shx/.dbf/.prj/.cpg` (fields: `zone, dep_p50,
+    vel_p50, dep_class, conf, method, site_id, query_id, run_id, has_ph, caveats`, all <=10 chars
+    per the contract's field table) plus `pois_warning.*` (points, one per `warning_table` entry
+    with a resolvable POI location from `sites/<id>.yaml`). Verified with `geopandas` + `ogrinfo`:
+    correct EPSG:4326 CRS, feature count and area match `extent.geojson`/`result.json`'s
+    `inundated_area_m2` exactly. `depth_classes`/`isochrones` vector layers are **not** included --
+    their thresholds (`docs/impact_outputs.md` "depth_classes_m"/"arrival_bands_min") are still a
+    team draft, not yet in any `config/*.yaml`, so this stays out rather than guessing at them; the
+    bundle's own `README.txt` says so explicitly instead of silently dropping the layers.
+  - KML: moved the existing MultiPolygon+holes fix into the same module, added a real `<Style>`
+    pulled from `contracts/styles.json`'s `extent_class.{high,possible}` fill/opacity (so the KML
+    never invents its own colours), a popup `<description>` with the real max depth/velocity/caveats,
+    and a `pois_warning` Folder of styled points. Verified: well-formed KML 2.2, opens with GDAL's
+    `LIBKML` driver (`ogrinfo`).
+  - PDF: `build_pdf_report` -- a real multi-section report built with matplotlib's PDF backend (no
+    dedicated PDF library was in `environment.yml`; added `matplotlib`/`pillow`/`pypdf`, the last
+    test-only for text extraction). Header (site name, query id, report label, generated timestamp),
+    an embedded depth map (reused `rendering.render_and_cache`, so the export never re-implements
+    styling), a key-numbers table, impact summary + warning table (or an explicit "not available"
+    when `impact.json` doesn't exist), a caveats list with real human-readable labels (a small
+    `CAVEAT_LABELS` dict for the caveat ids this route can see today; unknown ids fall back to their
+    own id, title-cased -- never invented detail), provenance, and TerraFlow branding. Verified with
+    `pypdf` (text extraction: real numbers/caveats/provenance present) and `pymupdf` (rendered page 1
+    to PNG and looked at it -- see session transcript; not committed).
+  - Found and fixed a real map-projection bug while building the PDF's map panel: `real_query.py`'s
+    `_bounds_latlng` stores `[[west_lon, south_lat], [east_lon, north_lat]]`, but the contract
+    documents `bounds_latlng` as lat-first (§1.3). For Teesta both coordinates happen to be <90 in
+    magnitude, so a magnitude-based order guess silently produced a transposed map on the first pass
+    (caught by rendering the PDF to PNG and looking at it, not by a schema). Fixed by trusting the
+    known `real_query.py` order instead of guessing (`main.py:_bounds_lonlat`) -- left a comment
+    flagging that a future `bounds_latlng` producer for another mode/site would need the same fix;
+    did not touch `real_query.py` itself (outside this task's export-code scope).
+- **Tests added** (`tests/m6_impact/test_exports.py`, 26 cases; also updated
+  `tests/m0_api/test_i1_synthetic_e2e.py`'s export assertions for the new bundle contents/PDF
+  extraction): depth-class bucketing edges, shapefile completeness (`testzip()`, all sidecars, CRS,
+  attribute values, <=10-char field names), shapefile without resolvable POI locations skips the
+  `pois_warning` layer rather than writing empty geometries, KML MultiPolygon+holes (carried over)
+  and style/description presence, PDF non-empty + real text/numbers/caveats present, PDF with
+  `impact=None` says "not available" rather than omitting the section, PDF without a map still
+  renders a real report. `pytest -q tests/m0_api tests/m6_impact`: 268 passed (one
+  `tests/m6_impact/test_loss.py` failure was pre-existing/order-dependent -- passes alone, unrelated
+  to this session's files; not investigated further, out of this task's scope).
+- **Still limited:** `depth_classes`/`isochrones` shapefile layers remain unbuilt (see above --
+  blocked on the team settling `docs/impact_outputs.md`'s draft thresholds into config); `loss_inr`
+  in the PDF's impact summary stays "not available" for a direct run, same as the API (M6 loss
+  config's own placeholders, not an export bug).
+- **Next step:** once `depth_classes_m`/`arrival_bands_min` land in `config/`, extend
+  `build_shapefile_zip` with raster-to-polygon extraction for those two layers using the same
+  `rasterio.features.shapes` approach `real_query.py` already uses for `extent`.
+
