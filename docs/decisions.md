@@ -1,5 +1,40 @@
 # Team decisions
 
+## 2026-09-28 — M7 GEE fetch: mask slopes steeper than ~6 degrees for S1 months
+
+The Sept 2023 South Lhonak overestimate (4,348,200 m² vs ISRO/NRSC's 167.4 ha) used
+`method: s1_threshold` (S2 was too cloudy that monsoon month). S1 VV backscatter over steep
+Himalayan terrain suffers radar shadow: slopes facing away from the sensor return near-zero
+signal, indistinguishable from smooth open water in the `below=True` mask -- already documented
+via `fetch.py`'s existing `radar_shadow` caveat, which stays (this mitigates the risk, it does not
+eliminate the physical cause, and the DEM/registration themselves carry uncertainty).
+
+**Fix:** a lake surface is flat; radar shadow is not. Added `lake_area.slope_deg_from_elevation`
+(pure numpy central-difference gradient -> degrees) and `lake_area.dem_slope_deg` (reprojects/
+resamples a DEM file onto the AOI grid via `rasterio.warp.reproject`, then calls the pure
+function). `water_mask` gained optional `slope_deg`/`max_slope_deg` args, same pattern as the NIR
+args above: a pixel only counts as water if slope is at or below `max_slope_deg`. New
+`GeeSettings.max_slope_deg = 6.0` (the value given in the task instruction, not tuned against
+ISRO's numbers), applied only to `s1_threshold` months.
+
+**Temporary DEM source, until ITEM 1 lands:** `fetch._dem_path(site_id, data_dir)` currently points
+at `data/<site_id>/terrain/dem.tif` -- whatever M1 already wrote for the flood-domain pipeline, not
+necessarily on the grid/provenance ITEM 1's canonical terrain artifact will settle on. Swapping the
+source later needs only a change to `_dem_path`'s return path -- `dem_slope_deg` already reprojects
+whatever it is given onto the AOI grid, so nothing else in this fix depends on the DEM's own
+resolution or exact alignment. If no DEM file exists yet for a site, slope masking is skipped for
+that fetch (logged, not raised) -- `_load_slope_deg` must never fail the whole fetch over a missing
+or unreadable DEM.
+
+No threshold changed apart from adding this one new, task-specified value.
+
+Tests: `tests/m7_gee/test_lake_area.py::TestSlopeMasking` (pure gradient math against a known tilt
+angle, `water_mask` slope-exclusion, a real rasterio reproject round trip) and two `fetch.py`
+end-to-end tests (`TestRunEndToEnd::test_s1_month_applies_dem_slope_masking_when_a_dem_is_present`
+-- a monkeypatched all-steep slope zeroes the S1 area, proving the wiring, not re-testing the
+raster math; `test_s1_month_skips_slope_masking_gracefully_with_no_dem` -- fetch still succeeds
+with no DEM present). `tests/m7_gee`: 119 passed (9 new), no regressions.
+
 ## 2026-09-28 — M7 GEE fetch: search each month for the clearest S2 scene
 
 `EarthEngineProvider.s2_month` used to `.median()`-composite every Sentinel-2 scene found in a

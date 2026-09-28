@@ -141,6 +141,70 @@ class TestNirFiltersSnow:
         assert np.array_equal(fixed, lake)
 
 
+class TestSlopeMasking:
+    def test_flat_surface_has_zero_slope(self):
+        dem = np.full((20, 20), 100.0)
+        slope = la.slope_deg_from_elevation(dem, cell_size_m=10.0)
+        assert np.allclose(slope, 0.0)
+
+    def test_uniform_tilt_gives_the_known_angle(self):
+        # 1 m rise per 10 m run along rows -> arctan(1/10) ~ 5.71 deg, constant everywhere
+        rows = np.arange(20).reshape(-1, 1) * np.ones((1, 20))
+        dem = rows * 1.0  # 1 m elevation step per row, rows are 10 m apart
+        slope = la.slope_deg_from_elevation(dem, cell_size_m=10.0)
+        expected = math.degrees(math.atan(1.0 / 10.0))
+        # edges use a one-sided difference (np.gradient), so only the interior is exact
+        assert np.allclose(slope[2:-2, 2:-2], expected, atol=0.01)
+
+    def test_steeper_tilt_gives_a_larger_angle(self):
+        rows = np.arange(20).reshape(-1, 1) * np.ones((1, 20))
+        gentle = la.slope_deg_from_elevation(rows * 1.0, cell_size_m=10.0)
+        steep = la.slope_deg_from_elevation(rows * 5.0, cell_size_m=10.0)
+        assert steep[5, 5] > gentle[5, 5]
+
+    def test_water_mask_excludes_steep_pixels_even_if_backscatter_passes(self):
+        index = np.array([-20.0, -20.0])  # both pass a below=True VV threshold
+        slope_deg = np.array([2.0, 15.0])  # flat lake, then a steep radar-shadow slope
+        mask = la.water_mask(index, threshold=-15.0, below=True,
+                              slope_deg=slope_deg, max_slope_deg=6.0)
+        assert list(mask) == [True, False]
+
+    def test_nan_slope_pixel_is_excluded(self):
+        index = np.array([-20.0])
+        slope_deg = np.array([np.nan])
+        mask = la.water_mask(index, threshold=-15.0, below=True,
+                              slope_deg=slope_deg, max_slope_deg=6.0)
+        assert list(mask) == [False]
+
+    def test_without_slope_args_steep_pixel_still_passes(self):
+        # documents the pre-fix behaviour this class guards against
+        index = np.array([-20.0, -20.0])
+        mask = la.water_mask(index, threshold=-15.0, below=True)
+        assert list(mask) == [True, True]
+
+    def test_dem_slope_deg_reprojects_and_resamples_onto_the_aoi_grid(self, tmp_path):
+        """`dem_slope_deg` reads a DEM file at its own resolution/CRS and produces slope on the
+        target `AoiGrid` -- a real rasterio round trip, not just the pure numpy gradient math."""
+        import rasterio
+        from rasterio.transform import from_origin
+
+        dem_path = tmp_path / "dem.tif"
+        size = 40
+        rows = np.arange(size, dtype=np.float32).reshape(-1, 1) * np.ones((1, size), dtype=np.float32)
+        dem = (rows * 2.0 + 1000.0).astype(np.float32)  # 2 m rise per 30 m row -> flat-ish slope
+        with rasterio.open(
+            dem_path, "w", driver="GTiff", width=size, height=size, count=1, dtype="float32",
+            crs="EPSG:32645", transform=from_origin(500000.0, 3100000.0, 30.0, 30.0), nodata=-9999.0,
+        ) as dst:
+            dst.write(dem, 1)
+
+        grid = la.AoiGrid(epsg=32645, origin_x=500100.0, origin_y=3099900.0, cell_size_m=10.0, width=30, height=30)
+        slope = la.dem_slope_deg(dem_path, grid)
+        assert slope.shape == grid.shape
+        assert np.isfinite(slope).any()  # the AOI grid sits inside the DEM's coverage
+        assert np.all(slope[np.isfinite(slope)] >= 0.0)
+
+
 class TestAreaAndPolygon:
     def test_component_area_matches_pixel_count_times_cell_area(self):
         grid, index, disc, blob, seed_rc = _disc_grid()

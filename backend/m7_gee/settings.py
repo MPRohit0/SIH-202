@@ -52,6 +52,14 @@ class GeeSettings(BaseModel):
     #: Otsu threshold on Sentinel-1 VV backscatter (dB) is clamped to this range.
     s1_vv_threshold_clamp_db: tuple[float, float] = (-22.0, -10.0)
 
+    #: a Sentinel-1 pixel only counts as water if the site DEM's terrain slope there is at or below
+    #: this many degrees, in addition to passing the VV threshold (`docs/decisions.md` 2026-09-28
+    #: "mask slopes steeper than ~6 degrees using the site's DEM"). A lake surface is flat; SAR
+    #: radar shadow on a steep slope reads as smooth/low-backscatter (indistinguishable from open
+    #: water) but sits far from level ground. Only applied to `s1_threshold` months, and only when
+    #: a DEM is available for the site -- see `fetch._dem_path` for the current (temporary) source.
+    max_slope_deg: float = Field(default=6.0, ge=0, le=90)
+
     #: how many trailing days of rainfall accumulation to fetch.
     rain_days_back: int = Field(default=30, gt=0)
 

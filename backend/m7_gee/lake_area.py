@@ -98,9 +98,35 @@ def otsu_threshold(values: np.ndarray, clamp: tuple[float, float], bins: int = 2
     return float(np.clip(threshold, clamp[0], clamp[1]))
 
 
+def slope_deg_from_elevation(dem: np.ndarray, cell_size_m: float) -> np.ndarray:
+    """Terrain slope in degrees from an elevation array on a uniform square grid, via a
+    central-difference gradient (`numpy.gradient`) -- no DEM-conditioning or flow-routing needed,
+    just the rise-over-run angle at each cell. NaN propagates from NaN elevation cells."""
+    dz_dy, dz_dx = np.gradient(dem, cell_size_m)
+    return np.degrees(np.arctan(np.hypot(dz_dx, dz_dy)))
+
+
+def dem_slope_deg(dem_path, grid: AoiGrid):
+    """`slope_deg_from_elevation` computed from a DEM file, reprojected/resampled (bilinear) onto
+    `grid`. NaN where the DEM has no coverage of `grid`."""
+    import rasterio
+    from rasterio.warp import Resampling, reproject
+
+    with rasterio.open(dem_path) as src:
+        dem = np.full(grid.shape, np.nan, dtype=np.float32)
+        reproject(
+            source=rasterio.band(src, 1), destination=dem,
+            src_transform=src.transform, src_crs=src.crs, src_nodata=src.nodata,
+            dst_transform=grid.transform, dst_crs=f"EPSG:{grid.epsg}",
+            dst_nodata=np.nan, resampling=Resampling.bilinear,
+        )
+    return slope_deg_from_elevation(dem, grid.cell_size_m)
+
+
 def water_mask(
     index: np.ndarray, threshold: float, below: bool = False,
     nir: np.ndarray | None = None, nir_max: float | None = None,
+    slope_deg: np.ndarray | None = None, max_slope_deg: float | None = None,
 ) -> np.ndarray:
     """Boolean water mask: `index >= threshold` (e.g. NDWI, water is high), or `index <= threshold`
     when `below` (e.g. SAR VV backscatter in dB, water is low/smooth).
@@ -110,12 +136,21 @@ def water_mask(
     threshold; without this, a snow patch next to the lake can pass the NDWI mask and bridge into
     the seeded connected component, inflating the reported area (`docs/decisions.md` 2026-09-28).
     Only meaningful for the NDWI mask -- pass `nir=None` for a SAR mask, which has no NIR band.
+
+    `slope_deg`/`max_slope_deg`: an optional extra requirement that terrain slope be at or below
+    `max_slope_deg`. A lake surface is flat; SAR radar shadow on a steep Himalayan slope reads as
+    smooth/low-backscatter (indistinguishable from open water in the `below=True` mask) but sits on
+    ground far from level, so a slope ceiling excludes it while keeping the true, flat lake surface
+    (`docs/decisions.md` 2026-09-28 "mask slopes steeper than ~6 degrees"). Meaningful for either
+    method -- pass `slope_deg=None` where no DEM coverage is available.
     """
     finite = np.isfinite(index)
     mask = (index <= threshold) if below else (index >= threshold)
     mask = finite & mask
     if nir is not None and nir_max is not None:
         mask &= np.isfinite(nir) & (nir <= nir_max)
+    if slope_deg is not None and max_slope_deg is not None:
+        mask &= np.isfinite(slope_deg) & (slope_deg <= max_slope_deg)
     return mask
 
 

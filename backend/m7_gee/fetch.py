@@ -90,6 +90,34 @@ def _lonlat_to_utm(lon: float, lat: float, epsg: int) -> tuple[float, float]:
     return pyproj.Transformer.from_crs(4326, epsg, always_xy=True).transform(lon, lat)
 
 
+def _dem_path(site_id: str, data_dir: Path) -> Path:
+    """The DEM used for `GeeSettings.max_slope_deg` radar-shadow slope masking.
+
+    TEMPORARY source, ahead of ITEM 1's canonical per-site terrain artifact: this is whatever M1
+    happened to write to `data/<site_id>/terrain/dem.tif` for the flood-domain pipeline, not
+    necessarily on the same grid/provenance ITEM 1 will settle on. Once ITEM 1 lands a canonical
+    terrain artifact with a documented path, point this at it instead -- no other change should be
+    needed, since `lake_area.dem_slope_deg` already reprojects whatever it is given onto the AOI
+    grid."""
+    return data_dir / site_id / "terrain" / "dem.tif"
+
+
+def _load_slope_deg(site_id: str, grid, data_dir: Path):
+    """`lake_area.dem_slope_deg` from `_dem_path`, or `None` if no DEM is on disk yet or it can't
+    be read -- radar-shadow slope masking is then simply skipped for this fetch (the existing
+    `radar_shadow` caveat already discloses the resulting risk); this must never fail the whole
+    fetch over a missing/bad DEM file."""
+    dem_path = _dem_path(site_id, data_dir)
+    if not dem_path.is_file():
+        log.info("no DEM at %s; skipping S1 radar-shadow slope masking this fetch", dem_path)
+        return None
+    try:
+        return la.dem_slope_deg(dem_path, grid)
+    except Exception as e:
+        log.warning("could not compute slope from %s, skipping slope masking: %s", dem_path, e)
+        return None
+
+
 def _fetch_lake_area(
     site_id: str, cfg: SiteConfig, dam: Dam, provider: Provider, settings: GeeSettings, data_dir: Path,
 ) -> tuple[list[dict], dict, dict | None]:
@@ -109,6 +137,7 @@ def _fetch_lake_area(
     fresh_rows: list[dict] = []
     month_detail: dict[str, dict] = {}
     latest_component = None  # (date_str, component, grid)
+    slope_deg, slope_computed = None, False  # computed lazily on first S1 month, cached after that
 
     for month_start in months:
         date_str = month_start.isoformat()
@@ -146,8 +175,14 @@ def _fetch_lake_area(
         below = method == "s1_threshold"
         threshold = la.otsu_threshold(raster.index, clamp)
         nir = raster.nir if method == "s2_water_index" else None
-        mask = la.water_mask(raster.index, threshold, below=below,
-                              nir=nir, nir_max=settings.nir_reflectance_max)
+        if method == "s1_threshold" and not slope_computed:
+            slope_deg = _load_slope_deg(site_id, grid, data_dir)
+            slope_computed = True
+        mask = la.water_mask(
+            raster.index, threshold, below=below, nir=nir, nir_max=settings.nir_reflectance_max,
+            slope_deg=(slope_deg if method == "s1_threshold" else None),
+            max_slope_deg=settings.max_slope_deg,
+        )
         component = la.seed_component(mask, seed_rc)
         area_m2 = la.component_area_m2(component, grid)
 

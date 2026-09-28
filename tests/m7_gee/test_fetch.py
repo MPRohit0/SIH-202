@@ -129,6 +129,41 @@ class TestRunEndToEnd:
         bridged_area = cache.read_lake_area("synth", tmp_path / "bridged")[0]["area_m2"]
         assert bridged_area == pytest.approx(plain_area, rel=0.05)
 
+    def test_s1_month_applies_dem_slope_masking_when_a_dem_is_present(self, tmp_path, monkeypatch):
+        """End-to-end wiring check (docs/decisions.md 2026-09-28 "mask slopes steeper than ~6
+        degrees"): when a DEM exists at fetch._dem_path, its slope reaches la.water_mask for an S1
+        month. Uses a monkeypatched la.dem_slope_deg (real DEM I/O + gradient math is covered
+        directly in tests/m7_gee/test_lake_area.py::TestSlopeMasking) so this test only needs to
+        prove fetch.py actually wires the slope array through, not re-verify the raster math."""
+        months = fetch._month_starts(1)
+        key = months[0].strftime("%Y-%m")
+        settings = GeeSettings(months_back=1)
+        provider = SyntheticProvider(cloudy_months=(key,))  # forces the S1 fallback this month
+
+        dem_path = fetch._dem_path("synth", tmp_path)
+        dem_path.parent.mkdir(parents=True)
+        dem_path.write_bytes(b"")  # only its existence is checked; dem_slope_deg is monkeypatched
+
+        from backend.m7_gee import lake_area as la
+
+        monkeypatch.setattr(la, "dem_slope_deg", lambda path, grid: __import__("numpy").full(grid.shape, 20.0))
+        fetch.run("synth", settings=settings, provider=provider, data_dir=tmp_path)
+        rows = cache.read_lake_area("synth", tmp_path)
+        assert rows[0]["method"] == "s1_threshold"
+        assert rows[0]["area_m2"] == 0.0  # every pixel excluded by the 20deg-everywhere slope mask
+
+    def test_s1_month_skips_slope_masking_gracefully_with_no_dem(self, tmp_path):
+        """No DEM at fetch._dem_path (the common case before ITEM 1 lands one for every site) must
+        not fail the fetch -- the S1 month is still computed, just without slope masking."""
+        months = fetch._month_starts(1)
+        key = months[0].strftime("%Y-%m")
+        provider = SyntheticProvider(cloudy_months=(key,))
+        result = fetch.run("synth", settings=GeeSettings(months_back=1), provider=provider, data_dir=tmp_path)
+        assert result.errors == []
+        rows = cache.read_lake_area("synth", tmp_path)
+        assert rows[0]["method"] == "s1_threshold"
+        assert rows[0]["area_m2"] is not None and rows[0]["area_m2"] > 0.0
+
     def test_reference_area_override_feeds_the_recheck(self, tmp_path):
         fetch.run("synth", settings=GeeSettings(months_back=1), provider=SyntheticProvider(),
                    data_dir=tmp_path, reference_area_m2=1.0)
