@@ -18,7 +18,10 @@ from backend.m0_api import schemas
 
 # Sites this mock server "knows about" — matches sites/*.yaml. Any other
 # syntactically valid site_id gets a 404 (contract §2.7 `site_not_found`).
-KNOWN_SITE_IDS = ("teesta", "rishiganga")
+# Rishi Ganga is not in this MVP: the 2021 Chamoli event was a rock-ice avalanche / mass flow,
+# not a dam breach, and there is no sites/rishiganga.yaml (docs/progress.md 2026-09-28 "Demo
+# stabilization pass, item 4").
+KNOWN_SITE_IDS = ("teesta",)
 
 _ID_KEYS = {"site_id", "query_id", "job_id", "event_id", "run_id", "scenario_id"}
 

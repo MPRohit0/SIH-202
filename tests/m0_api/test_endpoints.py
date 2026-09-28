@@ -42,7 +42,7 @@ client = TestClient(app)
 
 API = "/api/v1"
 KNOWN_SITE = "teesta"
-OTHER_SITE = "rishiganga"
+NOT_CONFIGURED_SITE = "rishiganga"  # not in this MVP: docs/progress.md 2026-09-28 item 4
 UNKNOWN_SITE = "nosuchsite"
 QUERY_ID = "q_20260924T101500Z_3fa9c1"
 JOB_ID = "job_20260924T101500Z_b17e02"
@@ -84,7 +84,12 @@ def test_list_sites():
     assert r.status_code == 200
     body = r.json()
     assert_matches("site_list.schema.json", body)
-    assert {s["site_id"] for s in body} >= {KNOWN_SITE, OTHER_SITE}
+    site_ids = {s["site_id"] for s in body}
+    assert KNOWN_SITE in site_ids
+    # Rishi Ganga is not configured in this MVP; a listed site must not 404 when opened.
+    assert NOT_CONFIGURED_SITE not in site_ids
+    for site_id in site_ids:
+        assert client.get(f"{API}/sites/{site_id}").status_code == 200
 
 
 def test_get_site_detail_known():
@@ -95,12 +100,13 @@ def test_get_site_detail_known():
     assert body["site_id"] == KNOWN_SITE
 
 
-def test_get_site_detail_other_site_is_patched_not_hardcoded():
-    r = client.get(f"{API}/sites/{OTHER_SITE}")
-    assert r.status_code == 200
+def test_get_site_detail_rishiganga_not_configured_with_reason():
+    r = client.get(f"{API}/sites/{NOT_CONFIGURED_SITE}")
+    assert r.status_code == 404
     body = r.json()
-    assert_matches("site_detail.schema.json", body)
-    assert body["site_id"] == OTHER_SITE
+    assert_matches("error.schema.json", body["detail"])
+    assert body["detail"]["error"]["code"] == "site_not_found"
+    assert "rock-ice avalanche" in body["detail"]["error"]["message"]
 
 
 def test_get_site_detail_unknown_is_404_with_error_shape():

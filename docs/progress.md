@@ -2046,3 +2046,30 @@ Teesta base flow and other physical data need sourcing before production use.
 - Verified live in the browser that Monitoring keeps its existing honest state: "No digitized
   event extent available" plus the two actual cached Sentinel-2 images
   (`sikkim_glof_2023 · pre`/`post`, 2023-09-26/2023-10-26). No code change was needed or made.
+
+## 2026-09-28 — Demo stabilization pass, item 4: Rishi Ganga removed from the MVP
+
+- `mocks.KNOWN_SITE_IDS` (`backend/m0_api/mocks.py`) claimed to match `sites/*.yaml`, but listed
+  `"rishiganga"` even though no `sites/rishiganga.yaml` exists — the comment was already wrong.
+  Every site-scoped endpoint that used it (`/sites/{id}`, `/gee/{id}`, `/compare/{id}`,
+  `/validation/{id}`, `POST /flood/query`) was serving **contract-example payloads with fake
+  scores** for a site that was never actually onboarded. Dropped `"rishiganga"` from
+  `mocks.KNOWN_SITE_IDS` and the separate `worker.KNOWN_SITE_IDS` copy (kept in sync, matching the
+  existing pattern); `_require_known_site` now 404s it with an explicit reason: "Rishi Ganga is not
+  configured in this MVP: the 2021 Chamoli event was a rock-ice avalanche / mass flow, not a dam
+  breach." `GET /sites` now filters the example fixture's base list down to entries
+  `_require_known_site` would also accept, so a listed site never 404s when opened —
+  `contracts/examples/site_list.example.json` itself is untouched (it's a schema reference
+  fixture, not a live registry).
+- Checked the frontend: it has no hardcoded Rishi Ganga/Chamoli copy anywhere (`grep -rn -i
+  "rishi\|chamoli" frontend/src frontend/app` — no matches); the site selector is fully
+  driven by `/sites`, so it disappears automatically once the backend stops listing it. No
+  frontend change was needed.
+- Verified via `TestClient`: `GET /sites` now returns only `["teesta"]`; `/sites/rishiganga`,
+  `/gee/rishiganga`, `/compare/rishiganga`, `/validation/rishiganga`, and
+  `POST /flood/query {site_id: rishiganga}` all return 404 with the reason above.
+- Updated `tests/m0_api/test_endpoints.py`: `test_list_sites` now asserts Rishi Ganga is absent and
+  every listed site opens successfully; the old
+  `test_get_site_detail_other_site_is_patched_not_hardcoded` (which relied on Rishi Ganga being a
+  second working site) is replaced with `test_get_site_detail_rishiganga_not_configured_with_reason`.
+- Tests: `tests/m0_api`: **178 passed, 1 skipped**. Frontend `tsc --noEmit` passes.

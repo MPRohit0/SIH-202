@@ -53,7 +53,7 @@ SIM_STAGES = {"simulating"}
 
 #: Sites the scheduler considers for re-checks. Matches `mocks.KNOWN_SITE_IDS` -- kept as a
 #: separate constant so the worker doesn't import the API's mock layer for a list of site ids.
-KNOWN_SITE_IDS = ("teesta", "rishiganga")
+KNOWN_SITE_IDS = ("teesta",)
 
 
 class WorkerAlreadyRunning(RuntimeError):

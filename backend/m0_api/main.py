@@ -86,9 +86,13 @@ def _validated_json(schema_name: str, payload: Any, status_code: int = 200) -> J
 
 def _require_known_site(site_id: str) -> None:
     if site_id not in mocks.KNOWN_SITE_IDS and not (registry.data_dir() / site_id / "config" / f"{site_id}.yaml").is_file():
+        message = (f"No site '{site_id}' is configured."
+                   if site_id != "rishiganga" else
+                   "Rishi Ganga is not configured in this MVP: the 2021 Chamoli event was a "
+                   "rock-ice avalanche / mass flow, not a dam breach.")
         raise HTTPException(
             status_code=404,
-            detail=mocks.error("site_not_found", f"No site '{site_id}' is configured.", {"site_id": site_id}),
+            detail=mocks.error("site_not_found", message, {"site_id": site_id}),
         )
 
 
@@ -123,7 +127,12 @@ def get_styles() -> JSONResponse:
 # =============================================================================
 @app.get(f"{API}/sites")
 def list_sites() -> JSONResponse:
-    sites = mocks.mock_response("site_list.example.json")
+    # The example fixture may list sites this MVP doesn't actually serve (contract examples are
+    # reference fixtures, not a live site registry): only list ones `_require_known_site` would
+    # also accept, so a listed site never 404s when opened.
+    sites = [s for s in mocks.mock_response("site_list.example.json")
+             if s["site_id"] in mocks.KNOWN_SITE_IDS
+             or (registry.data_dir() / s["site_id"] / "config" / f"{s['site_id']}.yaml").is_file()]
     for config_path in registry.data_dir().glob("*/config/demo_valley.yaml"):
         site_id = config_path.parent.parent.name
         if not any(item["site_id"] == site_id for item in sites):
