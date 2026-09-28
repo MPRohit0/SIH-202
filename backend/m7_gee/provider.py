@@ -159,10 +159,15 @@ class EarthEngineProvider:
             cloud = img.select("SCL").remap(S2_SCL_CLOUD_CLASSES, [1] * len(S2_SCL_CLOUD_CLASSES), 0)
             stat = cloud.reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi,
                                        scale=grid.cell_size_m, maxPixels=1e9, bestEffort=True)
-            return ee.Feature(None, {"id": img.get("system:index"), "cloud_frac": stat.get("SCL")})
+            # reduceRegion returns an EMPTY dictionary (no "SCL" key at all, not a null value) when
+            # zero pixels of this granule actually fall inside the small AOI rectangle -- seen live
+            # for a real Teesta 2023-09 scene. Default to fully cloudy (1.0) so an unmeasurable
+            # scene is safely deprioritised by pick_clearest_scene rather than crashing .getInfo()
+            # or, worse, silently sorting first as if it were perfectly clear.
+            return ee.Feature(None, {"id": img.get("system:index"), "cloud_frac": stat.get("SCL", 1.0)})
 
         cloud_info = coll.map(_cloud_frac).getInfo()["features"]
-        cloud_pct_by_id = {f["properties"]["id"]: 100.0 * (f["properties"]["cloud_frac"] or 0.0)
+        cloud_pct_by_id = {f["properties"]["id"]: 100.0 * (f["properties"]["cloud_frac"] if f["properties"]["cloud_frac"] is not None else 1.0)
                             for f in cloud_info}
         clearest_id = pick_clearest_scene(cloud_pct_by_id)
         img = coll.filter(ee.Filter.eq("system:index", clearest_id)).first()
