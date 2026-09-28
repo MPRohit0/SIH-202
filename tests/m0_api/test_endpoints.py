@@ -586,8 +586,14 @@ def test_get_compare_real_when_written(data_dir):
     assert body["gp_vs_linear"]["iou_median_gp"] == 0.42
     assert body["gp_vs_linear"]["iou_median_linear"] == 0.20
     assert body["emulator_vs_physics"]["layers"][0]["style_id"] == "depth_diff"
-    # sph_vs_delft3d / when_to_use_key are unaffected -- still the mock (out of scope)
-    assert body["sph_vs_delft3d"] == schemas.load_example("compare.example.json")["sph_vs_delft3d"]
+    # sph_vs_delft3d must never be decorated with the contract example's fictitious zero-metric
+    # numbers just because a real emulator_vs_physics sidecar exists -- no paired SPH/D-Flow FM
+    # near-field run exists for this scenario, so it stays an honest, explicit unavailable state.
+    assert body["sph_vs_delft3d"]["available"] is False
+    assert body["sph_vs_delft3d"]["run_ids"] == []
+    assert body["sph_vs_delft3d"]["metrics"] == {}
+    assert "teesta_s005__delft3d" in body["sph_vs_delft3d"]["unavailable_reason"]
+    assert "teesta_s005__sph" in body["sph_vs_delft3d"]["unavailable_reason"]
     assert any(c["id"] == "synthetic_world_not_real_physics" for c in body["caveats"])
 
 

@@ -1,10 +1,18 @@
 """M0's half of Compare's "emulator vs physics" / "GP vs linear" sections
 (`docs/handoff_contract.md` §5.6, route #15): reads what
 `backend.m5_emulator.compare.write_compare_inputs` wrote under
-`data/<site_id>/emulator/<model>/validation/compare/`, merges it into the
-mock `compare.example.json` shape (`sph_vs_delft3d`/`when_to_use_key` stay
-mocked -- no real SPH/Delft3D run data exists yet, out of scope here), and
-renders/caches the depth-difference PNG with M0-5 (`rendering.py`).
+`data/<site_id>/emulator/<model>/validation/compare/`, and renders/caches the
+depth-difference PNG with M0-5 (`rendering.py`).
+
+`sph_vs_delft3d` has no real data source anywhere in this codebase yet: it
+needs a *paired* run -- `summary_nearfield/*.tif` for both `<scenario_id>__
+delft3d` and `<scenario_id>__sph` under `data/<site_id>/runs/` (contract
+§4.4/§1.8) -- and no code computes the depth-diff/arrival-probe metrics from
+that pair even when both exist (that's the SPH-vs-D-Flow comparison task,
+gated on a validated SPH near-field run). `build_response` therefore always
+reports `sph_vs_delft3d.available: false`, naming the exact paths a real
+comparison would need, instead of decorating a real `emulator_vs_physics`
+sidecar with the contract example's fictitious zero-metric SPH numbers.
 """
 
 from __future__ import annotations
@@ -12,7 +20,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from backend.m0_api import mocks, registry, rendering
+from backend.m0_api import registry, rendering
 
 #: contract §1.7 model enum -- tried in order when resolving a scenario_id
 #: to a held-out run_id, since the request only names the scenario.
@@ -35,23 +43,46 @@ def find_compare_sidecar(site_id: str, scenario_id: str | None) -> tuple[str, st
     return None
 
 
+def _sph_vs_delft3d_unavailable(site_id: str, scenario_id: str) -> dict:
+    """Honest `available: false` state naming the two real inputs (contract
+    §4.4 `summary_nearfield/*.tif`) a paired SPH/D-Flow FM comparison needs --
+    neither exists for any scenario yet, and no code computes the diff even
+    when they do."""
+    needed = [
+        f"data/{site_id}/runs/{scenario_id}__delft3d/summary_nearfield/",
+        f"data/{site_id}/runs/{scenario_id}__sph/summary_nearfield/",
+    ]
+    return {
+        "available": False, "domain": "nearfield", "time_window_s": 0,
+        "metrics": {}, "probes": [], "layers": [],
+        "run_ids": [], "unavailable_reason": (
+            "No paired SPH/D-Flow FM near-field run exists for this scenario, and no comparison "
+            f"pipeline computes the diff yet. Needed: {' and '.join(needed)}"
+        ),
+    }
+
+
 def build_response(site_id: str, scenario_id: str, model: str, held_out_run_id: str, sidecar_path: Path) -> dict:
-    """The full `Compare` dict, `emulator_vs_physics`/`gp_vs_linear` real,
-    everything else from the mock example."""
+    """The full `Compare` dict: `emulator_vs_physics`/`gp_vs_linear` real from
+    the sidecar, `sph_vs_delft3d` an honest unavailable state (see module
+    docstring)."""
     sidecar = json.loads(sidecar_path.read_text())
-    response = mocks.mock_response("compare.example.json", site_id=site_id, scenario_id=scenario_id)
 
     diff_url = f"/api/v1/files/{site_id}/emulator/{model}/validation/compare/{held_out_run_id}__depth_diff.png"
-    response["emulator_vs_physics"] = {
-        "available": True, "held_out_run_id": held_out_run_id, "metrics": sidecar["metrics"],
-        "layers": [{
-            "layer_id": DIFF_LAYER_ID, "type": "raster_png", "url": diff_url,
-            "bounds_latlng": sidecar["bounds_latlng"], "style_id": "depth_diff", "unit": "m", "available": True,
-        }],
+    return {
+        "site_id": site_id, "scenario_id": scenario_id,
+        "sph_vs_delft3d": _sph_vs_delft3d_unavailable(site_id, scenario_id),
+        "emulator_vs_physics": {
+            "available": True, "held_out_run_id": held_out_run_id, "metrics": sidecar["metrics"],
+            "layers": [{
+                "layer_id": DIFF_LAYER_ID, "type": "raster_png", "url": diff_url,
+                "bounds_latlng": sidecar["bounds_latlng"], "style_id": "depth_diff", "unit": "m", "available": True,
+            }],
+        },
+        "gp_vs_linear": sidecar["gp_vs_linear"],
+        "when_to_use_key": "when_to_use_emulator_vs_physics_only",
+        "caveats": sidecar["caveats"],
     }
-    response["gp_vs_linear"] = sidecar["gp_vs_linear"]
-    response["caveats"] = [*response["caveats"], *sidecar["caveats"]]
-    return response
 
 
 def render_diff_layer(sidecar_path: Path, held_out_run_id: str) -> bytes:
