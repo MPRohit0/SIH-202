@@ -69,6 +69,42 @@ def test_direct_delft3d_query_flags_dem_pit_and_steep_reach(data_dir):
     assert 0.0 < diagnostics["dem_pit_fraction_of_wet_area"] <= 1.0
 
 
+def test_direct_solver_bounds_latlng_is_lat_first(data_dir):
+    """Regression for docs/progress.md 2026-09-28 "STEP 2": resolve_registered_run's
+    layers[].bounds_latlng, on a Teesta-realistic UTM 45N summary raster (~28N, ~87E -- a
+    magnitude check can't tell these apart), must come back contract-ordered
+    [[south,west],[north,east]], not the axis-swapped order this path used to emit."""
+    site_dir = data_dir / "teesta"
+    run_id, scenario_id = "s003__delft3d", "s003"
+    run_dir = site_dir / "runs" / run_id
+    summary = run_dir / "summary"
+    summary.mkdir(parents=True)
+    depth_profile = {"driver": "GTiff", "height": 2, "width": 2, "count": 1, "dtype": "float32",
+                      "crs": "EPSG:32645", "transform": from_origin(500000, 3100000, 30, 30),
+                      "nodata": -9999.0}
+    for name in ("max_depth.tif", "max_velocity.tif", "arrival_time.tif"):
+        with rasterio.open(summary / name, "w", **depth_profile) as ds:
+            ds.write(np.full((2, 2), 1.0, dtype="float32"), 1)
+
+    (run_dir / "run_meta.json").write_text(json.dumps(
+        {"run_id": run_id, "scenario_id": scenario_id, "thresholds": {"extent_m": 0.3}}))
+    with registry.connect() as conn:
+        conn.execute("INSERT INTO scenarios VALUES (?,?,?,?,?)",
+                     (scenario_id, "teesta", "design", json.dumps({}), registry.utc_now()))
+        conn.execute("INSERT INTO runs (run_id,scenario_id,model,status,run_dir,meta_json) "
+                     "VALUES (?,?,?,?,?,?)",
+                     (run_id, scenario_id, "delft3d", "postprocessed", str(run_dir),
+                      json.dumps({"has_placeholders": False, "placeholder_fields": []})))
+
+    result = real_query.resolve_registered_run("teesta", scenario_id, "delft3d",
+                                                "q_test_0002", {"inputs": {}}, data_dir=data_dir)
+
+    depth_layer = next(l for l in result["layers"] if l["layer_id"] == "depth_p50")
+    (south, west), (north, east) = depth_layer["bounds_latlng"]
+    assert 27.0 < south < north < 29.0, f"expected latitudes ~27-29N, got south={south}, north={north}"
+    assert 86.0 < west < east < 88.0, f"expected longitudes ~86-88E, got west={west}, east={east}"
+
+
 def test_direct_sph_query_skips_dem_diagnostics(data_dir):
     """The DEM classifier only applies to the delft3d path (SPH's near-field grid and depth
     definition are different; that comparison stays hidden entirely -- item 2)."""

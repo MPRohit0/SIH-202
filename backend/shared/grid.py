@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pyproj import Transformer
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
-from rasterio.warp import reproject
+from rasterio.warp import reproject, transform_bounds
 
 from .site_config import SiteConfig, SourcedValue
 
@@ -253,6 +253,25 @@ def resample_to_grid(src, grid: CanonicalGrid, method: str | None = None, src_no
         resampling=RESAMPLING_METHODS[method],
     )
     return dst
+
+
+def raster_bounds_latlng(src) -> list[list[float]]:
+    """The contract's `bounds_latlng` (§1.3): `[[south_lat, west_lon], [north_lat, east_lon]]`,
+    reprojected from a raster's own CRS and transform (path or open rasterio dataset).
+
+    The axis order here is fixed by construction -- `transform_bounds` always returns
+    (west, south, east, north) in the destination CRS's axis order (lon, lat for EPSG:4326) --
+    never inferred from coordinate magnitude. That matters because a magnitude check can't
+    disambiguate the two orders for a Himalayan site: longitudes there (~74-95°E) are themselves
+    a valid latitude, so `docs/progress.md` 2026-09-28 "STEP 2" root-caused a real bug from a
+    hand-rolled `[[west,south],[east,north]]` producer (`real_query.py`/`real_timeline.py`) that
+    every consumer then had to individually compensate for. Every `bounds_latlng` producer should
+    call this one function instead of reimplementing the order by hand."""
+    if isinstance(src, (str, Path)):
+        with rasterio.open(src) as ds:
+            return raster_bounds_latlng(ds)
+    west, south, east, north = transform_bounds(src.crs, "EPSG:4326", *src.bounds, densify_pts=21)
+    return [[float(south), float(west)], [float(north), float(east)]]
 
 
 def write_grid_raster(path: str | Path, array: np.ndarray, grid: CanonicalGrid) -> Path:

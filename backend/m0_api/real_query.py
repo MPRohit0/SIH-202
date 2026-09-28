@@ -7,13 +7,13 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
-from rasterio.warp import transform_bounds
 from pyproj import Transformer
 from rasterio.features import shapes
 from shapely.geometry import mapping, shape
 from shapely.ops import transform as transform_geometry, unary_union
 
 from backend.m0_api import dem_diagnostics, registry
+from backend.shared.grid import raster_bounds_latlng
 
 
 def _estimate(value, unit: str, run_id: str) -> dict:
@@ -23,9 +23,11 @@ def _estimate(value, unit: str, run_id: str) -> dict:
 
 
 def _bounds_latlng(path: Path) -> list[list[float]]:
-    with rasterio.open(path) as ds:
-        west, south, east, north = transform_bounds(ds.crs, "EPSG:4326", *ds.bounds, densify_pts=21)
-        return [[float(west), float(south)], [float(east), float(north)]]
+    """Contract §1.3 `[[south_lat, west_lon], [north_lat, east_lon]]` (docs/progress.md
+    2026-09-28 "STEP 2": this used to return `[[west,south],[east,north]]` instead, a real
+    axis-order bug every consumer had to compensate for -- fixed at the source via the shared
+    `raster_bounds_latlng`, whose axis order is fixed by construction, not guessed)."""
+    return raster_bounds_latlng(path)
 
 
 def _first_arrival(site_dir: Path, run_id: str) -> tuple[str, str, float | None]:

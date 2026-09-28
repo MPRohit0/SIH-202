@@ -16,6 +16,7 @@ import xarray as xr
 from rasterio.features import rasterize
 
 from backend.m3_common.postprocess import _faces, _rasterize, _time_seconds, _write_raster
+from backend.shared.grid import raster_bounds_latlng
 
 
 def _provenance_path(path: Path) -> str:
@@ -45,9 +46,9 @@ def create_timeline(site_dir: Path, query_dir: Path, run_id: str) -> Path:
                 "crs_epsg": ds.crs.to_epsg()}
         transform = ds.transform
         domain_mask = ds.read(1) != ds.nodata
-        from rasterio.warp import transform_bounds
-        west, south, east, north = transform_bounds(ds.crs, "EPSG:4326", *ds.bounds, densify_pts=21)
-        bounds_latlng = [[float(west), float(south)], [float(east), float(north)]]
+        # Contract §1.3 [[south,west],[north,east]] -- see docs/progress.md 2026-09-28 "STEP 2":
+        # this used to be a hand-rolled [[west,south],[east,north]], a real axis-order bug.
+        bounds_latlng = raster_bounds_latlng(ds)
 
     timeline_dir = query_dir / "timeline"
     timeline_dir.mkdir(parents=True, exist_ok=True)

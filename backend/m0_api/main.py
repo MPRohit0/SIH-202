@@ -611,16 +611,15 @@ _EXPORT_MEDIA_TYPES = {
 
 
 def _bounds_lonlat(bounds: list[list[float]] | None) -> list[list[float]] | None:
-    """`layers[].bounds_latlng` is documented `[[south_lat, west_lon], [north_lat, east_lon]]`
-    (contract §1.3), but the only code path that actually writes it for a registered query
-    (`real_query.py:_bounds_latlng`) stores `[[west_lon, south_lat], [east_lon, north_lat]]`
-    instead -- confirmed by reading that function, not inferred. Magnitude can't disambiguate
-    the two orders here (Teesta's longitudes, ~88, are themselves a valid latitude), so this
-    trusts the known real_query.py order rather than guessing; a `bounds_latlng` producer for
-    another mode/site would need this updated too."""
+    """Converts a contract-standard `bounds_latlng` (§1.3, `[[south,west],[north,east]]`) into
+    the `[[west,east],[south,north]]` pairs `exports.build_pdf_report`'s map panel expects
+    (matplotlib's `imshow(extent=...)` order). `real_query.py`/`real_timeline.py` used to emit
+    `bounds_latlng` axis-swapped, which this function once had to compensate for by trusting a
+    known producer bug rather than the field's documented order; that bug is now fixed at the
+    source (docs/progress.md 2026-09-28 "STEP 2"), so this is a plain, unconditional reorder."""
     if not bounds:
         return None
-    (west, south), (east, north) = bounds
+    (south, west), (north, east) = bounds
     return [[west, east], [south, north]]
 
 

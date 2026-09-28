@@ -15,6 +15,7 @@ from backend.shared.grid import (
     build_nearfield_grid,
     build_site_grids,
     lonlat_to_rowcol,
+    raster_bounds_latlng,
     resample_to_grid,
     rowcol_to_lonlat,
     write_grid_raster,
@@ -83,6 +84,24 @@ def test_bounds_latlng_contains_bbox(synth_config, far):
     (south, west), (north, east) = far.bounds_latlng
     min_lon, min_lat, max_lon, max_lat = synth_config.domains.far_field.bbox.value
     assert south <= min_lat and west <= min_lon and north >= max_lat and east >= max_lon
+
+
+def test_raster_bounds_latlng_is_lat_first_not_magnitude_guessed(tmp_path):
+    """Regression for docs/progress.md 2026-09-28 "STEP 2": a Teesta-realistic UTM 45N raster
+    (~28N, ~87E -- both coordinates are individually plausible as either a lat or a lon, so a
+    magnitude heuristic can't disambiguate them) must come back contract-ordered
+    [[south,west],[north,east]], not axis-swapped."""
+    path = tmp_path / "depth.tif"
+    profile = {"driver": "GTiff", "height": 2, "width": 2, "count": 1, "dtype": "float32",
+               "crs": "EPSG:32645", "transform": from_bounds(500000, 3099970, 500060, 3100000, 2, 2),
+               "nodata": -9999.0}
+    with rasterio.open(path, "w", **profile) as ds:
+        ds.write(np.zeros((2, 2), dtype="float32"), 1)
+
+    (south, west), (north, east) = raster_bounds_latlng(path)
+
+    assert 27.0 < south < north < 29.0, f"expected latitudes ~27-29N, got south={south}, north={north}"
+    assert 86.0 < west < east < 88.0, f"expected longitudes ~86-88E, got west={west}, east={east}"
 
 
 def test_null_bbox_raises(synth_config):
