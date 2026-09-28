@@ -41,6 +41,22 @@ S2_HARMONIZE_REFLECTANCE_SCALE = 0.0001
 MAX_UPSTREAM_HOPS = 25  # generous for a small Himalayan headwater catchment; guards a runaway walk
 
 
+def pick_clearest_scene(cloud_pct_by_id: dict) -> str | None:
+    """The `scene_id` with the lowest AOI cloud fraction, or `None` if `cloud_pct_by_id` is empty.
+    Ties break on `scene_id` so the choice is deterministic.
+
+    Extracted as a pure function so scene selection is testable without a live Earth Engine
+    session, the same pattern as `walk_upstream_basin_ids` below. Used by
+    `EarthEineProvider.s2_month` to search a whole calendar month for its single clearest S2 scene
+    instead of median-compositing every scene together -- a month with one clear scene and several
+    cloudy ones previously reported an averaged-down `valid_pct` low enough to spuriously fall back
+    to Sentinel-1 (docs/decisions.md 2026-09-28 "M7 GEE fetch: search each month for the clearest
+    S2 scene")."""
+    if not cloud_pct_by_id:
+        return None
+    return min(cloud_pct_by_id, key=lambda scene_id: (cloud_pct_by_id[scene_id], scene_id))
+
+
 def walk_upstream_basin_ids(seed_id, next_upstream) -> list:
     """The seed basin plus every basin upstream of it, found by repeatedly asking
     `next_upstream(frontier_ids) -> [basin_id, ...]` for the basins whose `NEXT_DOWN` is in the
@@ -125,6 +141,11 @@ class EarthEngineProvider:
         return ee.Geometry.Rectangle([left, bottom, right, top], proj=f"EPSG:{grid.epsg}", geodesic=False)
 
     def s2_month(self, grid: AoiGrid, month_start: date, month_end: date) -> MonthlyRaster | None:
+        """The single clearest S2 scene this month over the AOI (lowest SCL cloud fraction), not a
+        whole-month median composite: compositing several scenes together lets one or two cloudy
+        scenes drag down the reported `valid_pct` for a month that actually had one perfectly clear
+        scene, spuriously tripping the caller's cloud-percentage fallback to Sentinel-1
+        (`pick_clearest_scene`'s docstring; `docs/decisions.md` 2026-09-28)."""
         import ee
 
         aoi = self._aoi_rectangle(grid)
@@ -133,40 +154,43 @@ class EarthEngineProvider:
         ids = coll.aggregate_array("system:index").getInfo()
         if not ids:
             return None
-        times = coll.aggregate_array("system:time_start").getInfo()
-        dates = [datetime.fromtimestamp(t / 1000, tz=timezone.utc).strftime("%Y-%m-%d") for t in times]
 
-        def _mask_and_index(img):
-            scl = img.select("SCL")
-            cloud = scl.remap(S2_SCL_CLOUD_CLASSES, [1] * len(S2_SCL_CLOUD_CLASSES), 0)
-            valid = cloud.eq(0).rename("valid")
-            ndwi = img.normalizedDifference(["B3", "B8"]).rename("ndwi").updateMask(valid)
-            # B8 is stored as a 0-10000 DN; S2_HARMONIZE_REFLECTANCE_SCALE converts to 0-1
-            # reflectance so `settings.nir_reflectance_max` (a physical reflectance) applies directly.
-            nir = img.select("B8").multiply(S2_HARMONIZE_REFLECTANCE_SCALE).rename("nir").updateMask(valid)
-            ice = scl.eq(S2_SCL_SNOW_ICE_CLASS).rename("ice")
-            return ndwi.addBands(valid).addBands(nir).addBands(ice)
+        def _cloud_frac(img):
+            cloud = img.select("SCL").remap(S2_SCL_CLOUD_CLASSES, [1] * len(S2_SCL_CLOUD_CLASSES), 0)
+            stat = cloud.reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi,
+                                       scale=grid.cell_size_m, maxPixels=1e9, bestEffort=True)
+            return ee.Feature(None, {"id": img.get("system:index"), "cloud_frac": stat.get("SCL")})
 
-        composite = coll.map(_mask_and_index)
-        image = ee.Image.cat([
-            composite.select("ndwi").median().rename("ndwi"),
-            composite.select("valid").mean().rename("valid_frac"),
-            composite.select("nir").median().rename("nir"),
-            composite.select("ice").mean().rename("ice_frac"),
-        ]).clip(aoi)
+        cloud_info = coll.map(_cloud_frac).getInfo()["features"]
+        cloud_pct_by_id = {f["properties"]["id"]: 100.0 * (f["properties"]["cloud_frac"] or 0.0)
+                            for f in cloud_info}
+        clearest_id = pick_clearest_scene(cloud_pct_by_id)
+        img = coll.filter(ee.Filter.eq("system:index", clearest_id)).first()
+        acquisition_date = datetime.fromtimestamp(
+            img.get("system:time_start").getInfo() / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+
+        scl = img.select("SCL")
+        cloud = scl.remap(S2_SCL_CLOUD_CLASSES, [1] * len(S2_SCL_CLOUD_CLASSES), 0)
+        valid = cloud.eq(0).rename("valid")
+        ndwi = img.normalizedDifference(["B3", "B8"]).rename("ndwi").updateMask(valid)
+        # B8 is stored as a 0-10000 DN; S2_HARMONIZE_REFLECTANCE_SCALE converts to 0-1
+        # reflectance so `settings.nir_reflectance_max` (a physical reflectance) applies directly.
+        nir = img.select("B8").multiply(S2_HARMONIZE_REFLECTANCE_SCALE).rename("nir").updateMask(valid)
+        ice = scl.eq(S2_SCL_SNOW_ICE_CLASS).rename("ice")
+        image = ee.Image.cat([ndwi, valid, nir, ice]).clip(aoi)
 
         arr = self._compute_pixels(image, grid)
-        ndwi = np.asarray(arr["ndwi"], dtype=float)
-        valid_frac = np.asarray(arr["valid_frac"], dtype=float)
-        nir = np.asarray(arr["nir"], dtype=float)
-        ice_frac = np.asarray(arr["ice_frac"], dtype=float)
-        ndwi[valid_frac <= 0] = np.nan
-        nir[valid_frac <= 0] = np.nan
+        ndwi_arr = np.asarray(arr["ndwi"], dtype=float)
+        valid_arr = np.asarray(arr["valid"], dtype=float)
+        nir_arr = np.asarray(arr["nir"], dtype=float)
+        ice_arr = np.asarray(arr["ice"], dtype=float)
+        ndwi_arr[valid_arr <= 0] = np.nan
+        nir_arr[valid_arr <= 0] = np.nan
 
         return _Raster(
-            index=ndwi, valid_pct=float(100.0 * np.nanmean(valid_frac)),
-            snow_ice_pct=float(100.0 * np.nanmean(ice_frac)), nir=nir,
-            scene_ids=ids, acquisition_dates=dates,
+            index=ndwi_arr, valid_pct=float(100.0 * np.nanmean(valid_arr)),
+            snow_ice_pct=float(100.0 * np.nanmean(ice_arr)), nir=nir_arr,
+            scene_ids=[clearest_id], acquisition_dates=[acquisition_date],
         )
 
     def s1_month(self, grid: AoiGrid, month_start: date, month_end: date) -> MonthlyRaster | None:

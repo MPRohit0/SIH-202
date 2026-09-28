@@ -1,5 +1,30 @@
 # Team decisions
 
+## 2026-09-28 — M7 GEE fetch: search each month for the clearest S2 scene
+
+`EarthEngineProvider.s2_month` used to `.median()`-composite every Sentinel-2 scene found in a
+calendar month before computing NDWI/cloud coverage. A month with one genuinely clear scene and
+several cloudy ones then reported an averaged-down `valid_pct` (mean cloud-free fraction across
+the whole stack), which could fall below `GeeSettings.max_cloud_pct` even though a single usable
+scene existed — spuriously tripping `fetch.py`'s fallback to Sentinel-1 (and its radar-shadow
+risk, see the entries above) for a month S2 could actually have covered.
+
+**Fix:** added `pick_clearest_scene()` (pure, no `ee` needed) — picks the scene_id with the lowest
+AOI cloud fraction from a `{scene_id: cloud_pct}` mapping. `s2_month` now computes each scene's SCL
+cloud fraction over the AOI via a single batched `reduceRegion` per scene (client-side loop
+avoided — one `ImageCollection.map().getInfo()` call), picks the clearest scene, and extracts
+NDWI/NIR/valid/ice directly from that one image — no compositing. `scene_ids`/`acquisition_dates`
+now report the single chosen scene, not every scene GEE found that month, which is also more
+honest about exactly which pixels the reported area came from.
+
+No threshold changed (`max_cloud_pct`, `ndwi_threshold_clamp`, etc. are untouched) — this only
+changes which scene the existing thresholds are evaluated against.
+
+Tested via `pick_clearest_scene` directly (pure function, 4 cases: lowest wins, empty returns
+`None`, single scene, deterministic tie-break) — the same pattern `walk_upstream_basin_ids` already
+uses to keep `EarthEngineProvider`'s EE-dependent methods testable without a live session per that
+module's own docstring. `tests/m7_gee`: 110 passed (4 new), no regressions.
+
 ## 2026-09-28 — M7 GEE fetch: NIR test excludes snow from S2 water mask
 
 Diagnosed the 2026-09-28 live Teesta fetch's South Lhonak lake-area overestimate (4,348,200 m² /

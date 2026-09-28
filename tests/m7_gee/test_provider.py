@@ -9,7 +9,23 @@ the manual live smoke test (`docs/decisions.md` "M7 GEE fetch"), not here.
 from __future__ import annotations
 
 from backend.m7_gee.lake_area import AoiGrid
-from backend.m7_gee.provider import EarthEngineProvider, MAX_UPSTREAM_HOPS, walk_upstream_basin_ids
+from backend.m7_gee.provider import (
+    EarthEngineProvider, MAX_UPSTREAM_HOPS, pick_clearest_scene, walk_upstream_basin_ids,
+)
+
+
+class TestPickClearestScene:
+    def test_picks_the_lowest_cloud_fraction(self):
+        assert pick_clearest_scene({"a": 40.0, "b": 5.0, "c": 90.0}) == "b"
+
+    def test_empty_collection_returns_none(self):
+        assert pick_clearest_scene({}) is None
+
+    def test_single_scene_is_trivially_chosen(self):
+        assert pick_clearest_scene({"only": 87.3}) == "only"
+
+    def test_ties_break_deterministically_on_scene_id(self):
+        assert pick_clearest_scene({"z_scene": 10.0, "a_scene": 10.0}) == "a_scene"
 
 
 class TestWalkUpstreamBasinIds:
