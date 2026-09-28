@@ -2310,6 +2310,68 @@ blocker to a real Compare page.
   backend `py_compile` clean; `.venv/bin/pytest -q tests/m0_api`: **179 passed, 1 skipped** (no
   regressions); full Playwright visual suite: **13/13 unchanged** (no baseline touches the 3D tab).
 
+## 2026-09-28 — Validation tab: honest content instead of a raw JSON dump
+
+Task D. Branch `mvp/validation` (created fresh off `main`; `mvp/exports`/`mvp/2d-map-satellite` were at
+the same commit, so this doesn't fork off another task's in-progress work).
+
+- **Diagnosis first.** `GET /validation/{site_id}[?event=]` (`backend/m0_api/main.py`) was already honest
+  for real-run sites (no fabricated LOOCV numbers), but had nothing real to report: no M5 LOOCV was ever
+  trained/saved for Teesta, and no observed 2023 flood extent was ever digitized via
+  `backend.m7_gee.observed`. The frontend (`frontend/app/sentriq/app.tsx`) never even called the
+  `?event=` branch — `source.getHistoricalValidation` didn't exist — and its only "success" rendering was
+  `<pre>{JSON.stringify(validationData.summary)}</pre>`, plus it borrowed Compare-tab loading/error copy.
+- **Built**, all in `backend/m0_api/validation_helpers.py` (new, owned module; `main.py`'s `get_validation`
+  handler — the only route I touched — now calls it):
+  - `observed_extent_status`: looks for `data/<site>/gee/observed/<event>_observed.geojson`; if absent,
+    says so plainly instead of inventing IoU/F1 (item 2a from the task).
+  - `build_literature_comparison`: reads this run's own `timeseries.csv` at the Chungthang POI (peak
+    depth/velocity, arrival `s_since_t0`), derives absolute t0 from the breach hydrograph's own
+    `peak_time_ist - duration_s/2` construction formula, and compares against the Sikkim-flood and
+    South-Lhonak-GLOF reconstruction citations already in `docs/data_sources.md` (src_044/045) — labelled
+    throughout as "comparison with other model reconstructions, not observations" (item 2b). Peak
+    discharge (m³/s) is explicitly reported as not comparable: this run's POI output has depth/velocity/
+    WSE only, no cross-section discharge, and the 7355 m³/s src_045 figure was already this run's own
+    upstream forcing target, so it can't be an independent check either way — confirmed with the user
+    rather than guessing a channel width to force a number.
+  - `build_predicted_extent`: a real computed value (not invented) — flooded area from this run's own
+    `summary/max_depth.tif` at its own `thresholds.extent_m`, returned as a proper low-confidence
+    `predicted` Estimate.
+  - `synthetic_loocv_summary`: surfaces `reports/m5_synthetic/validation/loocv.json` (the M5
+    acceptance-test synthetic world), clearly labelled `"world": "synthetic_test_world"` and explicitly
+    "not a Teesta-specific validation" — path overridable via `SIH26_M5_SYNTHETIC_LOOCV_REPORT` for tests
+    (item 2c).
+  - The real event id is read from the loaded site config (`sites/teesta.yaml` declares
+    `sikkim_glof_2023`, not the contract example's generic `teesta_2023`) and now returned in the plain
+    `/validation/{site_id}` response's `events` field, so the frontend can discover it generically instead
+    of hardcoding a site-specific event id.
+- **Frontend** (`app.tsx`, `frontend/src/data/api.ts` + `source.ts`, `frontend/src/content/ui_text.json`):
+  wired `getHistoricalValidation`, replaced the borrowed Compare-tab loading/error strings with
+  validation-specific ones, kept the existing raw-JSON-dump pattern for the LOOCV summary (matches the
+  file's established style, `frontend/CLAUDE.md`'s "reuse existing components"), and added a literature
+  comparison table plus observed/caveat notices using the existing `Table`/`Empty`/`Badge`/`s-notice`
+  components — no new UI library, no visual redesign.
+- **Verified.** `.venv/bin/pytest -q tests/m0_api/test_validation_helpers.py tests/m0_api/test_endpoints.py
+  -k validation`: **20 passed** (12 new unit tests for the helper module, 6 new + 2 existing endpoint
+  tests, including the real Chungthang-timeseries/hydrograph fixture case and the observed-extent-present
+  case). `npx tsc --noEmit` clean. Full Playwright visual suite: **13/13 passed** after intentionally
+  updating only `validation.png` (the panel is taller now); confirmed against a live backend + real Teesta
+  data that the extra content is real (arrival 2023-10-04T07:40 IST simulated vs. 00:30 IST cited, peak
+  discharge rows correctly marked "not computed by this run"), not mock output.
+- **Touched outside my ownership:** none knowingly — `get_validation` was already my assigned handler.
+  While working, `backend/m0_api/main.py` was being concurrently edited in the same working tree by
+  another session (Task A, `export_query` — shapefile/PDF export rework); my diff only touches
+  `get_validation` and one new import line, but the file on disk mixes both changes since this isn't a
+  git worktree. One pre-existing full-suite failure, `test_i1_synthetic_e2e.py::test_i1_demo_site_to_generated_artifacts`
+  (`result.json` missing from the exported shapefile zip), is inside that concurrent work, not mine — left
+  untouched.
+- **Still limited:** no real M5 LOOCV library exists for Teesta (only the synthetic acceptance-test world,
+  clearly labelled as such), and no observed 2023 flood extent has been digitized, so extent IoU/F1 still
+  isn't possible — both are now stated honestly in the UI instead of silently absent.
+- **Next step:** digitizing an observed extent via `backend.m7_gee.observed` and training a real per-site
+  M5 library are the two remaining pieces that would make this tab a genuine validation, not just an
+  honest "not yet validated" report.
+
 ## 2026-09-28 — Task A: exports (shapefile + PDF)
 
 - **Reproduced on the registered real Teesta query** (`q_20260928T050632Z_ad87ba`, method

@@ -9,7 +9,7 @@
 // inventing routes for them.
 import type {Grid, Params, Result} from '@/lib/model';
 import type {Scenario} from '@/lib/sentriq';
-import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type SiteDetail, type JobStatus, type ValidationResponse, type Scene3DResponse} from './api';
+import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type SiteDetail, type JobStatus, type ValidationResponse, type HistoricalValidationResponse, type Scene3DResponse} from './api';
 import uiText from '../content/ui_text.json';
 
 export type Awaiting = {status: 'awaiting'; reason: string};
@@ -104,6 +104,12 @@ export async function getCompare(siteId: string, scenarioId?: string): Promise<C
 export async function getValidation(siteId: string): Promise<ValidationResponse> {
   if (!siteId) throw new Error('A site_id is required to load validation status.');
   return api.validation(siteId);
+}
+/** Contract §5.7 — GET /validation/{site_id}?event={event_id}. */
+export async function getHistoricalValidation(siteId: string, eventId: string): Promise<HistoricalValidationResponse> {
+  if (!siteId) throw new Error('A site_id is required to load historical validation.');
+  if (!eventId) throw new Error('An event_id is required to load historical validation.');
+  return api.historicalValidation(siteId, eventId);
 }
 
 /** Contract §5 #19/#20 — GET /gee/{site_id}, POST /gee/{site_id}/refresh. */

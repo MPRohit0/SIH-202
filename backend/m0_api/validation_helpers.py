@@ -1,0 +1,236 @@
+"""Task D: honest content for GET /validation/{site_id}[?event=] when a site has a real
+solver run but no trained M5 emulator library and no digitized observed flood extent.
+
+Three pieces, none of them fabricated:
+  1. Observed-vs-simulated extent (`observed_extent_status`) -- reports whether a digitized
+     observed outline exists (`backend.m7_gee.observed`); if not, says so plainly instead of
+     inventing IoU/F1 numbers.
+  2. `literature_comparison` -- compares this run's own POI output at a named point against
+     published reconstructions already cited in docs/data_sources.md, explicitly labelled as
+     a comparison with other models, never as an observation. Values are quoted verbatim from
+     that doc (the same discipline CLAUDE.md rule 4 applies to docs/equations.md) and never
+     tuned or invented here.
+  3. `synthetic_loocv_summary` -- surfaces the M5 emulator's synthetic-test-world LOOCV report
+     (docs/m5_spec.md), clearly labelled as a synthetic world, not a site-specific validation,
+     since no real per-site emulator library has been trained yet.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from backend.m0_api import registry
+
+# Literature reconstruction values for Chungthang (South Lhonak GLOF, Oct 2023), quoted
+# verbatim from docs/data_sources.md src_044/src_045. Point-citation display data only --
+# never used as a model input, never treated as an observation.
+CHUNGTHANG_LITERATURE_CITATIONS: list[dict[str, Any]] = [
+    {
+        "source_id": "src_044",
+        "citation": "Sikkim 2023 flood reconstruction and cascade impacts "
+                    "(https://eprints.whiterose.ac.uk/id/eprint/224098/)",
+        "quantity": "arrival_time_ist",
+        "value": "2023-10-04T00:30:00+05:30",
+        "note": "Paper's reconstructed arrival at Chungthang. A modelled reconstruction, not a "
+                "direct field observation of the event.",
+    },
+    {
+        "source_id": "src_044",
+        "citation": "Sikkim 2023 flood reconstruction and cascade impacts "
+                    "(https://eprints.whiterose.ac.uk/id/eprint/224098/)",
+        "quantity": "peak_discharge_m3s",
+        "value": 5340.0,
+        "note": "Paper's modelled peak discharge at Chungthang. A modelled reconstruction, not a "
+                "direct field observation of the event.",
+    },
+    {
+        "source_id": "src_045",
+        "citation": "Gaikwad, Tiwari & Goswami (2025), Natural Hazards, "
+                    "doi:10.1007/s11069-025-07350-9",
+        "quantity": "peak_discharge_m3s",
+        "value": 7355.0,
+        "note": "Paper's modelled peak discharge at Chungthang for the actual event reconstruction. "
+                "This same figure was already used as this run's own upstream forcing target "
+                "(see forcing_provenance_path), so it is not an independent check on this run's output.",
+    },
+]
+
+LITERATURE_COMPARISON_CAVEATS: list[str] = [
+    "This is a comparison against other published model reconstructions, not against direct "
+    "field observations of the event.",
+    "The 7355 m3/s figure (src_045) was already used as this run's own upstream forcing target, "
+    "so it cannot serve as an independent check on this run.",
+    "This run's point-of-interest output records depth, velocity and water-surface elevation "
+    "only; no downstream discharge (m3/s) is computed, so peak discharge cannot be compared "
+    "directly against the m3/s citations.",
+]
+
+
+def observed_extent_status(site_id: str, event_id: str, data_dir: Path) -> dict[str, Any]:
+    """Whether a digitized observed flood extent exists for this event (contract §4.8,
+    `backend.m7_gee.observed`). Never fabricates an extent when none has been digitized."""
+    observed_dir = data_dir / site_id / "gee" / "observed"
+    match = None
+    if observed_dir.is_dir():
+        candidates = sorted(observed_dir.glob(f"{event_id}_observed.geojson"))
+        if candidates:
+            match = candidates[0]
+    if match is None:
+        return {
+            "available": False,
+            "note": "Observed flood-extent outline not yet digitized for this event. "
+                    "No IoU/F1 extent comparison is possible until one is added via "
+                    "backend.m7_gee.observed.",
+        }
+    return {
+        "available": True,
+        "extent_url": f"/api/v1/files/{site_id}/gee/observed/{match.name}",
+    }
+
+
+def _poi_arrival_and_peak(timeseries_csv: Path, poi_suffix: str) -> dict[str, Any] | None:
+    """Reads M3's timeseries.csv (contract's `poi_id,t_s,depth_m,velocity_ms,wse_m,
+    arrival_s_since_t0` shape) for the first POI whose id ends with `__poi__<poi_suffix>`."""
+    peak_depth_m = 0.0
+    peak_velocity_ms = 0.0
+    arrival_s: float | None = None
+    found = False
+    with timeseries_csv.open(newline="") as fh:
+        for row in csv.DictReader(fh):
+            if not row["poi_id"].endswith(f"__poi__{poi_suffix}"):
+                continue
+            found = True
+            peak_depth_m = max(peak_depth_m, float(row["depth_m"]))
+            peak_velocity_ms = max(peak_velocity_ms, float(row["velocity_ms"]))
+            if arrival_s is None and row["arrival_s_since_t0"]:
+                arrival_s = float(row["arrival_s_since_t0"])
+    if not found:
+        return None
+    return {"peak_depth_m": peak_depth_m, "peak_velocity_ms": peak_velocity_ms,
+            "arrival_s_since_t0": arrival_s}
+
+
+def _t0_from_hydrograph(hydrograph_json: Path) -> tuple[datetime, dict[str, Any]] | None:
+    """Derives absolute t0 (CLAUDE.md rule 6: start of the most upstream breach) from M2's
+    breach-hydrograph sidecar: t0 = peak_time_ist - duration_s/2 (the hydrograph's own
+    symmetric-triangular construction formula). Both inputs are already-sourced reconstruction
+    targets recorded in that file; this only re-derives their implied start time, it invents
+    nothing new."""
+    data = json.loads(hydrograph_json.read_text())
+    provenance = data.get("provenance", {})
+    constraints = provenance.get("source_constraints", {})
+    construction = provenance.get("construction", {})
+    peak_time = constraints.get("peak_time_ist", {})
+    duration_s = construction.get("duration_s")
+    if not peak_time.get("value") or duration_s is None:
+        return None
+    t_peak = datetime.fromisoformat(peak_time["value"])
+    t0 = t_peak - timedelta(seconds=duration_s / 2)
+    return t0, {
+        "peak_time_ist": peak_time["value"],
+        "peak_time_status": peak_time.get("status"),
+        "duration_s": duration_s,
+    }
+
+
+def build_literature_comparison(site_id: str, run_meta: dict[str, Any], data_dir: Path) -> dict[str, Any]:
+    """Point comparison of this run's own Chungthang POI output against literature
+    reconstructions (see module docstring). `available: False` whenever the run's own outputs
+    don't have what's needed -- never filled in with a guess."""
+    result: dict[str, Any] = {
+        "available": False,
+        "poi": "chungthang",
+        "simulated": None,
+        "literature": CHUNGTHANG_LITERATURE_CITATIONS,
+        "caveats": LITERATURE_COMPARISON_CAVEATS,
+    }
+    run_id = run_meta.get("run_id")
+    if not run_id:
+        return result
+    timeseries_csv = data_dir / site_id / "runs" / run_id / "timeseries.csv"
+    if not timeseries_csv.is_file():
+        return result
+    poi = _poi_arrival_and_peak(timeseries_csv, "chungthang")
+    if poi is None or poi["arrival_s_since_t0"] is None:
+        return result
+    simulated: dict[str, Any] = {
+        "peak_depth_m": poi["peak_depth_m"],
+        "peak_velocity_ms": poi["peak_velocity_ms"],
+        "arrival_s_since_t0": poi["arrival_s_since_t0"],
+    }
+    hydrograph_rel = run_meta.get("forcing_provenance_path")
+    if hydrograph_rel:
+        hydrograph_path = data_dir / site_id / hydrograph_rel
+        if hydrograph_path.is_file():
+            t0_info = _t0_from_hydrograph(hydrograph_path)
+            if t0_info is not None:
+                t0, meta = t0_info
+                arrival_dt = t0 + timedelta(seconds=poi["arrival_s_since_t0"])
+                simulated["arrival_time_ist_estimate"] = arrival_dt.isoformat()
+                simulated["t0_derivation"] = (
+                    f"t0 = peak_time_ist ({meta['peak_time_ist']}, status: {meta['peak_time_status']}) "
+                    f"- duration_s/2 ({meta['duration_s']}/2 s)"
+                )
+    result["available"] = True
+    result["simulated"] = simulated
+    return result
+
+
+def build_predicted_extent(run_meta: dict[str, Any], run_dir: Path) -> dict[str, Any] | None:
+    """Predicted flooded area from this run's own `summary/max_depth.tif`, at the run's own
+    extent threshold (`run_meta.thresholds.extent_m`) -- a real computed value from the run's
+    output, not an invented one. Returns None if the raster or threshold isn't available."""
+    thresholds = run_meta.get("thresholds") or {}
+    extent_m = thresholds.get("extent_m")
+    max_depth_tif = run_dir / "summary" / "max_depth.tif"
+    if extent_m is None or not max_depth_tif.is_file():
+        return None
+    import numpy as np
+    import rasterio
+
+    with rasterio.open(max_depth_tif) as ds:
+        arr = ds.read(1)
+        cell_area_m2 = abs(ds.res[0] * ds.res[1])
+        if ds.nodata is not None:
+            wet = (arr > extent_m) & (arr != ds.nodata)
+        else:
+            wet = arr > extent_m
+        area_m2 = float(wet.sum()) * cell_area_m2
+    return {
+        "value": area_m2, "low": area_m2, "high": area_m2, "unit": "m2",
+        "interval": "none", "kind": "predicted", "confidence": "LOW",
+        "basis": f"cells with depth > {extent_m} m in this run's summary/max_depth.tif",
+        "source": run_meta.get("run_id", ""),
+    }
+
+
+def synthetic_loocv_summary(report_path: Path | None = None) -> dict[str, Any] | None:
+    """The M5 emulator's synthetic-test-world LOOCV report (docs/m5_spec.md), clearly labelled
+    as a synthetic world -- not a site-specific validation. Returns None if the report hasn't
+    been generated (e.g. `python -m backend.m5_emulator.loocv` was never run)."""
+    if report_path is None:
+        report_path = Path(os.environ.get(
+            "SIH26_M5_SYNTHETIC_LOOCV_REPORT",
+            registry.REPO_ROOT / "reports" / "m5_synthetic" / "validation" / "loocv.json",
+        ))
+    if not report_path.is_file():
+        return None
+    data = json.loads(report_path.read_text())
+    return {
+        "world": "synthetic_test_world",
+        "note": "M5 acceptance-test result on the synthetic emulator test world (docs/m5_spec.md). "
+                "Not a Teesta-specific (or any real-site) validation -- no real-site emulator "
+                "library has been trained yet.",
+        "model": data.get("model"),
+        "n_runs": data.get("n_runs"),
+        "summary": data.get("summary"),
+        "baseline_linear": data.get("baseline_linear"),
+        "baseline_nearest": data.get("baseline_nearest"),
+        "acceptance": data.get("acceptance"),
+        "grade_thresholds_ref": data.get("grade_thresholds_ref"),
+    }
