@@ -2309,3 +2309,94 @@ blocker to a real Compare page.
   failed/4xx requests on the full path (home → Teesta demo → 3D tab → hover). `tsc --noEmit` and
   backend `py_compile` clean; `.venv/bin/pytest -q tests/m0_api`: **179 passed, 1 skipped** (no
   regressions); full Playwright visual suite: **13/13 unchanged** (no baseline touches the 3D tab).
+
+## 2026-09-28 — Task C: 2D map satellite basemap + breach marker (mvp/2d-map-satellite worktree)
+
+Built in an isolated `git worktree` (`../SIH26-161-2d-map`), not the shared main checkout — another
+session was actively switching branches under the shared working directory mid-session (caught via
+`git worktree list`/`git status` showing a branch change I hadn't made), so editing there risked
+stepping on it. Findings/diff below are from that worktree; branch `mvp/2d-map-satellite`, not yet
+merged.
+
+**Read first:** the assigned task's premise ("the red breach dot is hidden behind the top-left
+tab/panel" in the 2D map) didn't match reality — the last session's own entry above says the 2D
+marker was explicitly **scoped out**, and grepping confirmed no breach marker existed anywhere in
+`terrain-map.tsx`. Also: this app has no Leaflet anywhere (`grep -r leaflet` — nothing, not in
+`package.json` either); the 2D map is a hand-built canvas/percent-positioned component
+(`app/terrain-map.tsx`), despite root `CLAUDE.md`'s stack line naming Leaflet. Built on the real
+component instead of introducing a new mapping library (`frontend/CLAUDE.md`: "Do not add UI
+libraries").
+
+**Asked before building** (AskUserQuestion): the task's satellite-basemap item asked for a live
+Esri/EOX tile fetch for the wide view, which conflicts with `CLAUDE.md` rule 11 ("Localhost only...
+GEE only for offline prep, with cache + screenshot fallback") — exactly the pattern already built
+for the cached Sentinel-2 imagery. Chosen: cached imagery by default, plus an explicit "Live imagery
+(needs internet)" toggle, off by default.
+
+- **Basemap.** `ContractRasterMap` (the component the real MVP path actually renders — `grid` is
+  always `null` there, same as last session found) now shows the cached GEE Sentinel-2 imagery
+  (`getObserved`/`data/teesta/gee/imagery/manifest.json`, already fetched app-wide via `geeData`)
+  as a percent-positioned image overlay, clipped/positioned against its own real `bounds_latlng`
+  nested inside the raster's bounds — same linear-percent technique the app already uses for
+  exposure dots/observed polygons. A "Live imagery (needs internet)" toggle (off by default) instead
+  fetches a single warped PNG from ArcGIS's public World Imagery `export` REST endpoint, sized to
+  the query bounds — ambulatory, not the frontend's default. Both show attribution + acquisition
+  date (or "live · date varies by area") in the existing `.map-bottom` strip. New "Satellite
+  basemap"/"Live imagery" toggles reuse the existing `.map-layer-menu`/`Switch` pattern.
+- **Breach marker, now unblocked.** Last session scoped the 2D marker out because the legacy `grid`
+  bbox is arbitrary/unrelated to real lon/lat on the real MVP path. That's still true for `grid`,
+  but `ContractRasterMap`'s `overlay.boundsLatLng` (from the same real query) is a real EPSG:4326
+  extent — so the same `breachMarker` data already computed for the 3D view (`app.tsx`,
+  extended with a `lonLat` field alongside its existing `utmX/utmY`) now also places a red dot
+  (`#e5453f`, matching the 3D marker's colour) via percent-in-bounds math, with a click/hover
+  tooltip reusing the exact same title/lines/caveat strings the 3D tooltip shows (`.s-notice.warning`
+  colours inline, not the class — same reasoning the 3D session gave for why: that class's
+  `display:flex` breaks a stacked multi-line card).
+- **Layering fix.** Confirmed the "hidden behind the panel" bug *would* occur once a marker existed:
+  `.map-topline`/`.map-tools`/`.depth-legend`/`.map-bottom` are plain `position:absolute` siblings
+  with no `z-index`, painted in DOM order — anything inside `.map-world` (which gets its own
+  stacking context from the pan/zoom `transform`) paints as one unit *before* them, so a marker near
+  a corner would sit under that chip. Fixed by rendering the marker in its own last-child sibling
+  (`.marker-layer`, sharing `.map-world`'s transform so it still pans/zooms with the raster,
+  `pointer-events:none` on the wrapper so it doesn't block dragging). No global CSS touched
+  (`frontend/CLAUDE.md`: "Do not change global styles... without asking first") — verified with
+  `document.elementFromPoint` at the marker's actual screen coordinates: resolves to the marker, not
+  a chip, confirmed by DOM child order (`marker-layer` last).
+- **Also added:** pan/zoom to `ContractRasterMap` (it had none before — only the legacy `grid` path
+  did), reusing the existing zoom-in/out/reset/layers `.map-tools` buttons, so "check visible when
+  zoomed" is a real, testable state.
+- **Real bug found and fixed while building the overlay/marker math (not by me touching backend):**
+  `backend/m0_api/main.py`'s own `_bounds_lonlat` docstring already documents that the real
+  direct-solver path (`real_query.py:_bounds_latlng`, and `real_timeline.py`) emits
+  `bounds_latlng` as `[[west_lon,south_lat],[east_lon,north_lat]]` instead of the contract's
+  documented `[[south_lat,west_lon],[north_lat,east_lon]]` (§1.3) — every other path
+  (`backend/shared/grid.py`, `m7_gee/imagery.py`, the emulator/fallback query paths) gets it right.
+  That existing PDF-export workaround's own magnitude heuristic (`|v|<=90`) **can't actually
+  disambiguate for this project**: Teesta/Rishi Ganga longitudes (~74–95°E) are themselves ≤90, the
+  same range as any latitude, so the heuristic silently mis-detects for exactly this project's real
+  coordinates (confirmed by hand-tracing both branches of `_bounds_lonlat` against the real Teesta
+  numbers). Before this was caught, my new overlay/marker math silently landed at the wrong axes
+  (`No cached satellite imagery covers this extent`, marker off the visible map) — the raster
+  `<img>` itself was unaffected only because it's stretched to fill its container regardless of what
+  the bounds field says, so this bug was latent until something actually needed the field for real
+  geometry. **Fixed on the frontend, not the shared backend file** (out of Task C's ownership, and
+  `real_query.py`/`real_timeline.py` are shared with other in-flight tasks): `app.tsx` threads
+  `floodQuery.method==='delft3d_direct'` down as `lonFirstBounds`, and `ContractRasterMap` un-swaps
+  deterministically from that definitive signal instead of guessing from magnitude. **Backend
+  owner: `_bounds_lonlat` (`backend/m0_api/main.py`) and any other magnitude-based bounds-order
+  guess should be reviewed — it's provably wrong for this project's own longitudes**, not just an
+  edge case.
+- **Verified live** (Teesta demo, real backend on :8000, worktree dev server + `--disable-web-security`
+  Chromium since backend CORS only allows `:5173`, occupied by another session): satellite imagery
+  now renders precisely along the real flood channel with no visible offset at the imagery's
+  Chungthang-area coverage; the breach dot renders correctly, confirmed on top via
+  `elementFromPoint`; zero console errors on the full demo path. `tsc --noEmit` clean. `eslint`:
+  +4 problems worktree-wide (3285→3289; 2 new `any` params, 2 new `<img>` LCP warnings), consistent
+  with this codebase's existing style, not a new pattern. Playwright visual harness run against the
+  worktree showed large diffs vs. a `:5173` baseline on every data-driven screen — confirmed to be
+  the CORS-driven empty state (`home`, which needs no backend call, diffed only 0.45%), not a real
+  regression.
+- **Known gap:** no "terrain" basemap option (the task asked for satellite / terrain / none) — the
+  real MVP path has no hillshade/terrain PNG artifact anywhere (only raw `dem.tif`); rendering one
+  is M1/M0 backend work outside this task's frontend ownership. Left `basemap` as `none | cached |
+  live` only.
