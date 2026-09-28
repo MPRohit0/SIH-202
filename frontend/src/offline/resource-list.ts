@@ -39,6 +39,7 @@ export function collectResourceUrls(bundle: OfflineBundle): string[] {
   add(`impact/${queryId}`);
   add(`compare/${bundle.siteId}`);
   add(`validation/${bundle.siteId}`);
+  for (const eventId of bundle.validation?.events ?? []) add(`validation/${bundle.siteId}?event=${encodeURIComponent(eventId)}`);
   add(`gee/${bundle.siteId}`);
 
   for (const layer of bundle.floodQuery.layers) if (layer.available) add(layer.url);
