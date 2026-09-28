@@ -23,6 +23,10 @@ import {Badge,Empty,Num,Range,SelectField,SourceLink,LakeOutlineMap} from './ui'
 import {LineChart,Line,BarChart,Bar,XAxis,YAxis,CartesianGrid} from 'recharts';
 import {ChartContainer,ChartTooltip,ChartTooltipContent} from '@/components/ui/chart';
 import Landing from './landing';
+// ISRO/NRSC South Lhonak lake-area figures (docs/data_sources.md src_072), shown beside the
+// project's own GEE series on Monitoring for comparison only -- never used to tune the water-mask
+// thresholds in backend/m7_gee.
+const ISRO_SOUTH_LHONAK_REFERENCE=[{date:'2023-09-17',area_ha:162.7},{date:'2023-09-28',area_ha:167.4},{date:'2023-10-04',area_ha:60.3}];
 const navigation=[{id:'dashboard',name:'Dashboard',icon:LayoutDashboard},{id:'simulation',name:'Simulation',icon:Waves},{id:'library',name:'Scenario Library',icon:Database},{id:'compare',name:'Compare Models',icon:GitCompareArrows},{id:'lab',name:'Educational Explainer',icon:Atom},{id:'impact',name:'Impact Analysis',icon:ShieldCheck},{id:'data',name:'Data Layers',icon:Layers},{id:'monitoring',name:'GEE-ready Monitoring',icon:Radar},{id:'exports',name:'Exports',icon:Download},{id:'validation',name:'Validation',icon:ClipboardCheck}];
 const title:Record<string,string>={dashboard:'Intelligence overview',simulation:'Simulation workspace',library:'Scenario library',compare:'Model comparison',lab:'SPH educational explainer',impact:'Impact analysis',data:'Data layers',monitoring:'GEE-ready satellite monitoring',exports:'Export centre',validation:'Validation status',sites:'Add a new site',settings:'Workspace settings'};
 export default function SentriqApp({initialView='home'}:{initialView?:string}){
@@ -186,6 +190,7 @@ export default function SentriqApp({initialView='home'}:{initialView?:string}){
   </ChartContainer>
   <Table><TableHeader><TableRow><TableHead>{uiText.monitoring.date}</TableHead><TableHead>{uiText.monitoring.area}</TableHead><TableHead>{uiText.monitoring.method}</TableHead></TableRow></TableHeader><TableBody>{geeData.lake_area_series.map(row=><TableRow key={`${row.date}-${row.method}`}><TableCell>{row.date}</TableCell><TableCell>{nf(row.area_m2)} m²</TableCell><TableCell>{row.method}</TableCell></TableRow>)}</TableBody></Table>
  </>:<Empty icon={Radar} title={uiText.monitoring.noLakeArea}>{uiText.monitoring.noImagery}</Empty>}
+ {selectedSiteId==='teesta'&&<div className="s-panel"><p className="eyebrow">{uiText.monitoring.referenceTitle}</p>{ISRO_SOUTH_LHONAK_REFERENCE.map(r=><div className="dataset-row" key={r.date}><Radar size={17}/><div><h3>{r.date}</h3><p>{nf(r.area_ha*10000)} m² ({r.area_ha} ha)</p></div></div>)}<SourceLink href="https://www.deccanherald.com/india/isro-conducts-satellite-image-based-studies-of-south-lhonak-lake-in-sikkim-2712863">{uiText.monitoring.referenceSource}</SourceLink><p className="fine-print">{uiText.monitoring.referenceNote}</p></div>}
  <p className="eyebrow">{uiText.monitoring.rainfall}</p>{geeData?.rainfall.length?<>
   <ChartContainer config={{precip_mm:{label:'Rainfall (mm)',color:'#8fd0ff'}}} className="monitoring-chart">
    <BarChart data={geeData.rainfall} margin={{left:4,right:8,top:4,bottom:0}}>

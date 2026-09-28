@@ -131,6 +131,14 @@ return near-zero signal, indistinguishable from smooth open water in the `below=
 band, this NIR fix cannot correct the Sept over-estimate; that is a separate, still-open item
 (tracked as "mask slopes steeper than ~6 degrees using the site DEM" in `docs/progress.md`).
 
+**Monitoring page:** `frontend/app/sentriq/app.tsx`'s lake-area panel now shows ISRO/NRSC's
+published South Lhonak figures (`src_072`) as a static reference block, Teesta-only, sourced and
+captioned "not used to calibrate the water-mask thresholds" — thresholds were not tuned against
+these numbers, consistent with `src_072`'s own note and the instruction not to fit to them. Static,
+not part of `GeeLayers` (contract §5.8) — a locked historical reference for one already-over event,
+not a live-fetched quantity, so no contract/schema change. Frontend visual tests
+(`frontend/CLAUDE.md`) were not run this session for the same tool-access reason.
+
 ## 2026-09-27 — M3→M4 routed discharge manifest (contract 0.3.0)
 
 **Status:** artifact shape implemented; real routing-section selection and extraction are blocked

@@ -8,6 +8,9 @@ data/
 .pytest_cache/
 reports/
 
+# scripts/start.sh / start.ps1 output
+logs/
+
 # backend/m7_gee's offline cache (screenshots/manifests) -- regenerable, not committed.
 cache/
 
