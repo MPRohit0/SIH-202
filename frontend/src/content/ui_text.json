@@ -185,6 +185,18 @@
     "noHydrographs": "No hydrographs available",
     "noArrival": "No arrival profile available"
   },
+  "scene3d": {
+    "breachTitle": "Breach location",
+    "breachHoverHint": "hover the red marker for breach details",
+    "waterVolume": "Water volume",
+    "peakDischarge": "Peak discharge",
+    "durationLabel": "Duration",
+    "breachWidth": "Breach width",
+    "notComputed": "not computed",
+    "notAvailable": "not available",
+    "peakDischargeAt": "at {name}, reconstruction target — not the source-node discharge",
+    "breachCaveat": "Reconstructed forcing (MVP), placeholder location/inputs — not scientifically validated."
+  },
   "exports": {
     "headline": "Download the selected flood query output.",
     "detail": "Files use the format and query identifier returned by the M0 export route.",

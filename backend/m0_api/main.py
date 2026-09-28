@@ -163,6 +163,24 @@ def get_site(site_id: SiteIdPath) -> JSONResponse:
         return _validated_json("site_detail.schema.json", detail)
     detail = mocks.mock_response("site_detail.example.json", site_id=site_id)
     detail = site_status.overlay(site_id, detail)
+    # Real dam locations, when a real sites/<site_id>.yaml exists: `key_specs` is an open
+    # dict of SourcedValues by contract (§5.1), so this adds no schema field -- it overlays
+    # the mock dams[] with the real dam_id/location/breach_location this site actually has.
+    # Powers the 3D view's breach marker (docs/progress.md 2026-09-28).
+    try:
+        cfg = load_site_config(site_id)
+        detail["dams"] = [
+            {
+                "dam_id": f"{site_id}__{dam.id}", "name": dam.name, "kind": dam.kind, "order": i + 1,
+                "key_specs": {
+                    "location": {"value": dam.location.value, "unit": dam.location.unit, "source": dam.location.source, "status": dam.location.status},
+                    "breach_location": {"value": dam.breach_location.value, "unit": dam.breach_location.unit, "source": dam.breach_location.source, "status": dam.breach_location.status},
+                },
+            }
+            for i, dam in enumerate(cfg.dams)
+        ]
+    except (FileNotFoundError, SiteConfigError):
+        pass  # no real config for this site_id; keep the mock example's dams as-is
     return _validated_json("site_detail.schema.json", detail)
 
 
@@ -774,6 +792,21 @@ MVP_COMPARE_DIFF_PATH_RE = re.compile(
     rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/compare/(?P<scenario_id>[A-Za-z0-9_]+)/depth_diff\.png$"
 )
 
+#: A run's own `run_meta.json` (contract §1.8 file layout) -- read-only passthrough, same
+#: pattern as the other real-artifact routes below. Powers the 3D view's breach-parameter
+#: tooltip (docs/progress.md 2026-09-28 "3D view: water surface + breach marker").
+RUN_META_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/runs/(?P<run_id>[A-Za-z0-9_]+__(delft3d|sph))/run_meta\.json$"
+)
+#: An M2 breach hydrograph's forcing-provenance sidecar (`breach/hydrographs/*.json`).
+BREACH_HYDROGRAPH_PROVENANCE_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/breach/hydrographs/(?P<filename>[A-Za-z0-9_]+\.json)$"
+)
+#: M2's per-site `breach_params.json`, when it has actually been written to disk.
+BREACH_PARAMS_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/breach/breach_params\.json$"
+)
+
 
 # =============================================================================
 # 22. GET /files/{path}
@@ -843,6 +876,33 @@ def get_file(path: str) -> Response:
             status_code=404,
             detail=mocks.error("file_not_found", f"No observed-extent file at '{geojson_path}'.", {"path": path}),
         )
+
+    m = RUN_META_PATH_RE.match(path)
+    if m is not None:
+        meta_path = registry.data_dir() / m["site_id"] / "runs" / m["run_id"] / "run_meta.json"
+        if meta_path.is_file():
+            return Response(content=meta_path.read_bytes(), media_type="application/json")
+        raise HTTPException(status_code=404, detail=mocks.error("file_not_found", f"No run_meta.json at '{path}'.", {"path": path}))
+
+    m = BREACH_HYDROGRAPH_PROVENANCE_PATH_RE.match(path)
+    if m is not None:
+        sidecar_path = registry.data_dir() / m["site_id"] / "breach" / "hydrographs" / m["filename"]
+        if sidecar_path.is_file():
+            return Response(content=sidecar_path.read_bytes(), media_type="application/json")
+        raise HTTPException(status_code=404, detail=mocks.error("file_not_found", f"No breach hydrograph sidecar at '{path}'.", {"path": path}))
+
+    m = BREACH_PARAMS_PATH_RE.match(path)
+    if m is not None:
+        params_path = registry.data_dir() / m["site_id"] / "breach" / "breach_params.json"
+        if params_path.is_file():
+            return Response(content=params_path.read_bytes(), media_type="application/json")
+        # Unlike run_meta.json/forcing provenance (expected once a run is registered), M2's
+        # breach_params.json is often genuinely never written for a site (matches the existing
+        # `available: false` convention for Compare, rather than a 404 -- this artifact's
+        # absence is an expected, not exceptional, state for callers like the breach tooltip.
+        import json as _json
+        return Response(content=_json.dumps({"available": False}).encode(), media_type="application/json")
+
     if path.endswith(".png"):
         return Response(content=mock_files.mock_png(), media_type="image/png")
     if path.endswith(".geojson"):

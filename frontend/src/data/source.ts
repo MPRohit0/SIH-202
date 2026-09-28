@@ -9,7 +9,7 @@
 // inventing routes for them.
 import type {Grid, Params, Result} from '@/lib/model';
 import type {Scenario} from '@/lib/sentriq';
-import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type JobStatus, type ValidationResponse, type Scene3DResponse} from './api';
+import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type SiteDetail, type JobStatus, type ValidationResponse, type Scene3DResponse} from './api';
 import uiText from '../content/ui_text.json';
 
 export type Awaiting = {status: 'awaiting'; reason: string};
@@ -136,6 +136,32 @@ export async function getScene3dArrays(scene: Scene3DResponse): Promise<Scene3DA
   if (!terrainRes.ok || !floodRes.ok) throw new Error('Failed to load the 3D scene terrain/flood arrays.');
   const [terrainBuf, floodBuf] = await Promise.all([terrainRes.arrayBuffer(), floodRes.arrayBuffer()]);
   return {terrain: new Float32Array(terrainBuf), flood: new Float32Array(floodBuf)};
+}
+
+/** Contract §5.1 — GET /sites/{site_id}, for the real dam list (location/breach_location). */
+export async function getSiteDetail(siteId: string): Promise<SiteDetail> {
+  if (!siteId) throw new Error('A site_id is required to load site detail.');
+  return api.site(siteId) as Promise<SiteDetail>;
+}
+
+/** A run's own run_meta.json, read through the generic asset passthrough (contract §1.8
+ * file layout under /api/v1/files/) -- not a schema-validated response, just the real
+ * artifact file M3 already wrote. Returns null (never invents) when it isn't there. */
+export async function getRunMeta(siteId: string, runId: string): Promise<Record<string, unknown> | null> {
+  if (!siteId || !runId) return null;
+  const res = await api.file(`files/${siteId}/runs/${runId}/run_meta.json`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** Any other real per-site artifact JSON under data/<site_id>/... exposed through the same
+ * generic passthrough (breach hydrograph forcing provenance, breach_params.json). `relPath`
+ * is relative to the site's data dir, e.g. "breach/breach_params.json". 404 -> null. */
+export async function getSiteArtifactJson(siteId: string, relPath: string): Promise<Record<string, unknown> | null> {
+  if (!siteId || !relPath) return null;
+  const res = await api.file(`files/${siteId}/${relPath}`);
+  if (!res.ok) return null;
+  return res.json();
 }
 
 /** Contract §6 — GET /styles (contracts/styles.json). Drives map legends and

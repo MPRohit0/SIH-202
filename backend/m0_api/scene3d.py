@@ -76,7 +76,11 @@ def _resampled_arrays(dem_path: Path, depth_path: Path, target_bytes: int) -> tu
             src_transform=depth_ds.transform, src_crs=depth_ds.crs,
             src_nodata=depth_ds.nodata if depth_ds.nodata is not None else -9999.0,
             dst_transform=transform, dst_crs=dem_ds.crs, dst_nodata=-9999.0,
-            resampling=Resampling.average,
+            # Max, not average: a dry-but-in-domain cell is a real 0.0, not nodata (CLAUDE.md
+            # rule 8), so averaging a narrow wet channel with its many dry neighbours would
+            # dilute or erase it at any real downsample factor. Max preserves the channel's
+            # peak water-surface elevation in every destination cell it touches.
+            resampling=Resampling.max,
         )
         terrain_nodata = dem_ds.nodata if dem_ds.nodata is not None else -9999.0
         terrain[~np.isfinite(terrain) | (terrain == terrain_nodata)] = -9999.0

@@ -2234,3 +2234,78 @@ blocker to a real Compare page.
   avoided rather than added) — revisit once the SPH particle-exclusion defect is actually fixed and
   `sph_surfaces`/`delft3d_surface_url` start returning real assets. No backend files changed this
   session.
+
+## 2026-09-28 — 3D view: water-surface fix and breach marker
+
+**Diagnosis first, as asked, before any code changed.**
+
+- **Water surface not visible — root cause was the client, not the payload.** Checked in order:
+  (a) `GET /scene3d/{query_id}` already returned a real grid: source `depth_p50.tif` has 2,379 wet
+  cells (>0.1 m, 611×623 @ 90 m); the backend's own resample onto the 845×1672 terrain-aligned grid
+  preserved 3,125 (no loss). The backend wasn't the bottleneck. But its `Resampling.average` for
+  the depth reprojection is fragile in general: a dry-but-in-domain cell is a real 0.0, not nodata
+  (CLAUDE.md rule 8), so averaging a narrow channel with its many dry neighbours would dilute or
+  erase it at any real downsample factor — hardened to `Resampling.max` (`backend/m0_api/scene3d.py`)
+  regardless. (b) nodata handling in the renderer was already correct. (c)/(d) heights and material
+  were already consistent (same `minZ`/`scaleY` as terrain; transparent, added after terrain). The
+  actual, dominant cause: last session's own client-side crop+subsample step read the water grid at
+  the exact nearest-index (row,col) sample point on a coarse ~140×140 lattice instead of scanning
+  each destination block for any wet pixel — for this query's 536×528-cell crop (row/col step 4),
+  that hit only 204 of 3,125 wet cells (~6.5%), which is why the channel was barely visible.
+- **Fix (`frontend/app/sentriq/terrain-3d.tsx`):** the water-building loop now scans every source
+  cell in each destination block for the max water-surface elevation (any-wet, not nearest/mean),
+  so the channel survives subsampling. Also added, per the checklist: `depthWrite:false` +
+  explicit `renderOrder` on the water group (defensive hardening for (d), not the actual cause), and
+  a small local-frame-only epsilon lift on the water mesh (not a physical-metre change) to keep
+  shallow edge cells from z-fighting the terrain now that far more of them render.
+
+**Breach marker (item 2).**
+
+- **Location:** `sites/teesta.yaml` `dams[south_lhonak].breach_location` = `[88.2, 27.905]` deg,
+  `status: placeholder` (already labelled an unverified guess in the source file). `GET
+  /sites/teesta` was serving the frozen contract example verbatim, never the real site config,
+  and had no lon/lat anywhere; `key_specs` is an open dict of SourcedValues by contract (§5.1,
+  `additionalProperties: {$ref: SourcedValue}`), so overlaying real `location`/`breach_location`
+  there (`backend/m0_api/main.py`, `get_site()`) needed no schema change.
+- **Values actually used to build this run:** found the real sidecar M2 already wrote at
+  `data/teesta/breach/hydrographs/teesta_2023_mvp__south_lhonak.json` (matches `run_meta.json`'s own
+  `forcing_provenance_path` field): `event_volume_m3` = 50,000,000 ("approximate event constraint
+  supplied for MVP"), `peak_discharge_m3s` = 7,355 at Chungthang (explicitly a downstream
+  reconstruction target, not source-node discharge), `duration_s` = 14,587.89 (~4.05 h, from
+  `T=2V/(Qpeak-Qbase)`). No `breach_params.json` exists anywhere for teesta — M2's dual-method
+  width/failure-time was never written to disk for this site — so the tooltip honestly shows
+  "Breach width: not computed", never a guessed number.
+- **Serving these real artifacts:** `run_meta.json` and the breach hydrograph provenance JSON
+  weren't reachable through any endpoint. Added three narrowly-scoped, read-only path patterns to
+  the existing generic `/api/v1/files/{path}` passthrough (`backend/m0_api/main.py`) — the same
+  mechanism already serving scene3d/timeline/compare/GEE assets, never schema-validated, so this is
+  not a contract change. `breach_params.json` (genuinely, usually absent) returns `{"available":
+  false}` with 200, not 404 — matching the existing Compare-page convention for an expected-missing
+  artifact, so the walkthrough stays free of logged 4xx noise for a state that isn't an error.
+- **Placement:** converts `breach_location` lon/lat to the scene's UTM frame with a small,
+  self-contained closed-form WGS84 Transverse Mercator function (`frontend/lib/utm.ts`) — verified
+  against `pyproj` to ~2 cm — rather than adding a projection library or touching the locked, fully
+  closed `scene3d.schema.json` (`additionalProperties: false` throughout) to carry pre-projected
+  coordinates.
+- **UI:** a small red sphere + stem marker at the breach point (elevation sampled from the real
+  terrain array, so it sits on the surface); hover or click raycasts against it and toggles a
+  `CSS2DObject` tooltip (three.js's own bundled addon — not a new library) showing the four values
+  above, titled "Breach location", captioned with the existing caveat language, all new strings
+  added to `src/content/ui_text.json` under a new `scene3d` key per STYLE_GUIDE.md. Learned the hard
+  way that `CSS2DRenderer` overwrites `element.style.transform`/`display` every frame from its own
+  `object.visible`/`object.center` — toggling visibility must go through `CSS2DObject.visible`, and
+  anchoring must go through `.center`, not inline CSS, and `.s-notice`'s `display:flex` (built for
+  one icon+text row) breaks a stacked multi-line card, so the tooltip reuses `.s-notice.warning`'s
+  colours/radius/border values directly rather than the class itself.
+- **2D map marker — scoped out.** Checked: it would not have been a small change. `TerrainMap`'s
+  existing pin placement (`percent(lon,lat)`) is built entirely on the legacy `grid` bbox
+  (west/east/north/south), and `grid` is always `null` on the real MVP path (`source.getTerrain()`
+  intentionally never resolves it) — there's no coordinate system for a pin to attach to without a
+  real rework of that placement math. Left for a future session; the instruction's own phrasing
+  ("if it's a small change") anticipated this.
+- **Verified live:** water is now a continuous, correctly-shaped channel along the real South
+  Lhonak → Chungthang reach; the red marker sits exactly at its head; hovering shows the tooltip
+  with the values above, matching the real artifacts byte-for-byte. Zero console errors, zero
+  failed/4xx requests on the full path (home → Teesta demo → 3D tab → hover). `tsc --noEmit` and
+  backend `py_compile` clean; `.venv/bin/pytest -q tests/m0_api`: **179 passed, 1 skipped** (no
+  regressions); full Playwright visual suite: **13/13 unchanged** (no baseline touches the 3D tab).

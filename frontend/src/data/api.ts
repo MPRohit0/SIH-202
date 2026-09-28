@@ -118,6 +118,12 @@ export type JobStatus = {
   eta_s?: number | null; demo_mode?: boolean; started_at: string | null;
   updated_at: string; log_tail?: string[]; error: Record<string, unknown> | null;
 };
+/** A dam entry's key_specs is an open dict of SourcedValues by contract (§5.1) --
+ * this doesn't add a schema field, just types what real sites already put there. */
+export type SourcedValue = {value: unknown; unit: string | null; source: string | null; status: string};
+export type SiteDetail = SiteSummary & {
+  dams: Array<{dam_id: string; name: string; kind: string | null; order: number; key_specs: Record<string, SourcedValue>}>;
+};
 export type SiteCreateRequest = {site_config: Record<string, unknown>; demo_mode?: boolean};
 export type SiteCreateAccepted = {job_id: string; site_id: string};
 /** Contract §5.9 / contracts/scene3d.md — GET /scene3d/{query_id}. */
@@ -186,7 +192,7 @@ export const api = {
   health: () => request('/health', {}, 'health'),
   styles: () => request('/styles', {}, 'styles'),
   sites: () => request<SiteSummary[]>('/sites', {}, 'sites'),
-  site: (siteId: string) => request(`/sites/${encodeURIComponent(siteId)}`, {}, 'site'),
+  site: (siteId: string) => request<SiteDetail>(`/sites/${encodeURIComponent(siteId)}`, {}, 'site'),
   createSite: (body: SiteCreateRequest) => request<SiteCreateAccepted>('/sites', json(useMocks ? siteRequest : body), 'siteAccepted'),
   job: (jobId: string) => request<JobStatus>(`/jobs/${encodeURIComponent(jobId)}`, {}, 'jobStatus'),
   recheck: (siteId: string, body: unknown) => request(`/sites/${encodeURIComponent(siteId)}/recheck`, {method: 'PUT', body: JSON.stringify(body)}, 'siteSummary'),
