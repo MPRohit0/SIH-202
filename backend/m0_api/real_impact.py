@@ -20,6 +20,8 @@ from shapely.geometry import shape
 from shapely.ops import unary_union
 
 from backend.m0_api import dem_diagnostics
+from backend.m6_impact import loss as m6_loss
+from backend.shared.grid import FLOAT_NODATA, CanonicalGrid
 
 CONTRACT_VERSION = "0.3.0"
 
@@ -28,6 +30,63 @@ def _estimate(value, unit: str, basis: str, source: str, *, confidence="LOW") ->
     return {"value": value, "low": None, "high": None, "unit": unit,
             "interval": "none", "kind": "predicted", "confidence": confidence,
             "basis": basis, "source": source}
+
+
+def _direct_run_loss(buildings: gpd.GeoDataFrame, roads: gpd.GeoDataFrame, depth: np.ndarray,
+                      depth_transform, depth_crs, valid: np.ndarray, exposure_dir: Path, run_id: str) -> dict:
+    """Point-estimate `loss_inr` (docs/handoff_contract.md §4.7) for one deterministic direct
+    run, using the JRC method (`backend/m6_impact/loss.py`, docs/data_sources.md src_031/032/
+    047/050/051). Unlike the emulator's P10/P50/P90 ensemble, a single physics run has no
+    ensemble to range over, so this is reported as a point value (`interval: "none"`, no
+    low/high) rather than an invented spread — the same choice already made for
+    `population_persons` in this module."""
+    curves_path, values_path = exposure_dir / "damage_curves.csv", exposure_dir / "asset_values.csv"
+    placeholder = {"value": None, "low": None, "high": None, "unit": "INR", "interval": "none",
+                   "kind": "predicted", "confidence": "LOW", "source": run_id, "by_asset_class": {}}
+    if not (curves_path.is_file() and values_path.is_file()):
+        placeholder["basis"] = "not computed: no damage_curves.csv/asset_values.csv in exposure/"
+        placeholder["assumptions"] = ["economic loss unavailable: JRC exposure inputs are missing"]
+        return placeholder
+
+    config = m6_loss.load_loss_config()
+    curves = m6_loss.load_damage_curves(curves_path)
+    values = m6_loss.load_asset_values(values_path, config)
+
+    grid = CanonicalGrid(site_id="direct_run", grid_id="farfield", crs_epsg=depth_crs.to_epsg(),
+                          origin_x=depth_transform.c, origin_y=depth_transform.f,
+                          cell_size_m=depth_transform.a, width=depth.shape[1], height=depth.shape[0])
+    depth_for_loss = np.where(valid, depth, FLOAT_NODATA).astype(np.float32)
+
+    building_out = m6_loss.building_losses(buildings, grid, depth_for_loss, curves, values, config)
+    road_out = m6_loss.road_losses(roads, grid, depth_for_loss, curves, values, config)
+
+    by_asset_class = {}
+    for cls, row in building_out.items():
+        by_asset_class[cls] = _estimate(row["loss_inr"], "INR",
+            "point estimate from this run's single depth map (no P10/P50/P90 ensemble)"
+            if row["loss_inr"] is not None else "asset_values.csv has no sourced value_inr_per_unit for this class",
+            run_id)
+    by_asset_class["infrastructure_roads"] = _estimate(road_out["loss_inr"], "INR",
+        "point estimate from this run's single depth map (no P10/P50/P90 ensemble)"
+        if road_out["loss_inr"] is not None else "config.loss.default_road_width_m or its JRC value is a placeholder",
+        run_id)
+
+    priced = [v["value"] for v in by_asset_class.values() if v["value"] is not None]
+    total = float(sum(priced)) if priced else None
+    assumptions = [
+        f"single-run point estimate: JRC method ({config.jrc_source_damage_curves}/{config.jrc_source_asset_values}, "
+        f"{config.jrc_region}/{config.jrc_country}), no P10/P50/P90 spread because this is one deterministic run, "
+        "not an ensemble",
+        "JRC max-damage values are 2010 national averages for India; Himalayan stone/timber-built "
+        "houses may cost quite differently to rebuild",
+        "hospitals, schools and bridges (facilities.gpkg) and agriculture are not priced: no footprint "
+        "area / no cropland layer",
+    ]
+    return {"value": total, "low": None, "high": None, "unit": "INR", "interval": "none",
+            "kind": "predicted", "confidence": "LOW", "source": run_id, "by_asset_class": by_asset_class,
+            "basis": "sum of priced by_asset_class point estimates" if total is not None else
+                     "no priced asset class has a sourced value_inr_per_unit",
+            "assumptions": assumptions}
 
 
 def _direct_rows(run_dir: Path) -> dict[str, list[dict]]:
@@ -141,22 +200,24 @@ def build_impact(site_dir: Path, query_dir: Path) -> dict:
                     snapped_pois.append((poi["name"], nearest_m))
     warning_table.sort(key=lambda row: row["arrival_s"]["value"])
 
-    loss = {"value": None, "low": None, "high": None, "unit": "INR", "interval": "P10-P90",
-            "kind": "predicted", "confidence": "LOW",
-            "basis": "not computed: direct run has no P10/P50/P90 ensemble; required conversion factors remain placeholders",
-            "source": run_id, "by_asset_class": {},
-            "assumptions": ["economic loss unavailable for a single deterministic run",
-                            "EUR-to-INR and price-index factors are placeholders",
-                            "road width is a placeholder", "facilities and agriculture are not priced"]}
+    loss = _direct_run_loss(buildings, roads, depth, depth_transform, depth_crs, valid, exposure_dir, run_id)
+    placeholders = [f"loss_inr.by_asset_class.{cls}" for cls, est in loss["by_asset_class"].items()
+                    if est["value"] is None]
+    if loss["value"] is None:
+        placeholders.insert(0, "loss_inr")
     caveats = [
         {"id": "direct_solver_output", "severity": "warning", "text_key": "caveat_direct_solver_output"},
         {"id": "mvp_reconstructed_forcing", "severity": "warning", "text_key": "mvp_reconstructed_forcing"},
         {"id": "single_run_impact", "severity": "warning", "text_key": "single_run_impact"},
         {"id": "impact_exposure_coverage", "severity": "warning", "text_key": "impact_exposure_coverage"},
-        {"id": "placeholder_data", "severity": "warning", "text_key": "placeholder_data"},
+        {"id": "loss_national_average", "severity": "warning", "text_key": "caveat_loss_national_average"},
     ]
-    placeholders = ["loss_inr.eur_to_inr_2010", "loss_inr.price_index_2010_to_current",
-                    "loss_inr.default_road_width_m"]
+    if placeholders:
+        # "placeholder_data" here renders ui_text.json's loss-specific string ("...so monetary
+        # loss is unavailable"), so it's only accurate to show while some loss class is
+        # actually still unpriced — not the generic `has_placeholders` state below, which also
+        # covers unrelated site-config placeholders (bbox, breach location).
+        caveats.append({"id": "placeholder_data", "severity": "warning", "text_key": "placeholder_data"})
     coverage = ["Population uses WorldPop 2020 UN-adjusted counts at native ~1 km resolution, redistributed uniformly by the stored sum-preserving 30 m resampling; it is not building-level or current census data.",
                 "Building, road and facility counts use the existing OpenStreetMap extract; its fetch timestamp is absent from provenance, so completeness and currency are unknown.",
                 "The stored exposure extract was queried using the site's then-configured bbox; site configuration coordinates are marked as placeholders. Counts are only the spatial intersection with this georeferenced MVP pilot domain.",

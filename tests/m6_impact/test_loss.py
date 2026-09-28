@@ -58,11 +58,16 @@ def _write_asset_values(path: Path, *, sourced: bool, fx: float = 2.0, idx: floa
             w.writerow([cls, inr, "INR/m2", "src_032", status, e, f"'MaxDamage-X'!Z{1}"])
 
 
-def _config(*, sourced: bool, fx: float = 2.0, idx: float = 3.0) -> LossConfig:
+def _config(*, sourced: bool, fx: float = 2.0, idx: float = 3.0, road_width_sourced: bool = False) -> LossConfig:
     cfg = load_loss_config().model_copy(deep=True)
     status = "sourced" if sourced else "placeholder"
     cfg.eur_to_inr_2010 = cfg.eur_to_inr_2010.model_copy(update={"value": fx, "status": status})
     cfg.price_index_2010_to_current = cfg.price_index_2010_to_current.model_copy(update={"value": idx, "status": status})
+    # config/impact.yaml ships default_road_width_m as `sourced` (docs/data_sources.md src_051);
+    # most tests here are about the FX/price-index placeholder behaviour, not roads, so default
+    # to forcing it back to `placeholder` unless a test opts in.
+    cfg.default_road_width_m = cfg.default_road_width_m.model_copy(
+        update={"value": 5.0 if road_width_sourced else None, "status": "sourced" if road_width_sourced else "placeholder"})
     return cfg
 
 

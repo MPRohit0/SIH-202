@@ -55,6 +55,7 @@
       "single_run_impact": "Impact is calculated from one deterministic run. The POSSIBLE column is the run footprint, not an uncertainty probability.",
       "impact_exposure_coverage": "Exposure has limited or unrecorded coverage; missing asset classes are not assessed.",
       "placeholder_data": "Some impact inputs remain placeholders, so monetary loss is unavailable.",
+      "caveat_loss_national_average": "JRC max-damage values are 2010 national averages for India; Himalayan stone or timber-built houses may cost quite differently to rebuild — loss is a rough estimate, not a precise valuation.",
       "dem_depression_ponding": "The maximum depth sits in an unconditioned DEM depression that traps water rather than a hydraulic peak; the source terrain was never hydrologically conditioned.",
       "clear_water_steep_reach_velocity": "The maximum velocity is clear-water Manning flow on a steep gorge reach; it is not necessarily representative of a debris-laden event.",
       "poi_grid_snapping": "One or more downstream points of interest show no inundation despite a wet cell nearby, most likely 90 m grid resolution missing the channel at that point rather than the location being unaffected.",
@@ -93,7 +94,12 @@
     "dataLimited": "Coverage notes",
     "lowConfidence": "LOW confidence impact estimate",
     "fallback": "Flood extent uses the empirical fallback method.",
-    "demoMode": "DEMO MODE"
+    "demoMode": "DEMO MODE",
+    "lossByClass": "Loss by asset class",
+    "assetClass": "Asset class",
+    "lossByClassNone": "No priced asset class yet",
+    "lossMethod": "JRC global flood depth-damage functions (Huizinga et al. 2017)",
+    "lossAssumptions": "Assumptions"
   },
   "comparison": {
     "loading": "Loading model comparison…",

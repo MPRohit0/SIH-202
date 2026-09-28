@@ -31,10 +31,65 @@ scaled for infrastructure-roads/transport, per each sheet's own documented metho
 India. Himalayan stone or timber-built houses may cost quite differently to rebuild; treat
 `loss_inr` as a rough estimate, not a precise valuation.
 
-**Not yet sourced** (both placeholders in `config/impact.yaml`, per `docs/decisions.md`
-2026-09-25): the 2010 annual-average EUR->INR rate (RBI reference rate) and the 2010->current
-Indian price index (CPWD cost index or WPI, team to choose). `loss_inr.by_asset_class[*]`
-stays a null Estimate until both are filled in.
+The EUR->INR rate and the 2010->current price index needed to convert `value_eur2010` to
+`value_inr_per_unit` are `src_047` and `src_050` below (both `status: sourced` in
+`config/impact.yaml` as of 2026-09-28).
+
+## src_047 — RBI reference rate, EUR/INR, calendar year 2010 annual average
+
+Reserve Bank of India, *Handbook of Statistics on Indian Economy*, Table 139 "Exchange Rate
+of the Indian Rupee vis-à-vis the SDR, US Dollar, Pound Sterling, D.M./Euro and Japanese
+Yen (Calendar Year — Annual Average)": **60.6683 INR/EUR** for calendar year 2010.
+
+**Verify before treating as final** — RBI's own Handbook PDF and Reference Rate Archive are
+CAPTCHA-gated; this figure was read from Wikipedia's `Template:INRConvert/HistoricalRate`
+dataset, which cites this same RBI Handbook table, not from the primary PDF directly.
+
+Used for: `config/impact.yaml` `loss.eur_to_inr_2010` (`backend/m6_impact/jrc_damage.py`,
+`backend/m6_impact/loss.py`) — the first of two factors converting JRC's 2010-EUR max-damage
+values (src_032) to current INR.
+
+## src_050 — Wholesale Price Index (WPI), All Commodities, Office of Economic Adviser (India)
+
+Two PIB press releases, Office of the Economic Adviser, Ministry of Commerce & Industry,
+Government of India:
+- "Index Numbers of Wholesale Prices in India (Base: 2004-05=100), Review for the month of
+  December, 2010" (released 2011-02-14): All-Commodities WPI = **144.1** (provisional).
+- "Index Numbers of Wholesale Price in India for the Month of April, 2026 (Base Year:
+  2011-12)": All-Commodities WPI = **167.0**.
+
+The December-2010 figure is converted from base 2004-05=100 to base 2011-12=100 using the
+official linking factor **1.873** (Office of Economic Adviser, `eaindustry.nic.in`, "Linking
+Factor For WPI Series (Base: 2004-05)", All Commodities row): 144.1 / 1.873 = 76.94.
+`price_index_2010_to_current` = 167.0 / 76.94 = **2.171**.
+
+**Caveats:**
+- Mixes a December-2010 point value with `src_047`'s full-2010 calendar-year average — both
+  are within 2010, but not the same averaging convention.
+- April 2026 is used as "current" rather than the true latest month (August 2026 = 110.8) —
+  in September 2026 WPI's base was mid-revision from 2011-12=100 to 2022-23=100, and no
+  reliable official 2011-12->2022-23 linking factor could be found (two lookups of what
+  should be that factor gave inconsistent numbers). Chaining an uncertain third linking factor
+  was judged worse than using a slightly older but cleanly single-sourced point. Re-derive
+  once an official 2011-12->2022-23 linking factor is published.
+
+Used for: `config/impact.yaml` `loss.price_index_2010_to_current` (`backend/m6_impact/jrc_damage.py`,
+`backend/m6_impact/loss.py`) — the second of the two conversion factors, applied after `src_047`.
+
+## src_051 — IRC:73, Geometric Design Standards for Rural (Non-Urban) Highways
+
+Indian Roads Congress, *IRC:73*, carriageway width table: single-lane 3.75 m; two-lane
+without raised kerbs 7.0 m; two-lane with raised kerbs 10.5 m; multi-lane 3.5 m per lane;
+Village Roads restricted to 3.0 m normally (+1.5 m in areas with regular heavy-snowfall
+clearance).
+
+Used for: `config/impact.yaml` `loss.default_road_width_m` = 3.75 m (single-lane carriageway,
+the IRC category closest to the residential/unclassified/track roads that dominate OSM
+coverage in the Himalaya) — applied uniformly to every OSM `highway=*` value
+(`backend/m6_impact/loss.py`). IRC:73 classifies roads by category (NH/SH/MDR/ODR/VR), not by
+OSM tag, and gives a single width per category, not per class of road within it; a per-tag
+mapping to IRC category (`docs/impact_outputs.md` §6, open decision) is not yet implemented —
+this one width is applied to every road regardless of its `highway=*` tag.
 
 ## src_033 — SRTM GL1 (30 m), NASA JPL
 

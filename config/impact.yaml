@@ -16,25 +16,39 @@ loss:
   depth_cap_m: 6.0
 
   eur_to_inr_2010:
-    value: null
+    value: 60.6683
     unit: INR/EUR
-    source: "TO FILL: RBI reference rate, 2010 annual average"
-    status: placeholder
-    note: "Applied first (docs/decisions.md 2026-09-25 'JRC loss estimation')."
+    source: src_047
+    status: sourced
+    note: >
+      RBI Handbook of Statistics on Indian Economy, Table 139, calendar-year 2010 annual
+      average. Applied first (docs/decisions.md 2026-09-25 'JRC loss estimation'). Verify
+      against RBI's primary PDF before treating as final (docs/data_sources.md src_047 caveat
+      — read via a secondary source because rbi.org.in is CAPTCHA-gated).
 
   price_index_2010_to_current:
-    value: null
+    value: 2.171
     unit: "-"
-    source: "TO FILL: CPWD cost index or WPI, 2010 -> current year (team to choose)"
-    status: placeholder
-    note: "Applied second, in INR, after the FX conversion."
+    source: src_050
+    status: sourced
+    note: >
+      WPI All Commodities: Dec 2010 = 144.1 (base 2004-05=100) -> 76.94 (base 2011-12=100, via
+      the official 1.873 linking factor) -> current = 167.0 (Apr 2026, base 2011-12=100) ->
+      167.0 / 76.94 = 2.171. Applied second, in INR, after the FX conversion. Apr 2026 is used
+      as "current" (not the latest month) because WPI's base was mid-revision to 2022-23=100
+      with no reliable 2011-12->2022-23 linking factor available — see docs/data_sources.md
+      src_050 caveats. Re-derive once that linking factor is published.
 
   default_road_width_m:
-    value: null
+    value: 3.75
     unit: m
-    source: "TO FILL: no source yet for road width by class (e.g. IRC geometric design standards)"
-    status: placeholder
-    note: "Applied to every OSM highway=* kind uniformly until per-class widths are sourced."
+    source: src_051
+    status: sourced
+    note: >
+      IRC:73 single-lane carriageway width, the IRC category closest to the
+      residential/unclassified/track roads dominating OSM coverage here. Applied to every OSM
+      highway=* kind uniformly — IRC:73 widths are per road category (NH/SH/MDR/ODR/VR), not
+      per OSM tag, and per-class widths are not yet implemented (docs/impact_outputs.md §6).
 
   # OSM building=* tag value -> JRC building damage class. Unmapped values (including
   # building=yes, normalised to 'building' by exposure_osm.py) fall back to
