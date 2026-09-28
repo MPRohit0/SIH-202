@@ -118,16 +118,74 @@ def _load_slope_deg(site_id: str, grid, data_dir: Path):
         return None
 
 
+class _MonthSkipped(Exception):
+    """Raised by `_classify_and_mask` when a month has no usable raster at all (too cloudy, too
+    icy, or no scene of either kind), so the caller can distinguish "skip" from "computed a real,
+    possibly empty, component"."""
+
+    def __init__(self, cloud_pct: float | None, snow_ice_pct: float | None, reason: str):
+        self.cloud_pct, self.snow_ice_pct, self.reason = cloud_pct, snow_ice_pct, reason
+
+
+def _classify_and_mask(
+    month_start: date, month_end: date, provider: Provider, settings: GeeSettings,
+    grid, seed_rc: tuple[int, int], site_id: str, data_dir: Path,
+    slope_deg_cache: dict,
+):
+    """One month's full pipeline: pick S2 or S1 (`docs/decisions.md` "M7 GEE fetch"), build the
+    water mask (NIR/slope-filtered per method), and return `(area_m2, component, method,
+    threshold, cloud_pct, snow_ice_pct, raster)`. Raises `_MonthSkipped` if no method produced a
+    usable raster. `slope_deg_cache` is a one-entry mutable dict (`{"value": ..., "loaded": bool}`)
+    so the DEM is loaded and reprojected at most once per `_fetch_lake_area` call, however many
+    months end up needing it (this function's own local static-like cache would not persist across
+    calls, unlike a module-level cache which would leak between sites/runs)."""
+    s2 = provider.s2_month(grid, month_start, month_end)
+    cloud_pct = None if s2 is None else round(100.0 - s2.valid_pct, 1)
+    snow_ice_pct = None if s2 is None else s2.snow_ice_pct
+
+    raster, method = None, "skip"
+    if snow_ice_pct is not None and snow_ice_pct > settings.max_snow_ice_pct:
+        raise _MonthSkipped(cloud_pct, snow_ice_pct, "snow_ice")
+    if s2 is not None and cloud_pct is not None and cloud_pct <= settings.max_cloud_pct:
+        method, raster = "s2_water_index", s2
+    else:
+        s1 = provider.s1_month(grid, month_start, month_end)
+        if s1 is not None and s1.valid_pct >= settings.min_valid_pct:
+            method, raster = "s1_threshold", s1
+        else:
+            raise _MonthSkipped(cloud_pct, snow_ice_pct, "no_usable_scene")
+
+    clamp = (settings.ndwi_threshold_clamp if method == "s2_water_index"
+             else settings.s1_vv_threshold_clamp_db)
+    below = method == "s1_threshold"
+    threshold = la.otsu_threshold(raster.index, clamp)
+    nir = raster.nir if method == "s2_water_index" else None
+    slope_deg = None
+    if method == "s1_threshold":
+        if not slope_deg_cache.get("loaded"):
+            slope_deg_cache["value"] = _load_slope_deg(site_id, grid, data_dir)
+            slope_deg_cache["loaded"] = True
+        slope_deg = slope_deg_cache["value"]
+    mask = la.water_mask(
+        raster.index, threshold, below=below, nir=nir, nir_max=settings.nir_reflectance_max,
+        slope_deg=slope_deg, max_slope_deg=settings.max_slope_deg,
+    )
+    component = la.seed_component(mask, seed_rc)
+    area_m2 = la.component_area_m2(component, grid)
+    return area_m2, component, method, threshold, cloud_pct, snow_ice_pct, raster
+
+
 def _fetch_lake_area(
     site_id: str, cfg: SiteConfig, dam: Dam, provider: Provider, settings: GeeSettings, data_dir: Path,
 ) -> tuple[list[dict], dict, dict | None]:
     """Returns (merged rows, per-month detail for `gee_meta.json`, the latest valid month's
-    component/grid/date for `lake_latest.geojson` -- or `None` if no month fetched this run had a
-    usable component)."""
+    component/grid/date for `lake_latest.geojson` -- or `None` if no month in the whole merged
+    series (fresh or cached) has a valid area at all)."""
     epsg = cfg.crs.utm_epsg.value
     seed_x, seed_y = _lonlat_to_utm(dam.location.value[0], dam.location.value[1], epsg)
     grid = la.build_aoi_grid(seed_x, seed_y, epsg, settings)
     seed_rc = la.seed_rowcol(grid, seed_x, seed_y)
+    slope_deg_cache: dict = {}
 
     cached_rows = cache.read_lake_area(site_id, data_dir)
     cached_dates = {r["date"] for r in cached_rows}
@@ -136,55 +194,22 @@ def _fetch_lake_area(
 
     fresh_rows: list[dict] = []
     month_detail: dict[str, dict] = {}
-    latest_component = None  # (date_str, component, grid)
-    slope_deg, slope_computed = None, False  # computed lazily on first S1 month, cached after that
+    components: dict[str, tuple] = {}  # date_str -> (component, method), for months processed this run
 
     for month_start in months:
         date_str = month_start.isoformat()
         if date_str in cached_dates and date_str not in always_refetch:
             continue
         month_end = _month_end(month_start)
-
-        s2 = provider.s2_month(grid, month_start, month_end)
-        cloud_pct = None if s2 is None else round(100.0 - s2.valid_pct, 1)
-        snow_ice_pct = None if s2 is None else s2.snow_ice_pct
-
-        raster, method = None, "skip"
-        if snow_ice_pct is not None and snow_ice_pct > settings.max_snow_ice_pct:
-            method, reason = "skip", "snow_ice"
-        elif s2 is not None and cloud_pct is not None and cloud_pct <= settings.max_cloud_pct:
-            method, reason = "s2_water_index", None
-            raster = s2
-        else:
-            s1 = provider.s1_month(grid, month_start, month_end)
-            if s1 is not None and s1.valid_pct >= settings.min_valid_pct:
-                method, reason = "s1_threshold", None
-                raster = s1
-            else:
-                method, reason = "skip", "no_usable_scene"
-
-        if raster is None:
+        try:
+            area_m2, component, method, threshold, cloud_pct, snow_ice_pct, raster = _classify_and_mask(
+                month_start, month_end, provider, settings, grid, seed_rc, site_id, data_dir, slope_deg_cache)
+        except _MonthSkipped as skipped:
             fresh_rows.append({"date": date_str, "area_m2": None, "method": None,
-                                "cloud_pct": cloud_pct, "scene_ids": ""})
-            month_detail[date_str] = {"method": "skip", "reason": reason,
-                                       "cloud_pct": cloud_pct, "snow_ice_pct": snow_ice_pct}
+                                "cloud_pct": skipped.cloud_pct, "scene_ids": ""})
+            month_detail[date_str] = {"method": "skip", "reason": skipped.reason,
+                                       "cloud_pct": skipped.cloud_pct, "snow_ice_pct": skipped.snow_ice_pct}
             continue
-
-        clamp = (settings.ndwi_threshold_clamp if method == "s2_water_index"
-                 else settings.s1_vv_threshold_clamp_db)
-        below = method == "s1_threshold"
-        threshold = la.otsu_threshold(raster.index, clamp)
-        nir = raster.nir if method == "s2_water_index" else None
-        if method == "s1_threshold" and not slope_computed:
-            slope_deg = _load_slope_deg(site_id, grid, data_dir)
-            slope_computed = True
-        mask = la.water_mask(
-            raster.index, threshold, below=below, nir=nir, nir_max=settings.nir_reflectance_max,
-            slope_deg=(slope_deg if method == "s1_threshold" else None),
-            max_slope_deg=settings.max_slope_deg,
-        )
-        component = la.seed_component(mask, seed_rc)
-        area_m2 = la.component_area_m2(component, grid)
 
         fresh_rows.append({
             "date": date_str, "area_m2": area_m2, "method": method,
@@ -196,18 +221,36 @@ def _fetch_lake_area(
             "snow_ice_pct": snow_ice_pct, "scene_ids": raster.scene_ids,
             "acquisition_dates": raster.acquisition_dates,
         }
-        if latest_component is None or date_str > latest_component[0]:
-            latest_component = (date_str, component, grid, method)
+        components[date_str] = (component, method)
 
     merged = cache.merge_lake_rows(cached_rows, fresh_rows)
-    latest = None
-    if latest_component is not None:
-        latest_date, component, comp_grid, method = latest_component
-        latest_valid_date = max((r["date"] for r in merged if r["area_m2"] is not None), default=None)
-        if latest_valid_date == latest_date:
-            latest = {"date": latest_date, "component": component, "grid": comp_grid, "method": method}
+    latest_valid_date = max((r["date"] for r in merged if r["area_m2"] is not None), default=None)
+    if latest_valid_date is None:
+        return merged, month_detail, None
 
-    return merged, month_detail, latest
+    if latest_valid_date in components:
+        component, method = components[latest_valid_date]
+    else:
+        # The globally latest valid month wasn't (re)computed in this run's loop above -- either
+        # it's a cached row outside `always_refetch`, or its cached row is more recent than any
+        # month this run had a usable raster for. Recomputing it directly (rather than leaving
+        # `lake_latest.geojson` stale or empty) is one extra month's worth of provider calls, at
+        # most, regardless of `months_back`.
+        latest_month_start = date.fromisoformat(latest_valid_date)
+        try:
+            _, component, method, *_ = _classify_and_mask(
+                latest_month_start, _month_end(latest_month_start), provider, settings, grid,
+                seed_rc, site_id, data_dir, slope_deg_cache)
+        except _MonthSkipped:
+            # The month that produced a valid cached area no longer classifies the same way against
+            # a live provider right now (e.g. a synthetic/test provider with no memory of past
+            # months, or genuinely different live conditions on re-query) -- there's a real area
+            # number for it in the CSV, but no component to draw honestly, so leave the polygon as
+            # whatever was last written rather than fabricate one.
+            return merged, month_detail, None
+
+    return merged, month_detail, {"date": latest_valid_date, "component": component,
+                                   "grid": grid, "method": method}
 
 
 def run(

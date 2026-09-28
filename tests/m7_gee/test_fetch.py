@@ -164,6 +164,53 @@ class TestRunEndToEnd:
         assert rows[0]["method"] == "s1_threshold"
         assert rows[0]["area_m2"] is not None and rows[0]["area_m2"] > 0.0
 
+    def test_lake_latest_reflects_a_cached_valid_month_when_the_newest_months_skip(self, tmp_path):
+        """Regression (docs/decisions.md 2026-09-28 "fix the latest/latest_valid_date match"):
+        lake_latest.geojson must be written from the latest VALID month across the whole merged
+        series, even when this run's always-refetched trailing months all skipped and the true
+        latest valid month is an older cached row this run never re-fetched a raster for."""
+        months = fetch._month_starts(4)
+        latest_still_valid = months[1].isoformat()
+        newest_two = {m.strftime("%Y-%m") for m in months[-fetch.REFETCH_TRAILING_MONTHS:]}
+
+        fetch.run("synth", settings=GeeSettings(months_back=4), provider=SyntheticProvider(), data_dir=tmp_path)
+        before = json.loads((cache.gee_dir("synth", tmp_path) / "lake_latest.geojson").read_text())
+        assert before["features"]  # sanity: the first run did write a real polygon
+
+        provider = SyntheticProvider(missing_months=tuple(newest_two))
+        fetch.run("synth", settings=GeeSettings(months_back=4), provider=provider, data_dir=tmp_path)
+
+        rows = {r["date"]: r for r in cache.read_lake_area("synth", tmp_path)}
+        for m in months[-fetch.REFETCH_TRAILING_MONTHS:]:
+            assert rows[m.isoformat()]["area_m2"] is None
+        assert rows[latest_still_valid]["area_m2"] is not None
+
+        after = json.loads((cache.gee_dir("synth", tmp_path) / "lake_latest.geojson").read_text())
+        assert after["features"]  # not the pre-fix empty {} ({"features": ...} missing entirely)
+        assert after["features"][0]["properties"]["date"] == latest_still_valid
+
+    def test_lake_latest_stays_as_is_if_the_latest_valid_cached_month_cannot_be_recomputed(self, tmp_path):
+        """If the latest-valid cached month can no longer be recomputed against the current
+        provider (a stand-in for a real month whose scenes have since become unavailable), the
+        fetch must not crash and must not overwrite a previously written polygon with a fabricated
+        one; it leaves lake_latest.geojson exactly as it was."""
+        months = fetch._month_starts(4)
+        latest_valid_month = months[1]
+        newest_two = {m.strftime("%Y-%m") for m in months[-fetch.REFETCH_TRAILING_MONTHS:]}
+
+        fetch.run("synth", settings=GeeSettings(months_back=4), provider=SyntheticProvider(), data_dir=tmp_path)
+        before = (cache.gee_dir("synth", tmp_path) / "lake_latest.geojson").read_text()
+
+        # This run: the two trailing months skip AND the older cached "latest valid" month itself
+        # can no longer be recomputed against the current provider.
+        unavailable = newest_two | {latest_valid_month.strftime("%Y-%m")}
+        provider = SyntheticProvider(missing_months=tuple(unavailable))
+        result = fetch.run("synth", settings=GeeSettings(months_back=4), provider=provider, data_dir=tmp_path)
+        assert result.errors == []
+
+        after = (cache.gee_dir("synth", tmp_path) / "lake_latest.geojson").read_text()
+        assert after == before  # not overwritten with a fabricated polygon, and no crash
+
     def test_reference_area_override_feeds_the_recheck(self, tmp_path):
         fetch.run("synth", settings=GeeSettings(months_back=1), provider=SyntheticProvider(),
                    data_dir=tmp_path, reference_area_m2=1.0)

@@ -1,5 +1,38 @@
 # Team decisions
 
+## 2026-09-28 — M7 GEE fetch: fix the latest/latest_valid_date match
+
+`lake_latest.geojson` was empty on disk for the real Teesta site despite `lake_area.csv` having
+many valid rows. Root cause: `_fetch_lake_area`'s old logic only ever tracked a component (the
+actual polygon array) for months processed IN THAT RUN's loop -- which, once a site has any cache
+at all, is only `REFETCH_TRAILING_MONTHS` (2) months, since everything else is skipped as already
+cached (`if date_str in cached_dates and date_str not in always_refetch: continue`). It then
+required the freshly-tracked month's date to exactly equal the globally latest valid date across
+*all* merged rows (fresh + cached). Whenever both trailing months skipped (cloud/snow/no scene --
+common in a monsoon-affected Himalayan series) while an older, already-cached month held the true
+latest valid area, the dates could never match, `latest` stayed `None`, and (since `run()` only
+ever writes the placeholder `{}` once, the first time no file exists) the polygon silently stayed
+stale or empty on every subsequent run -- indefinitely, since nothing ever resets it back to a
+populated state once it's been through this path.
+
+**Fix:** `_fetch_lake_area` now always resolves the globally latest valid date from `merged`
+first. If that month was processed fresh this run, its component is reused as before. If it
+wasn't (the bug's exact scenario), the month is recomputed directly -- one extra `_classify_and_
+mask` call, at most, regardless of `months_back` -- instead of being left stale. If even that
+recompute can't produce a component (e.g. the provider no longer has anything for that month),
+`lake_latest.geojson` is left exactly as it was rather than fabricating a polygon or crashing the
+fetch. Extracted the per-month classify+mask+component logic (previously duplicated intent inline)
+into `_classify_and_mask()` so both the main loop and this fallback path share one implementation.
+
+Tests: `tests/m7_gee/test_fetch.py` -- `test_lake_latest_reflects_a_cached_valid_month_when_the_
+newest_months_skip` (the bug's exact scenario: two clean runs, trailing months skip on the second,
+`lake_latest.geojson` must still show the true latest valid month, not stay stale/empty) and
+`test_lake_latest_stays_as_is_if_the_latest_valid_cached_month_cannot_be_recomputed` (the
+un-recomputable case: no crash, file left untouched). `tests/m7_gee`: 121 passed (2 new), the
+existing `test_lake_latest_geojson_is_the_newest_valid_month` (first-run case) still green,
+confirming the refactor is behaviour-preserving there. Full `tests/m0_api`: 206 passed, 1
+pre-existing hardware-gated skip, no regressions.
+
 ## 2026-09-28 — M7 GEE fetch: mask slopes steeper than ~6 degrees for S1 months
 
 The Sept 2023 South Lhonak overestimate (4,348,200 m² vs ISRO/NRSC's 167.4 ha) used
