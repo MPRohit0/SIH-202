@@ -41,6 +41,14 @@ class GeeSettings(BaseModel):
     #: (e.g. an almost-uniform composite) from picking a threshold that is not physically sensible.
     ndwi_threshold_clamp: tuple[float, float] = (-0.2, 0.4)
 
+    #: a Sentinel-2 pixel only counts as water if its B8 (NIR) surface reflectance is at or below
+    #: this, in addition to passing the NDWI threshold (`docs/decisions.md` 2026-09-28 "M7 GEE
+    #: fetch: NIR test excludes snow from S2 water mask"). Open water is dark in the NIR (<0.1
+    #: reflectance); snow and ice are bright (>0.5) but can still pass a global NDWI cut, letting a
+    #: snow patch bridge two otherwise-separate water bodies into one connected component. Only
+    #: applied to `s2_water_index` months -- Sentinel-1 has no NIR band.
+    nir_reflectance_max: float = Field(default=0.15, ge=0, le=1)
+
     #: Otsu threshold on Sentinel-1 VV backscatter (dB) is clamped to this range.
     s1_vv_threshold_clamp_db: tuple[float, float] = (-22.0, -10.0)
 

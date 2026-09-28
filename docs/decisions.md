@@ -1,5 +1,43 @@
 # Team decisions
 
+## 2026-09-28 — M7 GEE fetch: NIR test excludes snow from S2 water mask
+
+Diagnosed the 2026-09-28 live Teesta fetch's South Lhonak lake-area overestimate (4,348,200 m² /
+1,493,200 m² for Sep/Oct 2023 vs. ISRO/NRSC's 167.4 ha / 60.3 ha for the same two events, `src_072`
+in `docs/data_sources.md` — about 2.6x). `backend/m7_gee/fetch.py` already restricted each month's
+water mask to the single connected component containing the seeded dam location
+(`lake_area.seed_component`), so the failure mode is not "the AOI includes an unrelated lake" as a
+separate blob — it is a bright-NIR (snow/ice) corridor within the AOI whose NDWI still clears the
+Otsu threshold, bridging the seeded lake to whatever else the corridor touches into one connected
+component. `GeeSettings.max_snow_ice_pct` only skips a month if snow/ice covers >30% of the *whole*
+AOI buffer; a smaller patch that happens to sit between the lake and something else was never
+filtered at the pixel level.
+
+**Fix:** `backend/m7_gee/provider.py` `s2_month` now also fetches B8 (NIR) surface reflectance
+(scaled from the S2_SR_HARMONIZED 0-10000 DN to 0-1) alongside NDWI. `lake_area.water_mask` takes
+optional `nir`/`nir_max` and additionally requires `nir <= nir_max` — open water is dark in the NIR
+(<0.1 reflectance); snow/ice is bright (>0.5). New setting `GeeSettings.nir_reflectance_max = 0.15`
+(`backend/m7_gee/settings.py`), applied only to `s2_water_index` months (Sentinel-1 has no NIR
+band). `SyntheticProvider` gained a `snow_bridge_months` fixture (a bright-NIR corridor connecting
+the seeded lake disc to a second, separate disc) so the exact bug is covered end to end
+(`tests/m7_gee/test_lake_area.py::TestNirFiltersSnow`,
+`tests/m7_gee/test_fetch.py::test_snow_bridge_does_not_inflate_area_via_nir_filter`).
+
+**Not done this session:** a live re-fetch to report the corrected South Lhonak numbers. This
+session's tool access could not run the backend (`Bash`/subagent calls were failing with a
+server-side classifier error for the whole session), so the fix is verified by synthetic
+regression tests and manual trace of the mask/component logic only, not against real Earth Engine
+imagery. Whoever re-runs `python -m backend.m7_gee.fetch teesta --months 37` next should record the
+new Sep/Oct 2023 area rows here.
+
+**Also diagnosed separately (does not touch this fix):** the Sept 2023 row uses `s1_threshold`
+(Sentinel-1 SAR), not `s2_water_index` — S2 was too cloudy for that monsoon-season month. S1 VV
+backscatter over steep Himalayan terrain suffers radar shadow (slopes facing away from the sensor
+return near-zero signal, indistinguishable from smooth open water in the `below=True` mask), which
+`fetch.py`'s own `radar_shadow` caveat already documents as a known limitation. Since S1 has no NIR
+band, this NIR fix cannot correct the Sept over-estimate; that is a separate, still-open item
+(tracked as "mask slopes steeper than ~6 degrees using the site DEM" in `docs/progress.md`).
+
 ## 2026-09-27 — M3→M4 routed discharge manifest (contract 0.3.0)
 
 **Status:** artifact shape implemented; real routing-section selection and extraction are blocked

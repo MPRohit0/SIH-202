@@ -35,6 +35,9 @@ HYDROBASINS_COLLECTION_TEMPLATE = "WWF/HydroSHEDS/v1/Basins/hybas_{level}"
 S2_SCL_CLOUD_CLASSES = [3, 8, 9, 10]  # cloud shadow, cloud medium/high prob, thin cirrus
 S2_SCL_SNOW_ICE_CLASS = 11
 
+# COPERNICUS/S2_SR_HARMONIZED stores reflectance bands as 0-10000 DN; this converts to 0-1.
+S2_HARMONIZE_REFLECTANCE_SCALE = 0.0001
+
 MAX_UPSTREAM_HOPS = 25  # generous for a small Himalayan headwater catchment; guards a runaway walk
 
 
@@ -61,6 +64,7 @@ class MonthlyRaster(Protocol):
     index: np.ndarray  # NDWI (S2) or VV dB (S1), NaN where masked
     valid_pct: float  # % of the AOI buffer with any clear observation this month
     snow_ice_pct: float | None  # S2 only
+    nir: np.ndarray | None  # S2 only: B8 surface reflectance (0-1), NaN where masked
     scene_ids: list[str]
     acquisition_dates: list[str]
 
@@ -137,25 +141,32 @@ class EarthEngineProvider:
             cloud = scl.remap(S2_SCL_CLOUD_CLASSES, [1] * len(S2_SCL_CLOUD_CLASSES), 0)
             valid = cloud.eq(0).rename("valid")
             ndwi = img.normalizedDifference(["B3", "B8"]).rename("ndwi").updateMask(valid)
+            # B8 is stored as a 0-10000 DN; S2_HARMONIZE_REFLECTANCE_SCALE converts to 0-1
+            # reflectance so `settings.nir_reflectance_max` (a physical reflectance) applies directly.
+            nir = img.select("B8").multiply(S2_HARMONIZE_REFLECTANCE_SCALE).rename("nir").updateMask(valid)
             ice = scl.eq(S2_SCL_SNOW_ICE_CLASS).rename("ice")
-            return ndwi.addBands(valid).addBands(ice)
+            return ndwi.addBands(valid).addBands(nir).addBands(ice)
 
         composite = coll.map(_mask_and_index)
         image = ee.Image.cat([
             composite.select("ndwi").median().rename("ndwi"),
             composite.select("valid").mean().rename("valid_frac"),
+            composite.select("nir").median().rename("nir"),
             composite.select("ice").mean().rename("ice_frac"),
         ]).clip(aoi)
 
         arr = self._compute_pixels(image, grid)
         ndwi = np.asarray(arr["ndwi"], dtype=float)
         valid_frac = np.asarray(arr["valid_frac"], dtype=float)
+        nir = np.asarray(arr["nir"], dtype=float)
         ice_frac = np.asarray(arr["ice_frac"], dtype=float)
         ndwi[valid_frac <= 0] = np.nan
+        nir[valid_frac <= 0] = np.nan
 
         return _Raster(
             index=ndwi, valid_pct=float(100.0 * np.nanmean(valid_frac)),
-            snow_ice_pct=float(100.0 * np.nanmean(ice_frac)), scene_ids=ids, acquisition_dates=dates,
+            snow_ice_pct=float(100.0 * np.nanmean(ice_frac)), nir=nir,
+            scene_ids=ids, acquisition_dates=dates,
         )
 
     def s1_month(self, grid: AoiGrid, month_start: date, month_end: date) -> MonthlyRaster | None:
@@ -181,7 +192,7 @@ class EarthEngineProvider:
         vv[count <= 0] = np.nan
 
         return _Raster(
-            index=vv, valid_pct=float(100.0 * np.mean(count > 0)), snow_ice_pct=None,
+            index=vv, valid_pct=float(100.0 * np.mean(count > 0)), snow_ice_pct=None, nir=None,
             scene_ids=ids, acquisition_dates=dates,
         )
 
@@ -242,10 +253,11 @@ class EarthEngineProvider:
 class _Raster:
     """A concrete `MonthlyRaster` -- `Protocol` classes can't be instantiated directly."""
 
-    def __init__(self, index, valid_pct, snow_ice_pct, scene_ids, acquisition_dates):
+    def __init__(self, index, valid_pct, snow_ice_pct, scene_ids, acquisition_dates, nir=None):
         self.index = index
         self.valid_pct = valid_pct
         self.snow_ice_pct = snow_ice_pct
+        self.nir = nir
         self.scene_ids = scene_ids
         self.acquisition_dates = acquisition_dates
 
@@ -270,6 +282,7 @@ class SyntheticProvider:
         icy_months: tuple[str, ...] = (),
         missing_months: tuple[str, ...] = (),
         rain_mm_per_day: float = 2.0,
+        snow_bridge_months: tuple[str, ...] = (),
     ):
         self.lake_radius_px = lake_radius_px
         self.shrink_after = shrink_after
@@ -278,10 +291,15 @@ class SyntheticProvider:
         self.icy_months = set(icy_months)
         self.missing_months = set(missing_months)
         self.rain_mm_per_day = rain_mm_per_day
+        #: months where a bright-NIR ("snow") corridor of NDWI-passing pixels connects the seeded
+        #: lake disc to a second, separate lake-sized disc elsewhere in the AOI (regression fixture
+        #: for `docs/decisions.md` 2026-09-28 "M7 GEE fetch: NIR test excludes snow from S2 water
+        #: mask" -- without the NIR test, `seed_component` would merge the two into one blob).
+        self.snow_bridge_months = set(snow_bridge_months)
 
-    def _disc(self, grid: AoiGrid, radius_px: int) -> np.ndarray:
+    def _disc(self, grid: AoiGrid, radius_px: int, center: tuple[int, int] | None = None) -> np.ndarray:
         yy, xx = np.mgrid[0:grid.height, 0:grid.width]
-        cy, cx = grid.height // 2, grid.width // 2
+        cy, cx = center if center is not None else (grid.height // 2, grid.width // 2)
         return (yy - cy) ** 2 + (xx - cx) ** 2 <= radius_px ** 2
 
     def _radius_for(self, month_key: str) -> int:
@@ -295,9 +313,18 @@ class SyntheticProvider:
             return None
         disc = self._disc(grid, self._radius_for(key))
         index = np.where(disc, 0.6, -0.4)
+        nir = np.where(disc, 0.05, 0.3)  # open water is dark in the NIR; background is mid-grey
+        if key in self.snow_bridge_months:
+            cy, cx = grid.height // 2, grid.width // 2
+            second_lake = self._disc(grid, self.lake_radius_px, center=(cy, min(grid.width - 1, cx + 3 * self.lake_radius_px)))
+            bridge = np.zeros_like(disc)
+            bridge[max(cy - 2, 0):cy + 2, cx:min(grid.width, cx + 3 * self.lake_radius_px)] = True
+            snow = bridge | second_lake
+            index = np.where(disc | snow, 0.6, -0.4)  # snow's NDWI still clears the Otsu threshold
+            nir = np.where(disc, 0.05, np.where(bridge, 0.6, np.where(second_lake, 0.05, 0.3)))
         cloud_pct = 90.0 if key in self.cloudy_months else 2.0
         snow_ice_pct = 80.0 if key in self.icy_months else 1.0
-        return _Raster(index=index, valid_pct=100.0 - cloud_pct, snow_ice_pct=snow_ice_pct,
+        return _Raster(index=index, valid_pct=100.0 - cloud_pct, snow_ice_pct=snow_ice_pct, nir=nir,
                         scene_ids=[f"S2_{key}"], acquisition_dates=[month_start.isoformat()])
 
     def s1_month(self, grid: AoiGrid, month_start: date, month_end: date) -> MonthlyRaster | None:

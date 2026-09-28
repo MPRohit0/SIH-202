@@ -93,6 +93,54 @@ class TestWaterMaskAndSeedComponent:
         assert not component.any()
 
 
+class TestNirFiltersSnow:
+    def test_bright_nir_pixel_is_excluded_even_if_ndwi_passes(self):
+        index = np.array([0.6, 0.6])  # both pass the NDWI threshold
+        nir = np.array([0.05, 0.6])  # water, then snow
+        mask = la.water_mask(index, threshold=0.1, nir=nir, nir_max=0.15)
+        assert list(mask) == [True, False]
+
+    def test_without_nir_args_snow_pixel_still_passes(self):
+        # documents the pre-fix behaviour this test class guards against
+        index = np.array([0.6, 0.6])
+        mask = la.water_mask(index, threshold=0.1)
+        assert list(mask) == [True, True]
+
+    def test_nan_nir_pixel_is_excluded(self):
+        index = np.array([0.6])
+        nir = np.array([np.nan])
+        mask = la.water_mask(index, threshold=0.1, nir=nir, nir_max=0.15)
+        assert list(mask) == [False]
+
+    def test_snow_bridge_no_longer_merges_two_lakes_once_nir_filtered(self):
+        """Regression for the South Lhonak overestimate (docs/decisions.md 2026-09-28): a bright
+        NIR ("snow") corridor connects the seeded lake to a second, separate lake-sized disc. Without
+        the NIR test, `seed_component` follows the corridor and reports one inflated blob; with it,
+        the corridor breaks and only the seeded lake remains."""
+        size = 200
+        grid = la.AoiGrid(epsg=32645, origin_x=0.0, origin_y=size * 10.0, cell_size_m=10.0, width=size, height=size)
+        yy, xx = np.mgrid[0:size, 0:size]
+        cy, cx = size // 2, size // 2
+        lake_radius = 20
+        lake = (yy - cy) ** 2 + (xx - cx) ** 2 <= lake_radius ** 2
+        second_cx = cx + 3 * lake_radius
+        second_lake = (yy - cy) ** 2 + (xx - second_cx) ** 2 <= lake_radius ** 2
+        bridge = np.zeros((size, size), dtype=bool)
+        bridge[cy - 2:cy + 2, cx:second_cx] = True
+
+        index = np.where(lake | bridge | second_lake, 0.6, -0.4)
+        nir = np.where(lake, 0.05, np.where(bridge, 0.6, np.where(second_lake, 0.05, 0.3)))
+        seed_rc = (cy, cx)
+
+        mask_no_nir = la.water_mask(index, threshold=0.1)
+        merged = la.seed_component(mask_no_nir, seed_rc)
+        assert merged.sum() > lake.sum() * 1.5  # the un-fixed mask picks up the bridge + second lake
+
+        mask_with_nir = la.water_mask(index, threshold=0.1, nir=nir, nir_max=0.15)
+        fixed = la.seed_component(mask_with_nir, seed_rc)
+        assert np.array_equal(fixed, lake)
+
+
 class TestAreaAndPolygon:
     def test_component_area_matches_pixel_count_times_cell_area(self):
         grid, index, disc, blob, seed_rc = _disc_grid()
