@@ -58,9 +58,19 @@ def test_build_and_write_nearfield_case(synth_terrain_dir, synth_hydrograph_para
     time_max = next(p for p in root.findall("./execution/parameters/parameter") if p.get("key") == "TimeMax")
     assert float(time_max.get("value")) > 0
 
-    # exactly one inlet zone, referencing nearfield.stl for the boundary
+    # one inlet zone (Remove fluid) and one downstream outlet zone (Convert fluid),
+    # matching DualSPHysics's own two-zone open-channel example
+    # (examples/inletoutlet/02_OpenChannel) -- a lone inlet has nowhere for fluid to
+    # exit and ponds at the inlet itself (docs/decisions.md "M4: SPH outlet zone").
     inout_zones = root.findall("./execution/special/inout/inoutzone")
-    assert len(inout_zones) == 1
+    assert len(inout_zones) == 2
+    inlet_el, outlet_el = inout_zones
+    assert inlet_el.find("inputtreatment").get("value") == "2"
+    assert inlet_el.find("imposevelocity").get("mode") == "1"
+    assert outlet_el.find("inputtreatment").get("value") == "1"
+    assert outlet_el.find("imposevelocity").get("mode") == "2"
+    assert outlet_el.find("imposerhop").get("mode") == "1"
+    assert outlet_el.find("imposezsurf").get("mode") == "2"
     stl_draws = root.findall("./casedef/geometry/commands/mainlist/drawfilestl")
     assert len(stl_draws) == 3  # settings.boundary_layers default
     assert all(d.get("file") == "nearfield.stl" for d in stl_draws)
@@ -108,6 +118,25 @@ def test_m4_consumes_routed_m3_artifact(synth_terrain_dir, synth_hydrograph_para
     np.testing.assert_allclose(np.asarray([v.v_ms for v in zone.velocity_times]) * area, expected)
     assert meta["provenance"]["hydrograph_method"] == "m3_routed_discharge"
     assert meta["provenance"]["routed_discharge"]["source_m3_run_id"] == "synth_s001__delft3d"
+
+
+def test_outlet_is_downstream_of_inlet_and_spans_domain_height(
+    synth_terrain_dir, synth_hydrograph_params, synth_sites_dir,
+):
+    spec, case_meta = _build(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir, dp_m=10.0)
+    inlet_zone, outlet_zone = spec.inout_zones
+    # The outlet sits further along the flow (SPH-frame y here, per the synthetic V-valley
+    # centreline) than the inlet, not on top of it.
+    assert outlet_zone.point_xyz[1] != pytest.approx(inlet_zone.point_xyz[1])
+    # It uses the same depth ceiling as the inlet (inlet_height_m), not the domain's full
+    # terrain relief (which can include valley walls far above any plausible flood surface,
+    # and would blow the particle/VRAM budget for no modelling benefit).
+    settings = load_sph_settings(dp_m=10.0)
+    assert outlet_zone.size_xyz[2] == pytest.approx(settings.inlet_height_m)
+    # Convert-fluid outlet, not remove-fluid: a real fluid particle found in the outlet's
+    # footprint should be turned into an inout ghost particle, never hard-deleted.
+    assert outlet_zone.inputtreatment == 1
+    assert inlet_zone.inputtreatment == 2
 
 
 def test_gauges_present_for_every_probe_kept(synth_terrain_dir, synth_hydrograph_params, synth_sites_dir):

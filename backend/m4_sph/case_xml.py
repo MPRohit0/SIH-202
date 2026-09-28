@@ -59,18 +59,27 @@ class InOutZone:
     (`examples/inletoutlet/05_ShapesInlet3D`) -- to align it with the real inlet's flow direction.
     `velocity_times` gives a time-varying uniform inflow velocity (`imposevelocity mode="1"`);
     `zsurf_m` is the fixed free-surface height imposed at the zone (`imposezsurf mode="0"`).
+
+    `velocity_mode`/`imposerhop_mode`/`zsurf_mode` let a zone be configured as a DualSPHysics
+    *outlet* instead of an inlet, matching the stock two-zone open-channel example
+    (`examples/inletoutlet/02_OpenChannel`): `velocity_mode=2` (Extrapolated, no `velocity_times`
+    needed), `imposerhop_mode=1` (Hydrostatic) and `zsurf_mode=2` (Calculated from the fluid
+    domain, written as `<zsurf0>` -- an initial seed value only, not an imposed one).
     """
 
     point_xyz: tuple[float, float, float]
     size_xyz: tuple[float, float, float]
     direction_xyz: tuple[float, float, float]
-    velocity_times: list[TimeValue]
-    zsurf_m: float
+    velocity_times: list[TimeValue] | None = None
+    zsurf_m: float | None = None
     layers: int = 4
     refilling: int = 1
     inputtreatment: int = 2
     rotate_deg: float = 0.0
     rotate_center_xy: tuple[float, float] | None = None
+    velocity_mode: int = 1
+    imposerhop_mode: int | None = None
+    zsurf_mode: int = 0
 
     def to_element(self) -> ET.Element:
         px, py, pz = self.point_xyz
@@ -88,27 +97,46 @@ class InOutZone:
                 point("point2", cx, cy, 1.0),
             ]))
         box = E("box", children=zone_children)
-        velocitytimes = E("velocitytimes", {"comment": "Uniform inlet velocity in time"}, children=[
-            E("timevalue", {"time": tv.time_s, "v": tv.v_ms}) for tv in self.velocity_times
-        ])
-        imposevelocity = E(
-            "imposevelocity",
-            {"mode": 1, "comment": "Imposed velocity 0:fixed value, 1:variable value, 2:Extrapolated value (default=0)"},
-            children=[velocitytimes],
-        )
-        imposezsurf = E(
-            "imposezsurf",
-            {"mode": 0, "comment": "Inlet Z-surface 0:Imposed fixed value, 1:Imposed variable value, 2:Calculated from fluid domain (default=0)"},
-            children=[E("zsurf", {"value": self.zsurf_m, "comment": "Characteristic inlet Z-surface", "units_comment": "m"})],
-        )
-        return E("inoutzone", children=[
+        velocity_comment = "Imposed velocity 0:fixed value, 1:variable value, 2:Extrapolated value (default=0)"
+        if self.velocity_mode == 1:
+            if self.velocity_times is None:
+                raise ValueError("velocity_mode=1 (variable) requires velocity_times")
+            velocitytimes = E("velocitytimes", {"comment": "Uniform inlet velocity in time"}, children=[
+                E("timevalue", {"time": tv.time_s, "v": tv.v_ms}) for tv in self.velocity_times
+            ])
+            imposevelocity = E("imposevelocity", {"mode": 1, "comment": velocity_comment}, children=[velocitytimes])
+        else:
+            imposevelocity = E("imposevelocity", {"mode": self.velocity_mode, "comment": velocity_comment})
+        children = [
             E("refilling", {"value": self.refilling, "comment": "Refilling mode. 0:Simple full, 1:Simple below zsurf, 2:Advanced for reverse flows (very slow) (default=1)"}),
-            E("inputtreatment", {"value": self.inputtreatment, "comment": "Treatment of fluid entering the zone. 0:No changes, 1:Convert fluid, 2:Remove fluid"}),
+            E("inputtreatment", {"value": self.inputtreatment, "comment": "Treatment of fluid entering the zone. 0:No changes, 1:Convert fluid (necessary for outlet), 2:Remove fluid (recommended for inlet)"}),
             E("layers", {"value": self.layers, "comment": "Number of inlet/outlet particle layers"}),
             E("zone3d", {"comment": "Input zone for 3-D simulations"}, children=[box]),
             imposevelocity,
-            imposezsurf,
-        ])
+        ]
+        if self.imposerhop_mode is not None:
+            children.append(E("imposerhop", {
+                "mode": self.imposerhop_mode,
+                "comment": "Outlet rhop 0:Imposed fixed value, 1:Hydrostatic, 2:Extrapolated from ghost nodes (default=0)",
+            }))
+        if self.zsurf_mode == 0:
+            if self.zsurf_m is None:
+                raise ValueError("zsurf_mode=0 (fixed) requires zsurf_m")
+            children.append(E(
+                "imposezsurf",
+                {"mode": 0, "comment": "Inlet Z-surface 0:Imposed fixed value, 1:Imposed variable value, 2:Calculated from fluid domain (default=0)"},
+                children=[E("zsurf", {"value": self.zsurf_m, "comment": "Characteristic inlet Z-surface", "units_comment": "m"})],
+            ))
+        else:
+            zsurf_children = []
+            if self.zsurf_m is not None:
+                zsurf_children.append(E("zsurf0", {"value": self.zsurf_m, "comment": "Initial Z-surface value", "units_comment": "m"}))
+            children.append(E(
+                "imposezsurf",
+                {"mode": self.zsurf_mode, "comment": "Inlet Z-surface 0:Imposed fixed value, 1:Imposed variable value, 2:Calculated from fluid domain (default=0)"},
+                children=zsurf_children,
+            ))
+        return E("inoutzone", children=children)
 
 
 @dataclass

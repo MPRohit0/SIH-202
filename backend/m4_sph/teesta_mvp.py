@@ -240,8 +240,16 @@ def prepare_mvp_terrain(source_terrain_dir: str | Path, output_terrain_dir: str 
 
 def prepare_and_register(data_dir: str | Path, binaries_dir: str | Path,
                          source_run_dir: str | Path, source_terrain_dir: str | Path,
-                         retry_failed: bool = False) -> str:
-    """Create one M4 case and register it with the existing M0 campaign worker."""
+                         retry_failed: bool = False, retry_known_bad: bool = False) -> str:
+    """Create one M4 case and register it with the existing M0 campaign worker.
+
+    `retry_known_bad` permits retrying a run that finished (`status` isn't `"failed"`) but is
+    marked bad by its own `sph_particle_exclusion_warning` caveat -- distinct from `retry_failed`,
+    which is for a run the worker itself marked `"failed"`. Used once, for the outlet-zone fix
+    (`docs/decisions.md` "M4: SPH outlet zone"): a session-scoped budget of 2 further solver
+    attempts (attempts 3 and 4) to verify the fix against the known-bad a02 result, per an explicit
+    instruction to diagnose first and ask before a third.
+    """
     from backend.m0_api import jobs, registry
     from backend.m4_sph import generator
     from backend.m4_sph.settings import SphSettings
@@ -258,16 +266,22 @@ def prepare_and_register(data_dir: str | Path, binaries_dir: str | Path,
     finally:
         check_conn.close()
     attempt = 0
-    if registered and (registered["status"] != "failed" or not retry_failed):
+    registered_meta = json.loads(registered["meta_json"] or "{}") if registered else {}
+    is_known_bad = "sph_particle_exclusion_warning" in registered_meta.get("caveats", [])
+    permitted_retry = (registered["status"] == "failed" and retry_failed) or (is_known_bad and retry_known_bad) if registered else False
+    if registered and not permitted_retry:
         raise FileExistsError(f"refusing to overwrite registered M4 run: {M4_RUN_ID}")
     if registered:
-        attempt = int(json.loads(registered["meta_json"] or "{}").get("attempt", 0)) + 1
-        # Attempts 0 and 1 were both run with the same erroneous inlet
-        # orientation. Permit one corrected-orientation verification as a
-        # separately recorded attempt; the worker's automatic retry limit
-        # remains one, so attempt 2 is terminal if it fails.
-        if attempt > 2:
-            raise RuntimeError("the corrected-orientation M4 verification has already been used")
+        attempt = int(registered_meta.get("attempt", 0)) + 1
+        # Attempts 0 and 1 were both run with the same erroneous inlet orientation; attempt 2
+        # (a02) verified the corrected orientation but surfaced a separate, still-unfixed defect
+        # (sph_particle_exclusion_warning). Attempts 3-4 are this session's outlet-zone-fix budget
+        # (see docstring); attempt 5 is terminal without explicit authorization.
+        if attempt > 4:
+            raise RuntimeError(
+                "the M4 outlet-zone-fix verification budget (attempts 3-4) has already been used; "
+                "a further attempt needs explicit authorization"
+            )
         from backend.m4_sph.launcher import archive_failed_output
         archive_failed_output(data_dir / SITE_ID / "runs" / M4_RUN_ID, attempt - 1)
     route_csv, route_json, section_meta = extract_mvp_section(source_run_dir, source_terrain_dir,
