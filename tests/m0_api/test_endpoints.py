@@ -776,7 +776,16 @@ def test_get_gee():
     assert body["site_id"] == KNOWN_SITE
 
 
-def test_refresh_gee():
+def test_refresh_gee(monkeypatch):
+    # Forces the existing-cache fallback path (contract §4.8) regardless of whether this machine
+    # happens to have real Earth Engine credentials set up -- this is a fast, offline unit test,
+    # not a live-EE integration test (M7's own live fetch is exercised manually, CLAUDE.md rule 2).
+    from backend.m7_gee import scene_search
+
+    def _never(*a, **k):
+        raise RuntimeError("live Earth Engine disabled for this test")
+
+    monkeypatch.setattr(scene_search, "_ee_initialize", _never)
     r = client.post(f"{API}/gee/{KNOWN_SITE}/refresh")
     assert r.status_code == 200
     assert_matches("gee_layers.schema.json", r.json())

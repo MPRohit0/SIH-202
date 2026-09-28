@@ -19,7 +19,9 @@ import type {BreachMarker} from './terrain-3d';
 import {lonLatToUtm} from '@/lib/utm';
 import {TerrainMap} from '../terrain-map';
 import SPHLab from '../sph-lab';
-import {Badge,Empty,Num,Range,SelectField,SourceLink} from './ui';
+import {Badge,Empty,Num,Range,SelectField,SourceLink,LakeOutlineMap} from './ui';
+import {LineChart,Line,BarChart,Bar,XAxis,YAxis,CartesianGrid} from 'recharts';
+import {ChartContainer,ChartTooltip,ChartTooltipContent} from '@/components/ui/chart';
 import Landing from './landing';
 const navigation=[{id:'dashboard',name:'Dashboard',icon:LayoutDashboard},{id:'simulation',name:'Simulation',icon:Waves},{id:'library',name:'Scenario Library',icon:Database},{id:'compare',name:'Compare Models',icon:GitCompareArrows},{id:'lab',name:'Educational Explainer',icon:Atom},{id:'impact',name:'Impact Analysis',icon:ShieldCheck},{id:'data',name:'Data Layers',icon:Layers},{id:'monitoring',name:'GEE-ready Monitoring',icon:Radar},{id:'exports',name:'Exports',icon:Download},{id:'validation',name:'Validation',icon:ClipboardCheck}];
 const title:Record<string,string>={dashboard:'Intelligence overview',simulation:'Simulation workspace',library:'Scenario library',compare:'Model comparison',lab:'SPH educational explainer',impact:'Impact analysis',data:'Data layers',monitoring:'GEE-ready satellite monitoring',exports:'Export centre',validation:'Validation status',sites:'Add a new site',settings:'Workspace settings'};
@@ -137,9 +139,31 @@ export default function SentriqApp({initialView='home'}:{initialView?:string}){
  {geeLoading&&<div className="job-progress"><Progress value={undefined}/><span>{uiText.monitoring.loading}</span></div>}{geeError&&<div className="s-notice warning"><AlertTriangle size={16}/><span>{uiText.monitoring.error}</span></div>}
  {sites.find(site=>site.site_id===selectedSiteId)?.status==='demo_mode'&&<div className="s-notice warning"><AlertTriangle size={16}/><span>{uiText.monitoring.demoMode}</span></div>}{sites.find(site=>site.site_id===selectedSiteId)?.has_placeholders&&<div className="s-notice warning"><AlertTriangle size={16}/><span>{uiText.monitoring.placeholders}</span></div>}
  {geeData?.source==='screenshot_fallback'&&<div className="s-notice warning"><AlertTriangle size={16}/><span>{uiText.monitoring.fallback}</span></div>}{geeData?.recheck.outdated&&<div className="s-notice warning"><AlertTriangle size={16}/><span>{uiText.monitoring.outdated} · {uiText.monitoring.change}: {geeData.recheck.change_pct===null?'—':nf(geeData.recheck.change_pct)}% · {uiText.monitoring.threshold}: {nf(geeData.recheck.threshold_pct)}%</span></div>}
- <div className="monitoring-grid"><section className="s-panel monitoring-map"><div className="panel-title"><h2>{uiText.monitoring.observationTitle}</h2><Badge>{geeData?.lake_latest.features.length?uiText.monitoring.acquired+': '+String(geeData.lake_latest.features[0]?.properties.date??'—'):uiText.monitoring.noObservedExtent}</Badge></div><Empty icon={Radar} title={uiText.monitoring.noObservedExtent}>{uiText.monitoring.noObservedExtentDetail}</Empty></section>
- <aside className="s-panel monitoring-controls"><p className="eyebrow">{uiText.monitoring.lakeArea}</p><h2>{uiText.monitoring.satelliteHistory}</h2>{geeData?.lake_area_series.length?<Table><TableHeader><TableRow><TableHead>{uiText.monitoring.date}</TableHead><TableHead>{uiText.monitoring.area}</TableHead><TableHead>{uiText.monitoring.method}</TableHead></TableRow></TableHeader><TableBody>{geeData.lake_area_series.map(row=><TableRow key={`${row.date}-${row.method}`}><TableCell>{row.date}</TableCell><TableCell>{nf(row.area_m2)} m²</TableCell><TableCell>{row.method}</TableCell></TableRow>)}</TableBody></Table>:<Empty icon={Radar} title={uiText.monitoring.noLakeArea}>{uiText.monitoring.noImagery}</Empty>}
- <p className="eyebrow">{uiText.monitoring.rainfall}</p>{geeData?.rainfall.length?geeData.rainfall.map(row=><div className="dataset-row" key={row.date}><Activity size={17}/><div><h3>{row.date}</h3><p>{nf(row.precip_mm)} {uiText.monitoring.millimeters} · {row.dataset}</p></div></div>):<Empty title={uiText.monitoring.noRainfall}>{uiText.monitoring.noRainfall}</Empty>}
+ <div className="monitoring-grid"><section className="s-panel monitoring-map"><div className="panel-title"><h2>{uiText.monitoring.observationTitle}</h2><Badge>{geeData?.lake_latest.features.length?uiText.monitoring.acquired+': '+String(geeData.lake_latest.features[0]?.properties.date??'—'):uiText.monitoring.noObservedExtent}</Badge></div>{geeData?.lake_latest.features.length?<LakeOutlineMap fc={geeData.lake_latest} label={`${uiText.monitoring.acquired}: ${String(geeData.lake_latest.features[0]?.properties.date??'—')}`}/>:<Empty icon={Radar} title={uiText.monitoring.noObservedExtent}>{uiText.monitoring.noObservedExtentDetail}</Empty>}</section>
+ <aside className="s-panel monitoring-controls"><p className="eyebrow">{uiText.monitoring.lakeArea}</p><h2>{uiText.monitoring.satelliteHistory}</h2>{geeData?.lake_area_series.length?<>
+  <ChartContainer config={{area_m2:{label:'Lake area (m²)',color:'#4fd6ff'}}} className="monitoring-chart">
+   <LineChart data={geeData.lake_area_series} margin={{left:4,right:8,top:4,bottom:0}}>
+    <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+    <XAxis dataKey="date" tick={{fontSize:9}} tickMargin={6}/>
+    <YAxis tick={{fontSize:9}} width={44}/>
+    <ChartTooltip content={<ChartTooltipContent/>}/>
+    <Line type="monotone" dataKey="area_m2" stroke="var(--color-area_m2)" strokeWidth={1.6} dot={false} connectNulls={false}/>
+   </LineChart>
+  </ChartContainer>
+  <Table><TableHeader><TableRow><TableHead>{uiText.monitoring.date}</TableHead><TableHead>{uiText.monitoring.area}</TableHead><TableHead>{uiText.monitoring.method}</TableHead></TableRow></TableHeader><TableBody>{geeData.lake_area_series.map(row=><TableRow key={`${row.date}-${row.method}`}><TableCell>{row.date}</TableCell><TableCell>{nf(row.area_m2)} m²</TableCell><TableCell>{row.method}</TableCell></TableRow>)}</TableBody></Table>
+ </>:<Empty icon={Radar} title={uiText.monitoring.noLakeArea}>{uiText.monitoring.noImagery}</Empty>}
+ <p className="eyebrow">{uiText.monitoring.rainfall}</p>{geeData?.rainfall.length?<>
+  <ChartContainer config={{precip_mm:{label:'Rainfall (mm)',color:'#8fd0ff'}}} className="monitoring-chart">
+   <BarChart data={geeData.rainfall} margin={{left:4,right:8,top:4,bottom:0}}>
+    <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+    <XAxis dataKey="date" tick={{fontSize:9}} tickMargin={6}/>
+    <YAxis tick={{fontSize:9}} width={30}/>
+    <ChartTooltip content={<ChartTooltipContent/>}/>
+    <Bar dataKey="precip_mm" fill="var(--color-precip_mm)"/>
+   </BarChart>
+  </ChartContainer>
+  {geeData.rainfall.map(row=><div className="dataset-row" key={row.date}><Activity size={17}/><div><h3>{row.date}</h3><p>{nf(row.precip_mm)} {uiText.monitoring.millimeters} · {row.dataset}</p></div></div>)}
+ </>:<Empty title={uiText.monitoring.noRainfall}>{uiText.monitoring.noRainfall}</Empty>}
  <button className="s-btn ghost full" disabled={!selectedSiteId||geeRefreshing} onClick={refreshGee}><Radar size={15}/>{geeRefreshing?uiText.monitoring.refreshing:uiText.monitoring.refresh}</button>
  {geeData?.imagery.length?geeData.imagery.map(item=><div className="s-panel" key={`${item.event_id}-${item.date}`}><p className="fine-print">{item.event_id} · {item.phase} · {uiText.monitoring.acquisition}: {item.date} · {uiText.monitoring.cache}</p><img src={source.fileUrl(item.url)} alt={`${item.event_id} ${item.phase} satellite image, acquired ${item.date}`} style={{display:'block',width:'100%',maxHeight:260,objectFit:'contain',background:'#0b1119'}}/></div>):<Empty title={uiText.monitoring.noImagery}>{uiText.monitoring.noImagery}</Empty>}
  </aside></div>
