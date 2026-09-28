@@ -44,6 +44,7 @@ from backend.m0_api import scene3d as api_scene3d
 from backend.m0_api import timeline as api_timeline
 from backend.m0_api import real_timeline
 from backend.m0_api import real_impact
+from backend.m0_api import validation_helpers
 from backend.m7_gee import cache as gee_cache
 from backend.m7_gee import fetch as gee_fetch
 from backend.m7_gee import imagery as gee_imagery
@@ -531,7 +532,8 @@ def get_validation(site_id: SiteIdPath, event: str | None = Query(default=None))
         schema = "historical_validation.schema.json" if event else "validation.schema.json"
         return _validated_json(schema, payload)
     real_runs_dir = registry.data_dir() / site_id / "runs"
-    has_real_run = False
+    real_run_meta: dict | None = None
+    real_run_dir = None
     if real_runs_dir.is_dir():
         for meta_path in real_runs_dir.glob("*/run_meta.json"):
             try:
@@ -539,16 +541,46 @@ def get_validation(site_id: SiteIdPath, event: str | None = Query(default=None))
             except (OSError, ValueError):
                 continue
             if meta.get("solver_status") == "REAL_SOLVER_OUTPUT" or meta.get("output_classification") == "REAL_SIMULATION_ARTIFACT":
-                has_real_run = True
+                real_run_meta, real_run_dir = meta, meta_path.parent
                 break
+    has_real_run = real_run_meta is not None
+    try:
+        site_events = [e.id for e in load_site_config(site_id).events]
+    except SiteConfigError:
+        site_events = []
     if has_real_run and not event:
         payload = {"contract_version": "0.3.0", "site_id": site_id, "model": "delft3d",
                    "n_runs": 0, "per_run": [], "summary": {}, "baseline_linear": {},
-                   "grade_thresholds_ref": "docs/m5_specs.md", "events": []}
+                   "grade_thresholds_ref": "docs/m5_specs.md", "events": site_events,
+                   "synthetic_loocv": validation_helpers.synthetic_loocv_summary()}
         return _validated_json("validation.schema.json", payload)
+    if has_real_run and event and event in site_events:
+        assert real_run_meta is not None and real_run_dir is not None
+        data_dir = registry.data_dir()
+        observed = validation_helpers.observed_extent_status(site_id, event, data_dir)
+        literature = validation_helpers.build_literature_comparison(site_id, real_run_meta, data_dir)
+        predicted_area = validation_helpers.build_predicted_extent(real_run_meta, real_run_dir)
+        caveats = [{"id": "no_observed_extent", "severity": "warning",
+                    "text_key": "no_observed_extent"}] if not observed["available"] else []
+        if literature["available"]:
+            caveats.append({"id": "literature_comparison_only", "severity": "info",
+                             "text_key": "literature_comparison_only"})
+        caveats.append({"id": "clear_water", "severity": "warning", "text_key": "caveat_clear_water"})
+        payload = {"contract_version": "0.3.0", "site_id": site_id, "event_id": event,
+                   "observed": observed,
+                   "predicted": ({"delft3d_direct": {"area_m2": predicted_area}} if predicted_area else {}),
+                   "metrics": {},
+                   "comparison_domain": "point comparison at Chungthang against literature reconstructions"
+                                        if literature["available"] else "none",
+                   "caveats": caveats,
+                   "provenance": {"method": "real_run_vs_literature", "contract_version": "0.3.0",
+                                  "run_id": real_run_meta.get("run_id"),
+                                  "validation_available": bool(observed["available"] or literature["available"])},
+                   "literature_comparison": literature}
+        return _validated_json("historical_validation.schema.json", payload)
     if has_real_run and event:
-        # A registered solver run is not an observed-event validation pair.
-        # Avoid leaking the contract example's zero scores into real-site mode.
+        # A registered solver run against an event this site doesn't declare is not a real
+        # validation pair. Avoid leaking the contract example's zero scores into real-site mode.
         payload = {"contract_version": "0.3.0", "site_id": site_id, "event_id": event,
                    "observed": {}, "predicted": {}, "metrics": {}, "comparison_domain": "none",
                    "caveats": [{"id": "validation_unavailable", "severity": "warning",

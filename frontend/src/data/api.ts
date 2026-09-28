@@ -104,6 +104,27 @@ export type ValidationResponse = {
   contract_version: string; site_id: string; model: 'delft3d' | 'sph'; n_runs: number;
   per_run: Array<Record<string, unknown>>; summary: Record<string, unknown>;
   baseline_linear: Record<string, unknown>; grade_thresholds_ref: string; events: string[];
+  synthetic_loocv?: {
+    world: string; note: string; model?: string; n_runs?: number;
+    summary?: Record<string, unknown>; baseline_linear?: Record<string, unknown>;
+    baseline_nearest?: Record<string, unknown>; acceptance?: Record<string, unknown>;
+    grade_thresholds_ref?: string;
+  } | null;
+};
+export type HistoricalValidationResponse = {
+  contract_version: string; site_id: string; event_id: string;
+  observed: {available?: boolean; extent_url?: string; note?: string} & Record<string, unknown>;
+  predicted: Record<string, unknown>;
+  metrics: Record<string, unknown>;
+  comparison_domain: string;
+  caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
+  provenance: Record<string, unknown>;
+  literature_comparison?: {
+    available: boolean; poi: string;
+    simulated: Record<string, unknown> | null;
+    literature: Array<{source_id: string; citation: string; quantity: string; value: unknown; note: string}>;
+    caveats: string[];
+  };
 };
 export type SiteSummary = {
   site_id: string; name: string;
@@ -204,7 +225,7 @@ export const api = {
   impact: (queryId: string) => request<ImpactResponse>(`/impact/${encodeURIComponent(queryId)}`, {}, 'impact'),
   compare: (siteId: string, scenarioId?: string) => request<CompareResponse>(`/compare/${encodeURIComponent(siteId)}${scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : ''}`, {}, 'compare'),
   validation: (siteId: string) => request<ValidationResponse>(`/validation/${encodeURIComponent(siteId)}`, {}, 'validation'),
-  historicalValidation: (siteId: string, eventId: string) => request(`/validation/${encodeURIComponent(siteId)}?event=${encodeURIComponent(eventId)}`, {}, 'historicalValidation'),
+  historicalValidation: (siteId: string, eventId: string) => request<HistoricalValidationResponse>(`/validation/${encodeURIComponent(siteId)}?event=${encodeURIComponent(eventId)}`, {}, 'historicalValidation'),
   export: async (queryId: string, format: 'shp' | 'kml' | 'geojson' | 'pdf') => {
     const response = await fetch(`${baseUrl}/export/${encodeURIComponent(queryId)}?format=${format}`);
     if (!response.ok) {

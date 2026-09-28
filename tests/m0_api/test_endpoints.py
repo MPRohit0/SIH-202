@@ -13,6 +13,7 @@ status codes, error shapes and the one 404 code path the mock supports.
 from __future__ import annotations
 
 import copy
+import csv
 import importlib
 import json
 import zipfile
@@ -689,6 +690,104 @@ def test_real_solver_site_has_no_fabricated_historical_validation(data_dir):
     assert_matches("historical_validation.schema.json", body)
     assert body["metrics"] == {}
     assert body["provenance"]["validation_available"] is False
+
+
+# The real Teesta site config (sites/teesta.yaml) declares event id "sikkim_glof_2023", not the
+# contract's generic "teesta_2023" example. Task D (Validation tab) reads the real event id from
+# the site config rather than hardcoding the contract's placeholder string.
+REAL_EVENT_ID = "sikkim_glof_2023"
+
+
+def test_get_validation_lists_real_site_events(data_dir):
+    run_dir = data_dir / KNOWN_SITE / "runs" / "teesta_2023_mvp__delft3d"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_meta.json").write_text(json.dumps({"solver_status": "REAL_SOLVER_OUTPUT", "run_id": "teesta_2023_mvp__delft3d"}))
+    response = client.get(f"{API}/validation/{KNOWN_SITE}")
+    assert response.status_code == 200
+    body = response.json()
+    assert_matches("validation.schema.json", body)
+    assert body["events"] == [REAL_EVENT_ID]
+
+
+def test_get_validation_synthetic_loocv_present(data_dir, monkeypatch, tmp_path):
+    run_dir = data_dir / KNOWN_SITE / "runs" / "teesta_2023_mvp__delft3d"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_meta.json").write_text(json.dumps({"solver_status": "REAL_SOLVER_OUTPUT", "run_id": "teesta_2023_mvp__delft3d"}))
+    report = tmp_path / "loocv.json"
+    report.write_text(json.dumps({"model": "synthetic", "n_runs": 30, "summary": {"extent": {"grade": "A"}},
+                                   "grade_thresholds_ref": "docs/m5_spec.md"}))
+    monkeypatch.setenv("SIH26_M5_SYNTHETIC_LOOCV_REPORT", str(report))
+    response = client.get(f"{API}/validation/{KNOWN_SITE}")
+    body = response.json()
+    assert_matches("validation.schema.json", body)
+    assert body["synthetic_loocv"]["world"] == "synthetic_test_world"
+    assert body["synthetic_loocv"]["n_runs"] == 30
+
+
+def test_get_validation_synthetic_loocv_absent(data_dir, monkeypatch, tmp_path):
+    run_dir = data_dir / KNOWN_SITE / "runs" / "teesta_2023_mvp__delft3d"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_meta.json").write_text(json.dumps({"solver_status": "REAL_SOLVER_OUTPUT", "run_id": "teesta_2023_mvp__delft3d"}))
+    monkeypatch.setenv("SIH26_M5_SYNTHETIC_LOOCV_REPORT", str(tmp_path / "nope.json"))
+    response = client.get(f"{API}/validation/{KNOWN_SITE}")
+    body = response.json()
+    assert_matches("validation.schema.json", body)
+    assert body["synthetic_loocv"] is None
+
+
+def test_get_historical_validation_real_event_literature_comparison(data_dir):
+    run_id = "teesta_2023_mvp__delft3d"
+    run_dir = data_dir / KNOWN_SITE / "runs" / run_id
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_meta.json").write_text(json.dumps({
+        "solver_status": "REAL_SOLVER_OUTPUT", "run_id": run_id,
+        "forcing_provenance_path": "breach/hydrographs/teesta_2023_mvp__south_lhonak.json",
+        "thresholds": {"extent_m": 0.3},
+    }))
+    hydrograph_dir = data_dir / KNOWN_SITE / "breach" / "hydrographs"
+    hydrograph_dir.mkdir(parents=True)
+    (hydrograph_dir / "teesta_2023_mvp__south_lhonak.json").write_text(json.dumps({
+        "provenance": {
+            "source_constraints": {
+                "peak_time_ist": {"value": "2023-10-04T03:20:00+05:30", "status": "MVP reconstruction target"},
+            },
+            "construction": {"duration_s": 14587.892049598833},
+        }
+    }))
+    with (run_dir / "timeseries.csv").open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["poi_id", "t_s", "depth_m", "velocity_ms", "wse_m", "arrival_s_since_t0"])
+        writer.writerow(["teesta_pilot__poi__chungthang", "0.0", "0.0", "0.0", "1583.17", ""])
+        writer.writerow(["teesta_pilot__poi__chungthang", "23340.0", "11.6", "0.39", "1594.77", "22920.0"])
+    response = client.get(f"{API}/validation/{KNOWN_SITE}", params={"event": REAL_EVENT_ID})
+    assert response.status_code == 200
+    body = response.json()
+    assert_matches("historical_validation.schema.json", body)
+    assert body["event_id"] == REAL_EVENT_ID
+    assert body["observed"]["available"] is False
+    assert "not yet digitized" in body["observed"]["note"]
+    assert body["literature_comparison"]["available"] is True
+    assert body["literature_comparison"]["simulated"]["arrival_s_since_t0"] == 22920.0
+    assert "arrival_time_ist_estimate" in body["literature_comparison"]["simulated"]
+    assert body["provenance"]["validation_available"] is True
+    assert any(c["id"] == "no_observed_extent" for c in body["caveats"])
+    assert any(c["id"] == "literature_comparison_only" for c in body["caveats"])
+
+
+def test_get_historical_validation_observed_extent_present(data_dir):
+    run_id = "teesta_2023_mvp__delft3d"
+    run_dir = data_dir / KNOWN_SITE / "runs" / run_id
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_meta.json").write_text(json.dumps({"solver_status": "REAL_SOLVER_OUTPUT", "run_id": run_id}))
+    observed_dir = data_dir / KNOWN_SITE / "gee" / "observed"
+    observed_dir.mkdir(parents=True)
+    (observed_dir / f"{REAL_EVENT_ID}_observed.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": []}))
+    response = client.get(f"{API}/validation/{KNOWN_SITE}", params={"event": REAL_EVENT_ID})
+    body = response.json()
+    assert_matches("historical_validation.schema.json", body)
+    assert body["observed"]["available"] is True
+    assert body["observed"]["extent_url"].endswith(f"{REAL_EVENT_ID}_observed.geojson")
+    assert not any(c["id"] == "no_observed_extent" for c in body["caveats"])
 
 
 # =============================================================================
