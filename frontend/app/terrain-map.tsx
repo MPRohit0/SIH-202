@@ -36,12 +36,12 @@ function legendLabels(valueKind:string,bands:number[]):string[]{
  const rest=ascending[0]===first?ascending.slice(1):ascending; // don't repeat the wet threshold if a break already equals it
  return [String(first),...rest.slice(0,-1).map(fmt),fmt(rest[rest.length-1])+'+'];
 }
-export function TerrainMap({grid,result,frame,layer,valueKind="depth",wetMask,assets,observed,onSource,sourceIndex,picking=false,styles,rasterLayer,breachMarker,geeImagery,lonFirstBounds}:{grid:Grid|null;result:Result|null;frame:number;layer:string;valueKind?:string;wetMask?:number[];assets:any[];observed?:any;onSource?:(i:number)=>void;sourceIndex?:number;picking?:boolean;styles?:any;rasterLayer?:FloodRasterOverlay|null;breachMarker?:BreachMarker|null;geeImagery?:GeeImageryItem[];lonFirstBounds?:boolean}){
+export function TerrainMap({grid,result,frame,layer,valueKind="depth",wetMask,assets,observed,onSource,sourceIndex,picking=false,styles,rasterLayer,breachMarker,geeImagery}:{grid:Grid|null;result:Result|null;frame:number;layer:string;valueKind?:string;wetMask?:number[];assets:any[];observed?:any;onSource?:(i:number)=>void;sourceIndex?:number;picking?:boolean;styles?:any;rasterLayer?:FloodRasterOverlay|null;breachMarker?:BreachMarker|null;geeImagery?:GeeImageryItem[]}){
  const ref=useRef<HTMLCanvasElement>(null);const [zoom,setZoom]=useState(grid?.hillshade?2:1),[pan,setPan]=useState(grid?.hillshade?{x:.48,y:.1}:{x:0,y:0}),[hover,setHover]=useState<any>(null),[showAssets,setShowAssets]=useState(true),[showWater,setShowWater]=useState(true),[controls,setControls]=useState(false);const drag=useRef<any>(null);
  const depth=result?(layer==='max'?result.maxDepth:result.frames[Math.min(frame,result.frames.length-1)]?.depth):null;
  const bands=bandsFor(valueKind,styles);
  useEffect(()=>{const canvas=ref.current;if(!canvas||!grid)return;const ctx=canvas.getContext('2d');if(!ctx)return;canvas.width=grid.nx;canvas.height=grid.ny;const im=ctx.createImageData(grid.nx,grid.ny);if(depth&&showWater)for(let i=0;i<depth.length;i++){const d=depth[i];if(wetMask?wetMask[i]<.3:valueKind==='arrival'?d<0:d<.3)continue;const c=d>bands[0]?[68,86,238]:d>bands[1]?[31,140,239]:d>bands[2]?[29,198,229]:d>bands[3]?[67,222,212]:[157,245,223];im.data.set([...c,225],i*4);}ctx.putImageData(im,0,0);},[depth,grid,showWater,wetMask,valueKind,bands]);
- if(rasterLayer)return <ContractRasterMap overlay={rasterLayer} styles={styles} breachMarker={breachMarker} geeImagery={geeImagery} lonFirstBounds={lonFirstBounds}/>;
+ if(rasterLayer)return <ContractRasterMap overlay={rasterLayer} styles={styles} breachMarker={breachMarker} geeImagery={geeImagery}/>;
  if(!grid)return <div className="terrain-map" aria-label="No terrain or flood raster available"><div className="map-topline"><span className="map-chip muted">No flood raster available</span></div></div>;
  const percent=(lon:number,lat:number)=>({x:(lon-grid.west)/(grid.east-grid.west)*100,y:(grid.north-lat)/(grid.north-grid.south)*100});
  const getPoint=(e:any)=>{const b=e.currentTarget.getBoundingClientRect();const x=((e.clientX-b.left)/b.width-.5-pan.x)*100/zoom+50,y=((e.clientY-b.top)/b.height-.5-pan.y)*100/zoom+50;const ix=Math.floor(x/100*grid.nx),iy=Math.floor(y/100*grid.ny);return {x,y,i:iy*grid.nx+ix,valid:ix>=0&&iy>=0&&ix<grid.nx&&iy<grid.ny};};
@@ -63,24 +63,17 @@ export function TerrainMap({grid,result,frame,layer,valueKind="depth",wetMask,as
   <div className="map-bottom"><span>Terrain: {grid.source}</span><span>{hover?`${hover.z.toFixed(0)} m elevation · ${(valueKind==='arrival'&&hover.depth<0?'Not reached':hover.depth.toFixed(2))} ${valueKind==='velocity'?'m/s velocity':valueKind==='arrival'?'min arrival':'m depth'}`:'Drag to pan · Hover to inspect'}</span></div>
  </div>;
 }
-function ContractRasterMap({overlay,styles,breachMarker,geeImagery,lonFirstBounds}:{overlay:FloodRasterOverlay;styles:any;breachMarker?:BreachMarker|null;geeImagery?:GeeImageryItem[];lonFirstBounds?:boolean}){
+function ContractRasterMap({overlay,styles,breachMarker,geeImagery}:{overlay:FloodRasterOverlay;styles:any;breachMarker?:BreachMarker|null;geeImagery?:GeeImageryItem[]}){
  const cfg=styles?.[overlay.styleId],colors:string[]=Array.isArray(cfg?.colors)?cfg.colors:[];
  const breaks:number[]=cfg?.breaks_m??cfg?.breaks_ms??cfg?.breaks_s??[];
  const labels=breaks.length?[String(breaks[0]),...breaks.slice(1,-1).map((n:number)=>String(n)),`${breaks[breaks.length-1]}+`]:[];
  const ramp=colors.length?`linear-gradient(90deg,${colors.join(',')})`:undefined;
  const [zoom,setZoom]=useState(1),[pan,setPan]=useState({x:0,y:0}),[controls,setControls]=useState(false),[basemap,setBasemap]=useState<'none'|'cached'|'live'>('cached'),[breachOpen,setBreachOpen]=useState(false);
  const drag=useRef<any>(null);
- // Contract §1.3 documents `bounds_latlng` as [[south_lat,west_lon],[north_lat,east_lon]], and
- // that's what every path emits (backend/shared/grid.py, m7_gee/imagery.py, the emulator/
- // fallback query paths) EXCEPT the real direct-solver path (`backend/m0_api/real_query.py:
- // _bounds_latlng`, `real_timeline.py`), which — despite the field's name — actually stores
- // [[west_lon,south_lat],[east_lon,north_lat]]. A magnitude check (|value|<=90) can't tell these
- // apart here: Himalayan longitudes (~74-95°E) are themselves <=90, same range as a latitude, so
- // the app tracks which backend path answered the query (`floodQuery.method==='delft3d_direct'`,
- // threaded down as `lonFirstBounds`) and un-swaps deterministically instead of guessing.
- const [[south,west],[north,east]]=lonFirstBounds
-  ?[[overlay.boundsLatLng[0][1],overlay.boundsLatLng[0][0]],[overlay.boundsLatLng[1][1],overlay.boundsLatLng[1][0]]]
-  :overlay.boundsLatLng;
+ // Contract §1.3: bounds_latlng is [[south_lat,west_lon],[north_lat,east_lon]] from every path,
+ // including the real direct-solver path -- fixed at the source (docs/progress.md 2026-09-28
+ // "STEP 2"); this used to need a per-path un-swap keyed on floodQuery.method, not anymore.
+ const [[south,west],[north,east]]=overlay.boundsLatLng;
  const pct=(lon:number,lat:number)=>({x:(lon-west)/(east-west)*100,y:(north-lat)/(north-south)*100});
  const cachedTiles=(geeImagery??[]).map(item=>{
   const [iSouth,iWest]=item.bounds_latlng[0],[iNorth,iEast]=item.bounds_latlng[1];
