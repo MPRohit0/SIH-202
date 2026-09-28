@@ -2187,3 +2187,50 @@ item 1b (DEM conditioning) — it's the one open item with a known fix and a bou
 would remove the least-honest-looking number left on the dashboard (the 66.9 m domain max, even
 though it's already caveated). After that, the SPH particle-exclusion defect (b) is the next
 blocker to a real Compare page.
+
+## 2026-09-28 — 3D view wired to the real Teesta MVP run
+
+- **Backend check first, no backend change needed:** called `scene3d.build_scene()` directly
+  against a live registered `delft3d_direct` query and confirmed it already returns real terrain
+  (845×1672 @ ~90 m) and median flood-surface float32 arrays — 11.3 MB total, well under the 20 MB
+  cap — with no fallback to the contract example. `comparison.delft3d_surface_url` and
+  `sph_surfaces` are both already empty for this run (no `summary_nearfield/max_depth.tif` for the
+  D-Flow run, and the SPH run id isn't even in this query's `provenance.run_ids`, consistent with
+  `compare_mvp.py`'s particle-exclusion gate), so the "don't show unresolved SPH" rule was already
+  satisfied by the data with no gating logic to add. Query ids are ephemeral — each demo click
+  issues a fresh `POST /flood/query` — so there is no fixed id to hardcode; the frontend now reads
+  `floodQuery.query_id` once a real query is loaded.
+- **Frontend, the actual gap:** `api.scene3d()` existed but was never called; the 3D tab was
+  force-switched to 2D whenever any raster layer (real or legacy) was loaded, and `Terrain3D` only
+  ever received the legacy synthetic `Grid`/`Result` model.
+  - `src/data/api.ts`: added a proper `Scene3DResponse` type (was untyped `request(...)`).
+  - `src/data/source.ts`: added `getScene3d()` and `getScene3dArrays()` (fetches
+    `terrain.bin`/`flood_surface.bin` as `float32_le_row_major`, per `contracts/scene3d.md`) —
+    components still don't fetch directly, matching this file's existing rule.
+  - `app/sentriq/app.tsx`: new effect fetches scene3d + both binaries whenever a real
+    `delft3d_direct` `floodQuery` is set. The 3D tab is only left unforced for this path
+    (`force2dRaster = floodRasterLayer && !realSceneReady`); the legacy/synthetic screening path's
+    forced-2D behaviour is unchanged.
+  - `app/sentriq/terrain-3d.tsx`: added a real-data branch (same Three.js/OrbitControls stack, no
+    new library) alongside the untouched legacy branch. It crops to the bounding box of *wet*
+    flood-surface cells (+ margin) so the reach that actually flooded — South Lhonak → Chungthang
+    — is what the camera frames by construction, not the whole 845×1672 far-field DEM; subsamples
+    to ~140 samples/axis (comparable vertex budget to the legacy synthetic mesh); applies the
+    response's `vertical_exaggeration` to Z only; builds the single median water surface once (no
+    animation — the contract has no time dimension here, unlike the legacy per-frame path). No
+    near-field GLB loading was written: since `delft3d_surface_url`/`sph_surfaces` are always empty
+    for this run today, that would have been untested, speculative code — the caption instead
+    states "NEAR-FIELD SPH: UNDER INVESTIGATION" plainly. Confidence/caveat/placeholder badges
+    needed no change: they already render in the scenario-inspector aside regardless of which map
+    tab is active.
+- **Verified live** (throwaway Playwright script, not committed): home → Open Teesta Demo →
+  Simulation → 3D terrain tab. Zero console errors, zero failed requests; network showed
+  `scene3d` (1.2 kB) + `terrain.bin`/`flood_surface.bin` (5.65 MB each, 11.3 MB total) all 200. The
+  rendered scene shows real mountain topography with the actual flood channel traced in cyan
+  through it — not a flat/empty block — confirming the wet-cell crop is centred on genuine solver
+  output. `tsc --noEmit` and `vite build` pass; full Playwright visual suite: **13/13 unchanged**
+  (the automated harness never opens a real query, so no baseline needed updating).
+- **Still limited:** near-field comparison meshes remain unwired in the 3D view (dead code was
+  avoided rather than added) — revisit once the SPH particle-exclusion defect is actually fixed and
+  `sph_surfaces`/`delft3d_surface_url` start returning real assets. No backend files changed this
+  session.

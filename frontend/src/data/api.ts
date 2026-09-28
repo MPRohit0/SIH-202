@@ -120,6 +120,34 @@ export type JobStatus = {
 };
 export type SiteCreateRequest = {site_config: Record<string, unknown>; demo_mode?: boolean};
 export type SiteCreateAccepted = {job_id: string; site_id: string};
+/** Contract §5.9 / contracts/scene3d.md — GET /scene3d/{query_id}. */
+export type Scene3DResponse = {
+  contract_version: string; query_id: string;
+  frame: {
+    crs_epsg: number | null; origin_x_utm_m: number; origin_y_utm_m: number;
+    vertical_exaggeration: number; vertical_exaggeration_applies_to: string;
+    units: string; axis_order: string;
+  };
+  terrain: {
+    url: string; encoding: string; width: number; height: number;
+    cell_size_x_m: number; cell_size_y_m: number;
+    origin_x_utm_m: number; origin_y_utm_m: number;
+    origin_local_x_m: number; origin_local_y_m: number;
+    transform: number[]; crs_epsg: number | null;
+    min_elev_m: number | null; max_elev_m: number | null;
+    nodata: number; byte_length: number;
+  };
+  flood_surface: {
+    url: string; encoding: string; nodata: number; basis: string;
+    width: number; height: number; byte_length: number;
+  };
+  comparison: {
+    nearfield_bounds_local: number[][];
+    delft3d_surface_url: string | null; delft3d_surface_basis: string | null;
+    sph_surfaces: Array<{t_s: number; url: string}>;
+  };
+  payload_bytes: number; max_payload_mb: number;
+};
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1').replace(/\/$/, '');
 export const useMocks = import.meta.env.VITE_USE_MOCKS === 'true';
@@ -182,7 +210,7 @@ export const api = {
   },
   gee: (siteId: string) => request<GeeLayers>(`/gee/${encodeURIComponent(siteId)}`, {}, 'geeLayers'),
   refreshGee: (siteId: string) => request<GeeLayers>(`/gee/${encodeURIComponent(siteId)}/refresh`, {method: 'POST'}, 'geeLayers'),
-  scene3d: (queryId: string, verticalExaggeration = 1.5) => request(`/scene3d/${encodeURIComponent(queryId)}?vertical_exaggeration=${verticalExaggeration}`, {}, 'scene3d'),
+  scene3d: (queryId: string, verticalExaggeration = 1.5) => request<Scene3DResponse>(`/scene3d/${encodeURIComponent(queryId)}?vertical_exaggeration=${verticalExaggeration}`, {}, 'scene3d'),
   file: (path: string) => {
     const relativePath = path.replace(/^\/api\/v1\/?/, '').replace(/^\/+/, '');
     return fetch(`${baseUrl}/${relativePath}`);

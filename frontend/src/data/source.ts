@@ -9,7 +9,7 @@
 // inventing routes for them.
 import type {Grid, Params, Result} from '@/lib/model';
 import type {Scenario} from '@/lib/sentriq';
-import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type JobStatus, type ValidationResponse} from './api';
+import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type JobStatus, type ValidationResponse, type Scene3DResponse} from './api';
 import uiText from '../content/ui_text.json';
 
 export type Awaiting = {status: 'awaiting'; reason: string};
@@ -120,6 +120,22 @@ export async function refreshObserved(siteId: string): Promise<GeeLayers> {
 export async function getTimeline(queryId: string, intervalS = 300): Promise<Timeline> {
   if (!queryId) throw new Error('A query_id is required to load the flood timeline.');
   return api.timeline(queryId, intervalS);
+}
+
+/** Contract §5.9 — GET /scene3d/{query_id}. */
+export async function getScene3d(queryId: string, verticalExaggeration = 1.5): Promise<Scene3DResponse> {
+  if (!queryId) throw new Error('A query_id is required to load the 3D scene.');
+  return api.scene3d(queryId, verticalExaggeration);
+}
+
+/** Fetches the scene's two headerless float32_le_row_major arrays (contracts/scene3d.md).
+ * Kept here, not in the component, per this file's "components must not fetch" rule. */
+export type Scene3DArrays = {terrain: Float32Array; flood: Float32Array};
+export async function getScene3dArrays(scene: Scene3DResponse): Promise<Scene3DArrays> {
+  const [terrainRes, floodRes] = await Promise.all([api.file(scene.terrain.url), api.file(scene.flood_surface.url)]);
+  if (!terrainRes.ok || !floodRes.ok) throw new Error('Failed to load the 3D scene terrain/flood arrays.');
+  const [terrainBuf, floodBuf] = await Promise.all([terrainRes.arrayBuffer(), floodRes.arrayBuffer()]);
+  return {terrain: new Float32Array(terrainBuf), flood: new Float32Array(floodBuf)};
 }
 
 /** Contract §6 — GET /styles (contracts/styles.json). Drives map legends and
