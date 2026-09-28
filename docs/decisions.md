@@ -751,8 +751,10 @@ still-mocked base response; `PUT /sites/{id}/recheck` persists for real.
 
 ## 2026-09-25 — M3: Delft3D 4 FLOW, not FM (DECIDED with user this session)
 
-> **SUPERSEDED 2026-09-26** by "M3: ANUGA replaces Delft3D 4 FLOW" (end of this file). The
-> `inflow.base_flow` schema bullet below still stands.
+> **SUPERSEDED 2026-09-26** by "M3: ANUGA replaces Delft3D 4 FLOW" (end of this file), itself
+> superseded the same day by "M3: back to Delft3D FM, superseding 'ANUGA replaces Delft3D 4
+> FLOW'" (M3-B). **D-Flow FM is the current M3 solver.** The `inflow.base_flow` schema bullet
+> below still stands.
 
 `CLAUDE.md` and `environment.yml` had assumed Delft3D FM (`hydrolib-core`, `meshkernel`,
 `dfm_tools`). Checking the machine that will run it found only a GUI-only Delft3D 4.07.02
@@ -961,6 +963,10 @@ it is guessed from `-h` text or the PDF guides alone.
   "no flooding predicted".
 
 ## 2026-09-26 — M3: ANUGA replaces Delft3D 4 FLOW (DECIDED with user this session)
+
+> **SUPERSEDED the same day** by "M3: back to Delft3D FM, superseding 'ANUGA replaces Delft3D 4
+> FLOW'" (M3-B, immediately below). **D-Flow FM is the current M3 solver; ANUGA
+> (`backend/m3_pilot/`) is kept as a fallback for the record, not the M3 reference.**
 
 **Decision:** the M3 far-field flood solver is ANUGA (`anuga` 4.0.1 from PyPI, unstructured
 triangular finite-volume shallow-water solver), not Delft3D 4 FLOW.

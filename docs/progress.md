@@ -2106,3 +2106,24 @@ Teesta base flow and other physical data need sourcing before production use.
   false` state from item 2); updated that snapshot only. Re-ran full suite after: **13 passed**.
   Frontend `tsc --noEmit` and `npm run build` pass.
 - Tests: `tests/m0_api` (including the new export test): **179 passed, 1 skipped**.
+
+## 2026-09-28 — Demo stabilization pass, item 6: housekeeping
+
+- **One working Python environment for tests, confirmed:** the `tests/m3_dflowfm/conftest.py`
+  fixture-import fix (committed in item 0) already resolves the `pytest_plugins` collection error.
+  `.venv/bin/python -m pytest --collect-only -q` now collects **937 tests** with no environment
+  activation needed (previously required the `sih26` conda env, which has `richdem` and other
+  extras `.venv` lacks; both envs now collect the same count).
+- **CLAUDE.md:** the M3 module row said `backend/m3_delft3d`; the real directory is
+  `backend/m3_dflowfm`. Fixed the path only — no module or model-ID rename.
+- **`docs/decisions.md`:** added a "superseded" banner to the 2026-09-26 "M3: ANUGA replaces
+  Delft3D 4 FLOW" entry (previously had none, so it read as current), and extended the existing
+  2026-09-25 "M3: Delft3D 4 FLOW, not FM" banner to note the further supersession by M3-B ("M3:
+  back to Delft3D FM"). D-Flow FM was already correctly identified as the current M3 solver
+  elsewhere in both `CLAUDE.md` and `docs/decisions.md`; only these two stale-looking entries
+  needed a pointer forward.
+- **`docs/Equations.md`:** the XZ9 §1.2 note ("`h_r` is the fixed Xu & Zhang model constant, 15.0
+  m") had no citation, unlike the equivalent §2.3 note. Added "Source: PRIMARY (Xu & Zhang 2009),
+  doi:10.1061/(asce)gt.1943-5606.0000162" to match.
+- No code changed in this item; `pytest --collect-only` and a read-through of the edited doc
+  sections were the verification.

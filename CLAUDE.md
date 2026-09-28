@@ -37,7 +37,7 @@ If a file above doesn't exist yet, say so instead of guessing its contents.
 | M0 | backend/m0_api | FastAPI orchestrator (`/api/v1`), job queue + worker, rendering, serves frontend |
 | M1 | backend/m1_terrain | DEM, land cover → Manning's n, HAND, domain, centreline, POIs, near-field STL |
 | M2 | backend/m2_breach | Breach parameters, dual-method ranges, hydrographs, cascades |
-| M3 | backend/m3_delft3d | Delft3D FM (D-Flow FM) case generation (hydrolib-core + meshkernel), launch, post-processing to summary maps |
+| M3 | backend/m3_dflowfm | Delft3D FM (D-Flow FM) case generation (hydrolib-core + meshkernel), launch, post-processing to summary maps |
 | M4 | backend/m4_sph | DualSPHysics near-field cases, launch, post-processing (same schema as M3) |
 | M5 | backend/m5_emulator | Scenario design, cache, PCA+GP emulator, LOOCV, Monte Carlo, confidence, fallback |
 | M6 | backend/m6_impact | Exposure overlay, warning table, loss, exports (.shp/.kml/.geojson/.pdf) |

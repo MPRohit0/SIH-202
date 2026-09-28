@@ -83,7 +83,8 @@ B4  = b3 + b4 + b5
 | b5 | low (L) | −1.362 |
 
 - Units check: √g · V_w^(5/6) = m^0.5/s · m^2.5 = m³/s ✓. The remaining factors are dimensionless.
-- `h_r` is the fixed Xu & Zhang model constant, 15.0 m.
+- `h_r` is the fixed Xu & Zhang model constant, 15.0 m. Source: PRIMARY (Xu & Zhang 2009),
+  doi:10.1061/(asce)gt.1943-5606.0000162.
 - Valid range: NOT AVAILABLE.
 
 ### 1.3 Zhong et al. (2020) — code Z20
