@@ -2073,3 +2073,36 @@ Teesta base flow and other physical data need sourcing before production use.
   `test_get_site_detail_other_site_is_patched_not_hardcoded` (which relied on Rishi Ganga being a
   second working site) is replaced with `test_get_site_detail_rishiganga_not_configured_with_reason`.
 - Tests: `tests/m0_api`: **178 passed, 1 skipped**. Frontend `tsc --noEmit` passes.
+
+## 2026-09-28 — Demo stabilization pass, item 5: demo walkthrough verification
+
+- **Walkthrough path exercised with a throwaway Playwright script** (real mode, no mocks, not
+  committed): home → "Open Teesta III Demo" → flood map → timeline playback → impact → compare →
+  monitoring → exports → validation → data layers. **Zero console errors and zero failed/4xx/5xx
+  requests** anywhere on the path.
+- **Found and fixed a real bug along the way:** KML export (`GET /export/{query_id}?format=kml`)
+  read only `extent["features"][0]["geometry"]["coordinates"][0]` — the outer ring of a single
+  `Polygon`. The real Teesta extent is a `MultiPolygon` with 70 disjoint parts (closed depressions
+  plus the main channel, per item 1a's DEM-pit finding); the old code silently exported only one
+  part's ring as if it were a flat list of points, producing corrupted, 358-byte output. Replaced
+  with `_extent_geojson_to_kml`, which walks every `Polygon`/`MultiPolygon` part and every hole
+  (`innerBoundaryIs`). Verified against the real registered run: KML is now 81,226 bytes, 70
+  `<Polygon>` elements, 1 hole — versus the previous 358 bytes. Added
+  `test_export_kml_covers_every_part_of_a_multipolygon_extent_with_holes` (constructs a two-part
+  MultiPolygon with a hole and asserts the exported KML is well-formed XML covering every part).
+- **Wired the dashboard's "Downstream impact" preview to real data.** It previously always showed
+  an empty list in real mode (it read the legacy screening model's synthetic exposure points, which
+  the real Teesta path never populates) captioned "Imported exposure inventory" — an honest-looking
+  but empty claim. It now shows the top of the real `impactData.warning_table` (Chungthang, 382 min)
+  captioned "Direct solver exposure intersection" when `floodQuery.method === 'delft3d_direct'`.
+- **3D terrain tab:** confirmed it silently stays on the 2D map when a real flood raster is loaded
+  (`Tabs value={floodRasterLayer?'2d':mapMode}` overrides the clicked tab) rather than rendering a
+  broken 3D view. This already keeps it out of the real-mode path with no misleading claim, so no
+  further change was made; per the plan it stays excluded from the recorded walkthrough.
+- **Dashboard's "Prepared for rapid decisions" mini-pipeline** ("0 scenarios", Terrain/Physics/
+  Cache/Interpolate/Impact) is generic framing copy, not fabricated data (0 is the honest scenario
+  cache count) — left as is.
+- Visual suite: ran with real backend data: only `compare.png` changed (the intended `available:
+  false` state from item 2); updated that snapshot only. Re-ran full suite after: **13 passed**.
+  Frontend `tsc --noEmit` and `npm run build` pass.
+- Tests: `tests/m0_api` (including the new export test): **179 passed, 1 skipped**.

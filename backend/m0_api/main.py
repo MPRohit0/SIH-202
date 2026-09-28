@@ -548,6 +548,42 @@ def get_validation(site_id: SiteIdPath, event: str | None = Query(default=None))
 # =============================================================================
 # 18. GET /export/{query_id}?format=shp|kml|geojson|pdf
 # =============================================================================
+def _ring_to_kml_coordinates(ring: list) -> str:
+    return " ".join(f"{p[0]},{p[1]},0" for p in ring)
+
+
+def _polygon_to_kml(coordinates: list) -> str:
+    """`coordinates` is a GeoJSON Polygon's ring list: `coordinates[0]` is the outer ring,
+    any further rings are holes."""
+    outer = f"<outerBoundaryIs><LinearRing><coordinates>{_ring_to_kml_coordinates(coordinates[0])}</coordinates></LinearRing></outerBoundaryIs>"
+    inner = "".join(f"<innerBoundaryIs><LinearRing><coordinates>{_ring_to_kml_coordinates(ring)}</coordinates></LinearRing></innerBoundaryIs>"
+                    for ring in coordinates[1:])
+    return f"<Polygon>{outer}{inner}</Polygon>"
+
+
+def _extent_geojson_to_kml(extent: dict, name: str) -> str:
+    """A real flood extent is frequently a MultiPolygon (disjoint wet regions), not a single
+    Polygon; the export must cover both, plus holes, rather than exporting only the first ring
+    of the first feature (docs/progress.md 2026-09-28 "Demo stabilization pass, item 5")."""
+    polygons = []
+    for feature in extent["features"]:
+        geometry = feature["geometry"]
+        if geometry["type"] == "Polygon":
+            polygons.append(_polygon_to_kml(geometry["coordinates"]))
+        elif geometry["type"] == "MultiPolygon":
+            polygons.extend(_polygon_to_kml(part) for part in geometry["coordinates"])
+        else:
+            raise ValueError(f"unsupported extent geometry type for KML export: {geometry['type']!r}")
+    if not polygons:
+        placemark = ""
+    elif len(polygons) == 1:
+        placemark = f"<Placemark><name>Extent</name>{polygons[0]}</Placemark>"
+    else:
+        placemark = f"<Placemark><name>Extent</name><MultiGeometry>{''.join(polygons)}</MultiGeometry></Placemark>"
+    return (f'<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>{name}</name>'
+            f'{placemark}</Document></kml>')
+
+
 _EXPORT_MEDIA_TYPES = {
     "shp": "application/zip",
     "kml": "application/vnd.google-earth.kml+xml",
@@ -581,8 +617,7 @@ def export_query(query_id: QueryIdPath, format: str = Query(...)) -> Response:  
         if format == "geojson":
             content, filename = __import__("json").dumps(extent).encode(), f"{site_id}_{query_id}_extent.geojson"
         elif format == "kml":
-            coords = " ".join(f"{p[0]},{p[1]},0" for f in extent["features"] for p in f["geometry"]["coordinates"][0])
-            content = f'<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>{report_label} {query_id}</name><Placemark><name>Extent</name><Polygon><outerBoundaryIs><LinearRing><coordinates>{coords}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></Document></kml>'.encode()
+            content = _extent_geojson_to_kml(extent, f"{report_label} {query_id}").encode()
             filename = f"{site_id}_{query_id}_extent.kml"
         elif format == "shp":
             import io, zipfile, tempfile

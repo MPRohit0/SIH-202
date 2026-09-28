@@ -729,6 +729,42 @@ def test_export_invalid_format_400():
     assert_matches("error.schema.json", r.json()["detail"])
 
 
+def test_export_kml_covers_every_part_of_a_multipolygon_extent_with_holes(data_dir):
+    """A real flood extent is frequently a MultiPolygon (disjoint wet regions from an unconditioned
+    DEM, docs/progress.md 2026-09-28), not a single simple Polygon. Exporting only
+    coordinates[0] of the first feature (the earlier bug) silently drops every other part and
+    every hole."""
+    import xml.etree.ElementTree as ET
+
+    query_id = "q_20260928T000000Z_abc123"
+    site_dir = data_dir / KNOWN_SITE
+    query_dir = site_dir / "queries" / query_id
+    query_dir.mkdir(parents=True)
+    extent = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {},
+        "geometry": {"type": "MultiPolygon", "coordinates": [
+            [[[88.0, 27.0], [88.1, 27.0], [88.1, 27.1], [88.0, 27.1], [88.0, 27.0]],
+             [[88.02, 27.02], [88.02, 27.04], [88.04, 27.04], [88.04, 27.02], [88.02, 27.02]]],
+            [[[88.5, 27.5], [88.6, 27.5], [88.6, 27.6], [88.5, 27.6], [88.5, 27.5]]],
+        ]}}]}
+    (query_dir / "extent.geojson").write_text(json.dumps(extent))
+    (query_dir / "result.json").write_text(json.dumps({"flags": {"demo_mode": False}}))
+    with registry.connect() as conn:
+        conn.execute("INSERT INTO queries (query_id,site_id,request_json,status,result_path,created_at) "
+                     "VALUES (?,?,?,?,?,?)",
+                     (query_id, KNOWN_SITE, "{}", "complete",
+                      str(query_dir / "result.json"), registry.utc_now()))
+
+    r = client.get(f"{API}/export/{query_id}", params={"format": "kml"})
+    assert r.status_code == 200
+    root = ET.fromstring(r.content)  # raises if the KML is not well-formed XML
+    ns = {"k": "http://www.opengis.net/kml/2.2"}
+    polygons = root.findall(".//k:Polygon", ns)
+    assert len(polygons) == 2  # one per MultiPolygon part
+    assert len(root.findall(".//k:innerBoundaryIs", ns)) == 1  # the hole in the first part
+    outer_coords = polygons[0].find(".//k:outerBoundaryIs//k:coordinates", ns).text
+    assert "88.5,27.5" not in outer_coords  # each polygon keeps only its own ring, not another's
+
+
 # =============================================================================
 # 19-20. gee
 # =============================================================================
