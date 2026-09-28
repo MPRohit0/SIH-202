@@ -127,7 +127,7 @@ class TestLoadLayers:
     def test_observed_extents_populated_from_disk(self, data_dir):
         cache.write_json("teesta", "gee_meta.json", {"fetched_at": "2026-09-24T10:15:00Z"}, data_dir)
         cache.write_json("teesta", "recheck.json", {"outdated": False, "change_pct": 1.0, "threshold_pct": 10.0}, data_dir)
-        cache.write_json("teesta", "observed/sikkim_glof_2023_observed.geojson", {
+        cache.write_observed_extent("teesta", "2023", {
             "type": "FeatureCollection",
             "features": [{"type": "Feature", "geometry": None,
                           "properties": {"event_id": "sikkim_glof_2023", "method": "manual_digitized"}}],
@@ -137,7 +137,7 @@ class TestLoadLayers:
 
         assert layers["observed_extents"] == [{
             "event_id": "sikkim_glof_2023",
-            "url": "/api/v1/files/teesta/gee/observed/sikkim_glof_2023_observed.geojson",
+            "url": "/api/v1/files/teesta/observed/flood_extent_2023.geojson",
             "method": "manual_digitized",
         }]
         from backend.m0_api import schemas

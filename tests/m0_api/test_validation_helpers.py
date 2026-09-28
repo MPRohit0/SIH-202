@@ -38,19 +38,43 @@ def _write_hydrograph(path: Path, peak_time_ist: str, duration_s: float) -> None
     }))
 
 
+class _DateValue:
+    def __init__(self, value):
+        self.value = value
+
+
+class _Event:
+    def __init__(self, id, onset):  # noqa: A002 - matches Event.id
+        self.id = id
+        self.onset = _DateValue(onset)
+
+
+class _Cfg:
+    def __init__(self, events):
+        self.events = events
+
+
+TEESTA_2023_CFG = _Cfg(events=[_Event(id="sikkim_glof_2023", onset="2023-10-04")])
+
+
 class TestObservedExtentStatus:
-    def test_missing_reports_not_digitized(self, tmp_path):
-        result = vh.observed_extent_status("teesta", "sikkim_glof_2023", tmp_path)
+    def test_missing_reports_not_digitized_with_exact_path(self, tmp_path):
+        result = vh.observed_extent_status("teesta", "sikkim_glof_2023", tmp_path, cfg=TEESTA_2023_CFG)
         assert result["available"] is False
         assert "not yet digitized" in result["note"]
+        assert "data/teesta/observed/flood_extent_2023.geojson" in result["note"]
 
     def test_present_reports_url(self, tmp_path):
-        observed_dir = tmp_path / "teesta" / "gee" / "observed"
+        observed_dir = tmp_path / "teesta" / "observed"
         observed_dir.mkdir(parents=True)
-        (observed_dir / "sikkim_glof_2023_observed.geojson").write_text("{}")
-        result = vh.observed_extent_status("teesta", "sikkim_glof_2023", tmp_path)
+        (observed_dir / "flood_extent_2023.geojson").write_text("{}")
+        result = vh.observed_extent_status("teesta", "sikkim_glof_2023", tmp_path, cfg=TEESTA_2023_CFG)
         assert result["available"] is True
-        assert result["extent_url"] == "/api/v1/files/teesta/gee/observed/sikkim_glof_2023_observed.geojson"
+        assert result["extent_url"] == "/api/v1/files/teesta/observed/flood_extent_2023.geojson"
+
+    def test_unknown_event_raises(self, tmp_path):
+        with pytest.raises(ValueError, match="no event 'nope'"):
+            vh.observed_extent_status("teesta", "nope", tmp_path, cfg=TEESTA_2023_CFG)
 
 
 class TestLiteratureComparison:
@@ -136,6 +160,68 @@ class TestPredictedExtent:
         assert result["value"] == pytest.approx(3 * 90.0 * 90.0)
         assert result["kind"] == "predicted"
         assert result["unit"] == "m2"
+
+
+class TestExtentMetrics:
+    """Real IoU/F1/precision/recall on a hand-worked 2x2 synthetic grid -- never fabricated,
+    never used for training/calibration (validation-only)."""
+
+    def _write_max_depth_tif(self, path: Path, values: np.ndarray) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # A 2x2 grid in plain EPSG:4326 (not a real UTM zone) keeps the observed-extent polygon's
+        # coordinates directly comparable, in degrees, without a hand-derived UTM projection --
+        # transform_geom is still exercised, just as an identity reprojection.
+        transform = from_origin(88.0, 28.0, 0.01, 0.01)
+        with rasterio.open(path, "w", driver="GTiff", height=values.shape[0], width=values.shape[1],
+                            count=1, dtype=values.dtype, crs="EPSG:4326", transform=transform,
+                            nodata=-9999.0) as ds:
+            ds.write(values, 1)
+
+    def _write_observed(self, path: Path) -> None:
+        # Covers only the top-left cell: lon [88.0, 88.01], lat [27.99, 28.0].
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "properties": {"event_id": "sikkim_glof_2023", "method": "manual_digitized"},
+                "geometry": {"type": "Polygon", "coordinates": [[
+                    [88.0, 28.0], [88.01, 28.0], [88.01, 27.99], [88.0, 27.99], [88.0, 28.0],
+                ]]},
+            }],
+        }))
+
+    def test_missing_observed_file_returns_none(self, tmp_path):
+        run_dir = tmp_path / "run"
+        self._write_max_depth_tif(run_dir / "summary" / "max_depth.tif",
+                                   np.array([[0.5, 0.5], [0.0, 0.0]], dtype="float32"))
+        result = vh.build_extent_metrics(tmp_path / "observed" / "flood_extent_2023.geojson",
+                                          {"thresholds": {"extent_m": 0.3}}, run_dir)
+        assert result is None
+
+    def test_missing_threshold_or_raster_returns_none(self, tmp_path):
+        observed_path = tmp_path / "observed" / "flood_extent_2023.geojson"
+        self._write_observed(observed_path)
+        assert vh.build_extent_metrics(observed_path, {}, tmp_path / "no_run") is None
+
+    def test_computes_real_metrics_from_synthetic_grid(self, tmp_path):
+        run_dir = tmp_path / "run"
+        # Top row (row 0) is wet (> 0.3 m); bottom row is dry.
+        self._write_max_depth_tif(run_dir / "summary" / "max_depth.tif",
+                                   np.array([[0.5, 0.5], [0.0, 0.0]], dtype="float32"))
+        observed_path = tmp_path / "observed" / "flood_extent_2023.geojson"
+        self._write_observed(observed_path)  # covers only the top-left cell
+
+        result = vh.build_extent_metrics(observed_path, {"thresholds": {"extent_m": 0.3}}, run_dir)
+
+        assert result is not None
+        # simulated wet = {(0,0), (0,1)}; observed wet = {(0,0)}.
+        # tp=1 ((0,0)), fp=1 ((0,1) simulated but not observed), fn=0.
+        assert result["iou"] == pytest.approx(1 / 2)
+        assert result["f1_dice"] == pytest.approx(2 / 3)
+        assert result["precision"] == pytest.approx(1 / 2)
+        assert result["recall"] == pytest.approx(1.0)
+        assert result["validation_only"] is True
 
 
 class TestSyntheticLoocvSummary:

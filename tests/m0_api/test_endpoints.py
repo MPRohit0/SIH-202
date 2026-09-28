@@ -779,14 +779,14 @@ def test_get_historical_validation_observed_extent_present(data_dir):
     run_dir = data_dir / KNOWN_SITE / "runs" / run_id
     run_dir.mkdir(parents=True)
     (run_dir / "run_meta.json").write_text(json.dumps({"solver_status": "REAL_SOLVER_OUTPUT", "run_id": run_id}))
-    observed_dir = data_dir / KNOWN_SITE / "gee" / "observed"
+    observed_dir = data_dir / KNOWN_SITE / "observed"
     observed_dir.mkdir(parents=True)
-    (observed_dir / f"{REAL_EVENT_ID}_observed.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": []}))
+    (observed_dir / "flood_extent_2023.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": []}))
     response = client.get(f"{API}/validation/{KNOWN_SITE}", params={"event": REAL_EVENT_ID})
     body = response.json()
     assert_matches("historical_validation.schema.json", body)
     assert body["observed"]["available"] is True
-    assert body["observed"]["extent_url"].endswith(f"{REAL_EVENT_ID}_observed.geojson")
+    assert body["observed"]["extent_url"].endswith("flood_extent_2023.geojson")
     assert not any(c["id"] == "no_observed_extent" for c in body["caveats"])
 
 
@@ -916,7 +916,7 @@ def test_get_file_png():
 
 
 def test_get_file_geojson():
-    r = client.get(f"{API}/files/teesta/gee/observed/teesta_2023_observed.geojson")
+    r = client.get(f"{API}/files/teesta/observed/flood_extent_2023.geojson")
     # A path matching the observed-extent artifact route must not silently
     # return an unrelated example when the real file is absent.
     assert r.status_code == 404

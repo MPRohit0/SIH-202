@@ -131,15 +131,36 @@ def read_imagery(site_id: str, data_dir: str | Path = DATA_DIR) -> list[dict]:
     ]
 
 
+def observed_dir(site_id: str, data_dir: str | Path = DATA_DIR) -> Path:
+    """The canonical observed-extent directory (docs/handoff_contract.md §1.8, updated
+    2026-09-28): `data/<site_id>/observed/`. Not under `gee/` -- a digitized observed extent is
+    operator-supplied, not an M7 Earth Engine fetch product, even though `observed.convert`
+    (the tool that produces it) lives in this module."""
+    return Path(data_dir) / site_id / "observed"
+
+
+def observed_extent_path(site_id: str, onset_year: str, data_dir: str | Path = DATA_DIR) -> Path:
+    """The one canonical observed-extent file for an event whose onset falls in `onset_year`:
+    `data/<site_id>/observed/flood_extent_<onset_year>.geojson` (EPSG:4326)."""
+    return observed_dir(site_id, data_dir) / f"flood_extent_{onset_year}.geojson"
+
+
+def write_observed_extent(site_id: str, onset_year: str, payload: dict, data_dir: str | Path = DATA_DIR) -> Path:
+    path = observed_extent_path(site_id, onset_year, data_dir)
+    _atomic_write_text(path, json.dumps(payload, indent=2) + "\n")
+    return path
+
+
 def read_observed_extents(site_id: str, data_dir: str | Path = DATA_DIR) -> list[dict]:
     """`GeeLayers.observed_extents` entries (contract §5.8) built from every
-    `gee/observed/<event_id>_observed.geojson` file (`observed.convert`), or `[]` if none has been
-    digitized for this site yet."""
-    observed_dir = gee_dir(site_id, data_dir) / "observed"
-    if not observed_dir.is_dir():
+    `observed/flood_extent_<year>.geojson` file (`observed.convert`), or `[]` if none has been
+    digitized for this site yet. `event_id`/`method` come from the properties `observed.convert`
+    already stamped onto every feature, not from the (year-based) filename."""
+    obs_dir = observed_dir(site_id, data_dir)
+    if not obs_dir.is_dir():
         return []
     out = []
-    for path in sorted(observed_dir.glob("*_observed.geojson")):
+    for path in sorted(obs_dir.glob("flood_extent_*.geojson")):
         payload = json.loads(path.read_text(encoding="utf-8"))
         features = payload.get("features", [])
         if not features:
@@ -147,7 +168,7 @@ def read_observed_extents(site_id: str, data_dir: str | Path = DATA_DIR) -> list
         props = features[0].get("properties", {})
         out.append({
             "event_id": props.get("event_id"),
-            "url": f"/api/v1/files/{site_id}/gee/observed/{path.name}",
+            "url": f"/api/v1/files/{site_id}/observed/{path.name}",
             "method": props.get("method"),
         })
     return out

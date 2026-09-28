@@ -169,7 +169,9 @@ data/
       validation/
     exposure/                             # M6 inputs (§4.7)
     gee/                                  # M7 outputs (§4.8)
-      imagery/  observed/  fallback/
+      imagery/  fallback/
+    observed/flood_extent_<year>.geojson  # operator-digitized, validation-only (§4.8);
+                                           # <year> = the matching event's onset year
     events/<event_id>/validation.json     # M5 historical validation
     queries/<query_id>/                   # per-query results
       result.json  impact.json  layers/  timeline/  exports/
@@ -766,10 +768,14 @@ Shapefile field names (≤ 10 characters):
 |`lake_latest.geojson`|latest lake polygon, properties `date, area_m2, method`|
 |`rainfall.csv`|`date,precip_mm,dataset,aggregation` (`dataset`: `chirps` \| `gpm_imerg`)|
 |`imagery/<event_id>_<pre\|post>_<YYYYMMDD>.png/.tif`|RGB composites for the AOI|
-|`observed/<event_id>_observed.geojson`|observed flood path, properties `event_id, method (manual_digitized \| change_detection), imagery_ref, digitized_by, date, kind: observed`|
 |`fallback/*.png`|screenshots used if live and cache both fail|
 |`gee_meta.json`|per product: `dataset, scene_ids, acquisition_dates, cloud_pct, fetched_at, source (live \| cache \| screenshot_fallback)`|
 |`recheck.json`|`{site_id, checked_at, latest_area_m2, reference_area_m2, change_pct, threshold_pct, outdated, reason}` — `reference_area_m2` = lake area when the library was trained|
+
+The digitized observed flood extent lives outside `gee/`, at `data/<site_id>/observed/flood_extent_<year>.geojson`
+(`<year>` = the matching event's onset year) — an operator-supplied artifact, not an Earth Engine fetch product.
+Properties: `event_id, method (manual_digitized \| change_detection), imagery_ref, digitized_by, date, kind: observed`.
+(Updated 2026-09-28; the older `gee/observed/<event_id>_observed.geojson` location is retired.)
 
 ---
 
@@ -993,7 +999,7 @@ Extent at time t = cells whose arrival ≤ t.
 {
   "contract_version": "0.3.0", "site_id": "teesta", "event_id": "teesta_2023",
   "observed": {
-    "extent_url": "/api/v1/files/teesta/gee/observed/teesta_2023_observed.geojson",
+    "extent_url": "/api/v1/files/teesta/observed/flood_extent_2023.geojson",
     "area_m2": { "value": 0.0, "unit": "m2", "kind": "observed", "source": "src_040" },
     "arrival_reports":  [ { "place": "Chungthang", "arrival_s": 0, "source": "src_041", "note": "reported time" } ],
     "peak_discharge_estimates": [ { "location": "...", "value_m3s": 0.0, "source": "src_042" } ]
@@ -1003,7 +1009,11 @@ Extent at time t = cells whose arrival ≤ t.
     "delft3d_direct": { "run_id": "teesta_hist_2023__delft3d", "area_m2": { "...": "Estimate" } }
   },
   "metrics": {
-    "emulator":       { "iou": 0.0, "f1_dice": 0.0, "area_error_pct": 0.0,
+    // Real cell-wise IoU/F1/precision/recall of simulated vs. digitized-observed extent, on this
+    // run's own summary/max_depth.tif grid -- present only once an observed extent has been
+    // digitized (§1.8); {} otherwise. Validation only, never used for training/calibration.
+    "emulator":       { "iou": 0.0, "f1_dice": 0.0, "precision": 0.0, "recall": 0.0,
+                        "area_error_pct": 0.0, "basis": "...", "validation_only": true,
                         "arrival_errors": [ { "place": "Chungthang", "error_s": 0, "low_s": 0, "high_s": 0 } ],
                         "peak_errors": [ { "source": "src_042", "error_pct": 0.0 } ] },
     "delft3d_direct": { "...": "same shape" }

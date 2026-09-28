@@ -1,13 +1,15 @@
-"""M7 observed flood extent (contract §4.8 `observed/<event_id>_observed.geojson`) -- a
+"""M7 observed flood extent (contract §1.8 `observed/flood_extent_<year>.geojson`) -- a
 hand-digitized (or change-detection) flood outline an operator supplies, not something fetched
 from Earth Engine.
 
-Stamps the operator's GeoJSON (already in EPSG:4326, per contract §1.7/§4.8) with the required
+Stamps the operator's GeoJSON (already in EPSG:4326, per contract §1.7/§1.8) with the required
 properties (`event_id, method, imagery_ref, digitized_by, date, kind: observed`) and writes it to
-`data/<site_id>/gee/observed/<event_id>_observed.geojson`. `cache.read_observed_extents()`/
-`load_layers()` read every file in that directory into `GeeLayers.observed_extents` (contract
-§5.8: `{event_id, url, method}`). This layer is for validation only (`docs/handoff_contract.md`
-§5.7 `GET /validation/{site_id}?event=`) -- it is never used as a model input.
+`data/<site_id>/observed/flood_extent_<year>.geojson`, `<year>` being the event's own onset year
+(from the site config) -- not under `gee/`, since this is operator-supplied, not an Earth Engine
+fetch product. `cache.read_observed_extents()`/`load_layers()` read every file in that directory
+into `GeeLayers.observed_extents` (contract §5.8: `{event_id, url, method}`). This layer is for
+validation only (`docs/handoff_contract.md` §5.7 `GET /validation/{site_id}?event=`) -- it is
+never used as a model input.
 
 CLI: `python -m backend.m7_gee.observed <site_id> <event_id> <source_geojson> --digitized-by NAME
 [--method manual_digitized|change_detection] [--imagery-ref REF] [--date YYYY-MM-DD]
@@ -51,11 +53,12 @@ def convert(
     data_dir: str | Path = cache.DATA_DIR,
 ) -> Path:
     """Reads the operator's GeoJSON at `source_path`, stamps contract properties onto every
-    feature, and writes `data/<site_id>/gee/observed/<event_id>_observed.geojson`. Raises
-    `FileNotFoundError` if `source_path` doesn't exist, `ValueError` if it isn't a GeoJSON
-    Feature/FeatureCollection or the site has no event `event_id`. `date` defaults to the event's
-    `onset` date; `imagery_ref` defaults to `<event_id>_post` (the post-event imagery it was
-    digitized against, per contract §4.8's `imagery_ref` field)."""
+    feature, and writes `data/<site_id>/observed/flood_extent_<year>.geojson` (`<year>` = the
+    event's own onset year). Raises `FileNotFoundError` if `source_path` doesn't exist,
+    `ValueError` if it isn't a GeoJSON Feature/FeatureCollection or the site has no event
+    `event_id`. `date` defaults to the event's `onset` date; `imagery_ref` defaults to
+    `<event_id>_post` (the post-event imagery it was digitized against, per contract §4.8's
+    `imagery_ref` field)."""
     cfg = cfg or load_site_config(site_id)
     event = _event(cfg, event_id)
     source_path = Path(source_path)
@@ -80,7 +83,8 @@ def convert(
         feature["properties"].update(props)
 
     out = {"type": "FeatureCollection", "features": features}
-    return cache.write_json(site_id, f"observed/{event_id}_observed.geojson", out, data_dir)
+    onset_year = str(event.onset.value)[:4]
+    return cache.write_observed_extent(site_id, onset_year, out, data_dir)
 
 
 def main(argv: list[str] | None = None) -> int:

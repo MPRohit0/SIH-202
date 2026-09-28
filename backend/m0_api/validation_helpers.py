@@ -71,25 +71,91 @@ LITERATURE_COMPARISON_CAVEATS: list[str] = [
 ]
 
 
-def observed_extent_status(site_id: str, event_id: str, data_dir: Path) -> dict[str, Any]:
-    """Whether a digitized observed flood extent exists for this event (contract §4.8,
-    `backend.m7_gee.observed`). Never fabricates an extent when none has been digitized."""
-    observed_dir = data_dir / site_id / "gee" / "observed"
-    match = None
-    if observed_dir.is_dir():
-        candidates = sorted(observed_dir.glob(f"{event_id}_observed.geojson"))
-        if candidates:
-            match = candidates[0]
-    if match is None:
+def _onset_year(site_id: str, event_id: str, cfg: Any | None = None) -> str:
+    from backend.shared.site_config import load_site_config
+
+    cfg = cfg or load_site_config(site_id)
+    event = next((e for e in cfg.events if e.id == event_id), None)
+    if event is None:
+        raise ValueError(f"site '{site_id}' has no event '{event_id}'")
+    return str(event.onset.value)[:4]
+
+
+def resolve_observed_extent_path(site_id: str, event_id: str, data_dir: Path, cfg: Any | None = None) -> Path:
+    """The canonical `data/<site_id>/observed/flood_extent_<onset_year>.geojson` path for this
+    event (contract §1.8), whether or not the file exists yet."""
+    from backend.m7_gee import cache as gee_cache
+
+    onset_year = _onset_year(site_id, event_id, cfg)
+    return gee_cache.observed_extent_path(site_id, onset_year, data_dir)
+
+
+def observed_extent_status(site_id: str, event_id: str, data_dir: Path, cfg: Any | None = None) -> dict[str, Any]:
+    """Whether a digitized observed flood extent exists for this event, at the canonical
+    `data/<site_id>/observed/flood_extent_<onset_year>.geojson` path (contract §1.8,
+    `backend.m7_gee.observed`). Never fabricates an extent when none has been digitized -- and
+    when none exists, names the exact path an operator should place one at, rather than a vague
+    "somewhere" message."""
+    path = resolve_observed_extent_path(site_id, event_id, data_dir, cfg)
+    if not path.is_file():
         return {
             "available": False,
             "note": "Observed flood-extent outline not yet digitized for this event. "
                     "No IoU/F1 extent comparison is possible until one is added via "
-                    "backend.m7_gee.observed.",
+                    f"backend.m7_gee.observed, at data/{site_id}/observed/{path.name}.",
         }
     return {
         "available": True,
-        "extent_url": f"/api/v1/files/{site_id}/gee/observed/{match.name}",
+        "extent_url": f"/api/v1/files/{site_id}/observed/{path.name}",
+    }
+
+
+def build_extent_metrics(observed_path: Path, run_meta: dict[str, Any], run_dir: Path) -> dict[str, Any] | None:
+    """Real IoU/F1/precision/recall of this run's simulated wet extent vs. a digitized observed
+    extent, both rasterized onto this run's own `summary/max_depth.tif` grid (same wet-cell
+    threshold `build_predicted_extent` uses). Returns `None` -- never a fabricated or partial
+    metric -- unless the observed file, the raster and the extent threshold are all present.
+
+    Validation only: never used for training or calibration of any model (CLAUDE.md rule 3;
+    docs/handoff_contract.md §5.7)."""
+    if not observed_path.is_file():
+        return None
+    thresholds = run_meta.get("thresholds") or {}
+    extent_m = thresholds.get("extent_m")
+    max_depth_tif = run_dir / "summary" / "max_depth.tif"
+    if extent_m is None or not max_depth_tif.is_file():
+        return None
+
+    observed = json.loads(observed_path.read_text(encoding="utf-8"))
+    features = observed.get("features", [])
+    if not features:
+        return None
+
+    import numpy as np
+    import rasterio
+    from rasterio.features import rasterize
+    from rasterio.warp import transform_geom
+
+    with rasterio.open(max_depth_tif) as ds:
+        arr = ds.read(1)
+        simulated_wet = (arr > extent_m) & (arr != ds.nodata if ds.nodata is not None else True)
+        shapes = [(transform_geom("EPSG:4326", ds.crs, f["geometry"]), 1) for f in features]
+        observed_wet = rasterize(
+            shapes, out_shape=ds.shape, transform=ds.transform, fill=0, dtype="uint8"
+        ).astype(bool)
+
+    tp = int(np.logical_and(simulated_wet, observed_wet).sum())
+    fp = int(np.logical_and(simulated_wet, ~observed_wet).sum())
+    fn = int(np.logical_and(~simulated_wet, observed_wet).sum())
+    union = tp + fp + fn
+    return {
+        "iou": (tp / union) if union > 0 else None,
+        "f1_dice": (2 * tp / (2 * tp + fp + fn)) if (2 * tp + fp + fn) > 0 else None,
+        "precision": (tp / (tp + fp)) if (tp + fp) > 0 else None,
+        "recall": (tp / (tp + fn)) if (tp + fn) > 0 else None,
+        "basis": f"cell-wise comparison on this run's own summary/max_depth.tif grid, "
+                 f"wet threshold depth > {extent_m} m",
+        "validation_only": True,
     }
 
 

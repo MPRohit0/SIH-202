@@ -64,7 +64,7 @@ class TestConvert:
         )
 
         payload = json.loads(out_path.read_text())
-        assert out_path == cache.gee_dir("testsite", data_dir) / "observed" / "synth_event_2020_observed.geojson"
+        assert out_path == cache.observed_dir("testsite", data_dir) / "flood_extent_2023.geojson"
         props = payload["features"][0]["properties"]
         assert props == {
             "event_id": "synth_event_2020", "method": "manual_digitized",

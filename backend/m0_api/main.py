@@ -560,6 +560,10 @@ def get_validation(site_id: SiteIdPath, event: str | None = Query(default=None))
         observed = validation_helpers.observed_extent_status(site_id, event, data_dir)
         literature = validation_helpers.build_literature_comparison(site_id, real_run_meta, data_dir)
         predicted_area = validation_helpers.build_predicted_extent(real_run_meta, real_run_dir)
+        extent_metrics = None
+        if observed["available"]:
+            observed_path = validation_helpers.resolve_observed_extent_path(site_id, event, data_dir)
+            extent_metrics = validation_helpers.build_extent_metrics(observed_path, real_run_meta, real_run_dir)
         caveats = [{"id": "no_observed_extent", "severity": "warning",
                     "text_key": "no_observed_extent"}] if not observed["available"] else []
         if literature["available"]:
@@ -569,7 +573,7 @@ def get_validation(site_id: SiteIdPath, event: str | None = Query(default=None))
         payload = {"contract_version": "0.3.0", "site_id": site_id, "event_id": event,
                    "observed": observed,
                    "predicted": ({"delft3d_direct": {"area_m2": predicted_area}} if predicted_area else {}),
-                   "metrics": {},
+                   "metrics": ({"delft3d_direct": extent_metrics} if extent_metrics else {}),
                    "comparison_domain": "point comparison at Chungthang against literature reconstructions"
                                         if literature["available"] else "none",
                    "caveats": caveats,
@@ -830,10 +834,12 @@ GEE_IMAGERY_PATH_RE = re.compile(
     rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/gee/imagery/(?P<filename>[A-Za-z0-9_]+\.png)$"
 )
 
-#: An M7 observed-extent GeoJSON under `data/<site_id>/gee/observed/` (`gee_observed.convert`),
-#: anchored the same way so nothing can escape that directory.
-GEE_OBSERVED_PATH_RE = re.compile(
-    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/gee/observed/(?P<filename>[A-Za-z0-9_]+_observed\.geojson)$"
+#: The canonical observed-extent GeoJSON under `data/<site_id>/observed/` (`observed.convert`),
+#: anchored the same way so nothing can escape that directory. Not under `gee/`: this is an
+#: operator-digitized artifact, not an Earth Engine fetch product (docs/handoff_contract.md §1.8,
+#: updated 2026-09-28).
+OBSERVED_EXTENT_PATH_RE = re.compile(
+    rf"^(?P<site_id>{SITE_ID_PATTERN[1:-1]})/observed/(?P<filename>flood_extent_\d{{4}}\.geojson)$"
 )
 
 SCENE_ASSET_PATH_RE = re.compile(
@@ -922,9 +928,9 @@ def get_file(path: str) -> Response:
             detail=mocks.error("file_not_found", f"No GEE imagery file at '{png_path}'.", {"path": path}),
         )
 
-    m = GEE_OBSERVED_PATH_RE.match(path)
+    m = OBSERVED_EXTENT_PATH_RE.match(path)
     if m is not None:
-        geojson_path = registry.data_dir() / m["site_id"] / "gee" / "observed" / m["filename"]
+        geojson_path = registry.data_dir() / m["site_id"] / "observed" / m["filename"]
         if geojson_path.is_file():
             return Response(content=geojson_path.read_bytes(), media_type="application/geo+json")
         raise HTTPException(
