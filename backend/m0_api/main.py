@@ -566,48 +566,26 @@ def get_validation(site_id: SiteIdPath, event: str | None = Query(default=None))
 # =============================================================================
 # 18. GET /export/{query_id}?format=shp|kml|geojson|pdf
 # =============================================================================
-def _ring_to_kml_coordinates(ring: list) -> str:
-    return " ".join(f"{p[0]},{p[1]},0" for p in ring)
-
-
-def _polygon_to_kml(coordinates: list) -> str:
-    """`coordinates` is a GeoJSON Polygon's ring list: `coordinates[0]` is the outer ring,
-    any further rings are holes."""
-    outer = f"<outerBoundaryIs><LinearRing><coordinates>{_ring_to_kml_coordinates(coordinates[0])}</coordinates></LinearRing></outerBoundaryIs>"
-    inner = "".join(f"<innerBoundaryIs><LinearRing><coordinates>{_ring_to_kml_coordinates(ring)}</coordinates></LinearRing></innerBoundaryIs>"
-                    for ring in coordinates[1:])
-    return f"<Polygon>{outer}{inner}</Polygon>"
-
-
-def _extent_geojson_to_kml(extent: dict, name: str) -> str:
-    """A real flood extent is frequently a MultiPolygon (disjoint wet regions), not a single
-    Polygon; the export must cover both, plus holes, rather than exporting only the first ring
-    of the first feature (docs/progress.md 2026-09-28 "Demo stabilization pass, item 5")."""
-    polygons = []
-    for feature in extent["features"]:
-        geometry = feature["geometry"]
-        if geometry["type"] == "Polygon":
-            polygons.append(_polygon_to_kml(geometry["coordinates"]))
-        elif geometry["type"] == "MultiPolygon":
-            polygons.extend(_polygon_to_kml(part) for part in geometry["coordinates"])
-        else:
-            raise ValueError(f"unsupported extent geometry type for KML export: {geometry['type']!r}")
-    if not polygons:
-        placemark = ""
-    elif len(polygons) == 1:
-        placemark = f"<Placemark><name>Extent</name>{polygons[0]}</Placemark>"
-    else:
-        placemark = f"<Placemark><name>Extent</name><MultiGeometry>{''.join(polygons)}</MultiGeometry></Placemark>"
-    return (f'<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>{name}</name>'
-            f'{placemark}</Document></kml>')
-
-
 _EXPORT_MEDIA_TYPES = {
     "shp": "application/zip",
     "kml": "application/vnd.google-earth.kml+xml",
     "geojson": "application/geo+json",
     "pdf": "application/pdf",
 }
+
+
+def _bounds_lonlat(bounds: list[list[float]] | None) -> list[list[float]] | None:
+    """`layers[].bounds_latlng` is documented `[[south_lat, west_lon], [north_lat, east_lon]]`
+    (contract §1.3), but the only code path that actually writes it for a registered query
+    (`real_query.py:_bounds_latlng`) stores `[[west_lon, south_lat], [east_lon, north_lat]]`
+    instead -- confirmed by reading that function, not inferred. Magnitude can't disambiguate
+    the two orders here (Teesta's longitudes, ~88, are themselves a valid latitude), so this
+    trusts the known real_query.py order rather than guessing; a `bounds_latlng` producer for
+    another mode/site would need this updated too."""
+    if not bounds:
+        return None
+    (west, south), (east, north) = bounds
+    return [[west, east], [south, north]]
 
 
 @app.get(f"{API}/export/{{query_id}}")
@@ -617,56 +595,102 @@ def export_query(query_id: QueryIdPath, format: str = Query(...)) -> Response:  
             status_code=400,
             detail=mocks.error("invalid_format", f"format must be one of {sorted(_EXPORT_MEDIA_TYPES)}, got '{format}'."),
         )
+    import json
+    from pathlib import Path
+
+    from backend.m6_impact import exports as m6_exports
+
     conn = registry.connect()
     try:
         query = conn.execute("SELECT site_id,result_path FROM queries WHERE query_id=?", (query_id,)).fetchone()
     finally:
         conn.close()
-    if query and query["result_path"] and __import__("pathlib").Path(query["result_path"]).is_file():
+    if query and query["result_path"] and Path(query["result_path"]).is_file():
         site_id = query["site_id"]
-        result_path = __import__("pathlib").Path(query["result_path"])
-        extent_path = result_path.parent / "extent.geojson"
+        result_path = Path(query["result_path"])
+        query_dir = result_path.parent
+        extent_path = query_dir / "extent.geojson"
         if not extent_path.is_file():
             raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"Extent artifact missing for query '{query_id}'."))
-        extent = __import__("json").loads(extent_path.read_text())
-        query_result = __import__("json").loads(result_path.read_text())
+        extent = json.loads(extent_path.read_text())
+        query_result = json.loads(result_path.read_text())
         is_synthetic = bool(query_result.get("flags", {}).get("demo_mode"))
         report_label = "Synthetic I-1 report" if is_synthetic else "Direct solver result"
+        method = query_result.get("method", "unknown")
+        caveats = query_result.get("caveats", [])
+        has_placeholders = bool(query_result.get("flags", {}).get("has_placeholders"))
+        provenance = query_result.get("provenance", {})
+        run_ids = provenance.get("run_ids", [])
+        confidence_level = (query_result.get("confidence", {}) or {}).get("extent", {}).get("level")
+        # The single deterministic extent a direct run produces is placed in the POSSIBLE
+        # bucket for exposure purposes (`real_impact.py`'s own documented convention, echoed in
+        # its `data_coverage_notes`); the emulator path isn't reachable for any registered
+        # query yet, so there's no HIGH/POSSIBLE split to read there instead.
+        zone = "possible" if method.endswith("_direct") else None
+
+        impact_path = query_dir / "impact.json"
+        impact = json.loads(impact_path.read_text()) if impact_path.is_file() else None
+        warning_table = (impact or {}).get("warning_table", [])
+
+        poi_locations: dict[str, tuple[float, float]] = {}
+        site_name = site_id
+        try:
+            site_config = load_site_config(site_id)
+            poi_locations = m6_exports.poi_locations_from_site_config(site_config)
+            site_name = site_config.site.name
+        except (SiteConfigError, FileNotFoundError):
+            pass
+
         if format == "geojson":
-            content, filename = __import__("json").dumps(extent).encode(), f"{site_id}_{query_id}_extent.geojson"
+            content, filename = json.dumps(extent).encode(), f"{site_id}_{query_id}_extent.geojson"
         elif format == "kml":
-            content = _extent_geojson_to_kml(extent, f"{report_label} {query_id}").encode()
+            description = None
+            summary = query_result.get("summary", {})
+            if summary:
+                caveats_text = "; ".join(m6_exports.caveat_label(c) for c in caveats) or "none"
+                description = (
+                    f"Max depth: {(summary.get('max_depth_m') or {}).get('value')} m<br/>"
+                    f"Max velocity: {(summary.get('max_velocity_ms') or {}).get('value')} m/s<br/>"
+                    f"Caveats: {caveats_text}"
+                )
+            # contracts/styles.json extent_class.{high,possible} -- same fill this extent gets on
+            # the Leaflet map, so the KML doesn't invent its own colour scheme.
+            zone_fill, zone_opacity = {"high": ("#d7263d", 0.65), "possible": ("#f4a259", 0.35)}.get(
+                zone, ("#f4a259", 0.35))
+            kml_doc = m6_exports.extent_geojson_to_kml(extent, f"{report_label} {query_id}",
+                                                         fill_hex=zone_fill, opacity=zone_opacity,
+                                                         description=description)
+            pois_folder = m6_exports.pois_kml_folder(warning_table, poi_locations)
+            if pois_folder:
+                kml_doc = kml_doc.replace("</Document></kml>", pois_folder + "</Document></kml>")
+            content = kml_doc.encode()
             filename = f"{site_id}_{query_id}_extent.kml"
         elif format == "shp":
-            import io, zipfile, tempfile
-            import geopandas as gpd
-            buf = io.BytesIO()
-            qdir = __import__("pathlib").Path(query["result_path"]).parent
-            with tempfile.TemporaryDirectory(prefix="i1-shp-") as tmp:
-                vector_path = __import__("pathlib").Path(tmp) / "extent.geojson"
-                vector_path.write_text(__import__("json").dumps(extent))
-                gpd.read_file(vector_path).to_file(__import__("pathlib").Path(tmp) / "extent.shp", driver="ESRI Shapefile", index=False)
-                with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
-                    for component in __import__("pathlib").Path(tmp).glob("extent.*"):
-                        archive.write(component, component.name)
-                    archive.write(qdir / "result.json", "result.json")
-                    for layer_file in sorted((qdir / "layers").glob("*.tif")):
-                        archive.write(layer_file, f"layers/{layer_file.name}")
-            content, filename = buf.getvalue(), f"{site_id}_{query_id}_artifacts.zip"
+            content = m6_exports.build_shapefile_zip(
+                extent, site_id=site_id, query_id=query_id, run_ids=run_ids, method=method,
+                zone=zone, confidence_level=confidence_level, has_placeholders=has_placeholders,
+                caveats=caveats, summary=query_result.get("summary", {}), warning_table=warning_table,
+                poi_locations=poi_locations,
+            )
+            filename = f"{site_id}_{query_id}_extent.zip"
         else:
-            summary = query_result["summary"]
-            report = (f"{report_label}: {site_id} {query_id}; maximum depth {summary['max_depth_m']['value']} m; "
-                      f"maximum velocity {summary['max_velocity_ms']['value']} m/s; inundated area {summary['inundated_area_m2']['value']} m2. ")
-            report += ("Software integration fixture only; not a scientific forecast." if is_synthetic else
-                       "Values are direct registered solver outputs; this is not a scientific validation statement.")
-            artifact_notes = {"dem_depression_ponding": " The maximum depth is a single cell in an "
-                                   "unconditioned DEM depression, not a hydraulic peak.",
-                               "clear_water_steep_reach_velocity": " The maximum velocity is clear-water "
-                                   "flow on a steep reach; the model is clear-water only."}
-            for caveat in query_result.get("caveats", []):
-                if caveat.get("id") in artifact_notes:
-                    report += artifact_notes[caveat["id"]]
-            content, filename = mock_files.text_report_pdf(report), f"{site_id}_{query_id}_report.pdf"
+            map_png_bytes, map_bounds, map_label = None, None, None
+            depth_tif = query_dir / "layers" / "depth_p50.tif"
+            if depth_tif.is_file():
+                try:
+                    map_png_bytes = rendering.render_and_cache(depth_tif, "depth_p50")
+                    depth_layer = next((l for l in query_result.get("layers", []) if l.get("layer_id") == "depth_p50"), None)
+                    map_bounds = _bounds_lonlat(depth_layer["bounds_latlng"]) if depth_layer else None
+                    map_label = "Depth (P50), m"
+                except ValueError:
+                    pass
+            content = m6_exports.build_pdf_report(
+                site_id=site_id, site_name=site_name, query_id=query_id, report_label=report_label,
+                is_synthetic=is_synthetic, summary=query_result.get("summary", {}), impact=impact,
+                caveats=caveats, provenance=provenance, has_placeholders=has_placeholders,
+                map_png_bytes=map_png_bytes, map_bounds_latlng=map_bounds, map_label=map_label,
+            )
+            filename = f"{site_id}_{query_id}_report.pdf"
         return Response(content=content, media_type=_EXPORT_MEDIA_TYPES[format], headers={"Content-Disposition": f'attachment; filename="{filename}"'})
     if query is not None:
         raise HTTPException(status_code=404, detail=mocks.error("artifact_not_found", f"Registered query artifacts missing for '{query_id}'."))
@@ -678,12 +702,11 @@ def export_query(query_id: QueryIdPath, format: str = Query(...)) -> Response:  
     elif format == "kml":
         content, filename = mock_files.mock_kml(site_id, query_id), f"{site_id}_{query_id}_extent.kml"
     elif format == "geojson":
-        import json
-
         content = json.dumps(mocks.mock_response("extent_geojson.example.json")).encode()
         filename = f"{site_id}_{query_id}_extent.geojson"
     else:
-        content, filename = mock_files.mock_pdf(f"{site_id} {query_id}"), f"{site_id}_{query_id}_report.pdf"
+        content = mock_files.text_report_pdf(f"Mock export -- no registered query artifacts for {site_id} {query_id}.")
+        filename = f"{site_id}_{query_id}_report.pdf"
     return Response(
         content=content,
         media_type=_EXPORT_MEDIA_TYPES[format],

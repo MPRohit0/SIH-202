@@ -74,13 +74,16 @@ def test_i1_demo_site_to_generated_artifacts(tmp_path, monkeypatch):
     exported = client.get(f"/api/v1/export/{query_id}?format=shp")
     assert exported.status_code == 200
     with zipfile.ZipFile(BytesIO(exported.content)) as archive:
-        assert "result.json" in archive.namelist() and "extent.geojson" in archive.namelist()
-        assert {"extent.shp", "extent.shx", "extent.dbf", "extent.prj"}.issubset(archive.namelist())
+        assert archive.testzip() is None
+        assert {"extent.shp", "extent.shx", "extent.dbf", "extent.prj", "extent.cpg"}.issubset(archive.namelist())
+        assert "README.txt" in archive.namelist()
     for fmt, content_type in (("geojson","application/geo+json"),("kml","application/vnd.google-earth.kml+xml"),("pdf","application/pdf")):
         response = client.get(f"/api/v1/export/{query_id}?format={fmt}")
         assert response.status_code == 200 and response.headers["content-type"].startswith(content_type)
         if fmt == "pdf":
-            assert b"maximum depth" in response.content
+            from pypdf import PdfReader
+            text = PdfReader(BytesIO(response.content)).pages[0].extract_text()
+            assert "maximum depth" in text.lower()
     vector = client.get(f"/api/v1/flood/{query_id}/extent.geojson")
     assert vector.status_code == 200 and vector.json()["features"]
     validation = client.get("/api/v1/validation/demo_valley")
