@@ -2309,3 +2309,60 @@ blocker to a real Compare page.
   failed/4xx requests on the full path (home → Teesta demo → 3D tab → hover). `tsc --noEmit` and
   backend `py_compile` clean; `.venv/bin/pytest -q tests/m0_api`: **179 passed, 1 skipped** (no
   regressions); full Playwright visual suite: **13/13 unchanged** (no baseline touches the 3D tab).
+
+## 2026-09-28 — Task E: Compare Models tab, re-verified (no defect found)
+
+- **Reproduce/report (item 1):** the tab is not broken. `GET /api/v1/compare/teesta?scenario_id=teesta_2023_mvp`
+  returns 200 with a schema-valid, honest `available:false` payload; the frontend
+  (`frontend/app/sentriq/app.tsx`'s `view==='compare'` block) renders it correctly. Live check (throwaway
+  Playwright script, not committed): home → Open Teesta Demo → Compare Models — **zero console errors,
+  zero failed/4xx requests**. Screenshot confirms: D-Flow FM panel populated, SPH panel shows "SPH vs
+  Delft3D comparison is unavailable... The Teesta SPH attempt (a02) completed, but its particle-exclusion
+  warning and anomalous depth field mean its results are under investigation and are not shown here," the
+  `whenToUse` fine-print line ("Use SPH for near-field surge details and Delft3D for larger downstream
+  domains, subject to matching inputs and validation"), run IDs, and all three caveats
+  (`direct_solver_output`, `mvp_reconstructed_forcing`, `comparison_unavailable`). This is exactly the
+  "SPH run listed as completed/under investigation, no diff metrics" fallback the task asked for.
+- **Item 2 (the 259.5 m / >100%-exclusion anomaly):** already root-caused and handled in the
+  2026-09-27 sessions above, before this one started — not rediscovered here, just confirmed still true.
+  The 259.5 m figure was a `MeasureTool` column-reordering bug in `parse_elevation_csv`, fixed then
+  (corrected max depth 259.5 m → 11.47 m, under the 11.8 m inlet ceiling). The underlying
+  `sph_particle_exclusion_warning` (SPH run loses ~99% of its fluid at the inlet almost immediately) is a
+  genuine solver/case defect, still unfixed, and `backend/m4_sph/compare_mvp.py`'s hard gate
+  (`_unavailable_comparison`) correctly keeps Compare at `available:false` because of it — so item 2's
+  "no diff metrics" fallback is the correct, intentional state, not a regression to chase.
+- **Item 3 (side-by-side layout, diff layers, metrics, when-to-use line):** the available-branch code
+  path (KPIs, layer URLs, probe table, `whenToUse` copy) already exists in `app.tsx` and is exercised by
+  `tests/m4_sph/test_compare_mvp.py`'s non-gated case; it isn't reachable for Teesta today only because
+  the SPH run is genuinely gated. No changes were needed or made to reach the required end state.
+- **No code changes this session.** Created branch `mvp/compare-models` per the task-ownership convention;
+  nothing to commit on it. Ran the full relevant backend suite fresh: `.venv/bin/pytest -q tests/m4_sph
+  tests/m0_api`: **252 passed, 8 skipped** (the 8 skips are all `DSPH_BIN_DIR`-gated real-binary tests,
+  expected without the binaries set) — no regressions from the 3D-view/breach-marker work done since the
+  gate was added. `npx tsc --noEmit` in `frontend/` is clean.
+- **Still limited (same as before):** the SPH near-field particle-exclusion defect itself remains unfixed;
+  a real Teesta SPH-vs-Delft3D comparison with metrics is not possible until that solver/case issue is
+  resolved and a clean SPH run is registered.
+- **Next step:** if a real paired comparison is wanted for the demo, the next owner needs to either fix
+  the DualSPHysics inlet/boundary setup causing the particle exclusion, or accept the current
+  "D-Flow only, SPH under investigation" state as the honest MVP answer for this tab.
+
+
+## 2026-09-28 — SPH outlet-zone diagnosis: attempts a02 and a03, defect not fixed
+
+Task B/E, `mvp/compare-models`. Follow-up to the Compare Models re-verification above.
+
+- **Both attempts a02 and a03 failed** with a particle-exclusion defect. Excluded-particle counts:
+  540,237 (a02) vs. 540,251 (a03) — effectively the same magnitude, confirming a03's change did not
+  address the underlying cause.
+- **100% of exclusions are `Motive=1`** (position-based removal) in both attempts — never velocity or
+  density exclusions. They begin at t=85 s at (247, 236, 1567), which is the bottom corner of the
+  inlet's own zone box, not anywhere near the new outlet zone added in a03.
+- **Mechanism:** the inlet uses `inputtreatment=2` (remove fluid), and its zone box is 145 m x 11.8 m
+  over sloped terrain. Fresh inflow keeps re-registering as inside that same zone and gets deleted by
+  the inlet's own removal treatment.
+- **The outlet zone (a03's change) was correct and is being kept**, but it did not fix the defect,
+  since the exclusions never occurred near the outlet in the first place — stating this plainly so the
+  outlet zone isn't mistaken for a fix that didn't work.
+- **Next step:** attempt 3 (a thin-slab inlet, to stop the inlet zone box from re-catching its own
+  outflow) is pending approval before running.

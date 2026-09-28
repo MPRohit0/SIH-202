@@ -22,6 +22,7 @@ class SphSettings:
     inlet_width_m: float = 20.0
     inlet_height_m: float = 15.0
     inlet_layers: int = 4
+    outlet_margin_m: float = 20.0
     boundary_layers: int = 3
     probe_velocity_height_m: float = 1.0
     vram_budget_mib: float = 8188.0
@@ -37,6 +38,8 @@ class SphSettings:
             raise ValueError(f"dp_m must be 'auto' or a positive number, got {self.dp_m!r}")
         if self.t_end_s is not None and self.t_end_s <= self.t_start_s:
             raise ValueError(f"t_end_s ({self.t_end_s}) must be greater than t_start_s ({self.t_start_s})")
+        if self.outlet_margin_m < 0.0:
+            raise ValueError(f"outlet_margin_m must be >= 0, got {self.outlet_margin_m}")
         if not 0.0 <= self.vram_margin < 1.0:
             raise ValueError(f"vram_margin must be in [0, 1), got {self.vram_margin}")
         if not 0.0 < self.elevation_dz_dp_fraction <= 1.0:

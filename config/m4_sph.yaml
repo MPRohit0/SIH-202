@@ -17,6 +17,17 @@ inlet_width_m: 20.0     # fixed inlet cross-section (W x H), perpendicular to th
 inlet_height_m: 15.0    # must exceed the expected peak flow depth at the inlet, or velocity is overestimated
 inlet_layers: 4         # DualSPHysics inlet/outlet particle layers (XML_GUIDE_INLETOUTLET.pdf default)
 
+outlet_margin_m: 20.0    # distance inside the near-field grid's downstream edge (along the
+                         # centreline) to place the outlet cross-section, so the outlet box and its
+                         # particle layers stay inside the STL/domain (docs/decisions.md "M4: SPH
+                         # outlet zone" -- without an outlet, injected fluid has nowhere to exit and
+                         # backs up at the inlet, where its own inputtreatment=2 ("Remove fluid",
+                         # DualSPHysics's own recommended inlet setting) deletes any fluid particle
+                         # later found back inside the inlet footprint -- confirmed from the excluded-
+                         # particle position dump for teesta_2023_mvp__dualsphysics attempt a02,
+                         # which placed 100% of NpOutPos exclusions at the inlet corner, not the
+                         # domain edge)
+
 boundary_layers: 3      # DBC boundary particle layers built from nearfield.stl (vram_estimator.py
                          # calibrated this same parameter from the 2D pilot; re-check on the first real 3D run)
 

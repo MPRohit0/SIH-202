@@ -161,6 +161,147 @@ def inlet_geometry(
 
 
 @dataclass(frozen=True)
+class OutletGeometry:
+    """A vertical rectangular outlet, downstream of the inlet along the centreline, `height_m`
+    tall from its own local bed -- the same depth ceiling assumed for the inlet
+    (`settings.inlet_height_m`), not the domain's full terrain relief, since the near-field crop
+    can include valley walls far taller than any plausible flood surface; sizing to those would
+    blow the particle/VRAM budget for no modelling benefit. `direction_xyz`/`rotate_deg`
+    point *upstream* (into the domain from the outlet's own wall) -- the same "direction points
+    into the fluid domain" convention as the inlet, whose direction points downstream (into the
+    domain from the inlet's wall); see `outlet_geometry`'s docstring for why."""
+
+    x_utm_m: float
+    y_utm_m: float
+    point_xyz: tuple[float, float, float]
+    size_xyz: tuple[float, float, float]
+    direction_xyz: tuple[float, float, float]
+    rotate_deg: float
+    bed_z_m: float
+    zsurf0_m: float
+
+
+def _box_corners_within_bounds(
+    x_local: float, y_local: float, width_m: float, rotate_deg: float,
+    domain_x_m: float, domain_y_m: float,
+) -> bool:
+    """True if both ends of a `width_m`-wide box centred at `(x_local, y_local)`, rotated
+    `rotate_deg` about that centre (DualSPHysics's clockwise-for-positive-angle `rotateaxis`
+    convention, confirmed against a real solver log: `x'=x*cos(a)+y*sin(a)`,
+    `y'=-x*sin(a)+y*cos(a)`, relative to the centre), land inside `[0, domain_x_m] x
+    [0, domain_y_m]` -- the same local-frame box GenCase's `JSphInOutPoints::CheckPoints`
+    rejects a case over if an inlet/outlet point falls outside it."""
+    angle = math.radians(rotate_deg)
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    half = width_m / 2
+    for dx in (-half, half):
+        cx = x_local + dx * cos_a
+        cy = y_local - dx * sin_a
+        if not (0.0 <= cx <= domain_x_m and 0.0 <= cy <= domain_y_m):
+            return False
+    return True
+
+
+def outlet_geometry(
+    inflow_lon_lat: tuple[float, float],
+    grid_near: CanonicalGrid,
+    dem_near: np.ndarray,
+    frame: dict,
+    centreline,
+    width_m: float,
+    height_m: float,
+    margin_m: float,
+) -> OutletGeometry:
+    """Place a downstream outlet cross-section `margin_m` inside the near-field grid's downstream
+    edge from the inflow point, walking the centreline in its increasing-arc-length ("downstream")
+    direction -- the same convention `inlet_geometry`/`_tangent_at_point` already assume.
+
+    Without an outlet, injected fluid has nowhere to exit and ponds at the inlet, where the
+    inlet's own `inputtreatment=2` ("Remove fluid" -- DualSPHysics's own recommended inlet
+    setting, `examples/inletoutlet/02_OpenChannel`) deletes any fluid particle later found back
+    inside the inlet's footprint. That example always pairs its inlet with a downstream outlet
+    (`inputtreatment=1`, "Convert fluid"); this function builds that missing second zone
+    (`docs/decisions.md` "M4: SPH outlet zone" -- diagnosed from the excluded-particle position
+    dump for `teesta_2023_mvp__dualsphysics` attempt a02, which placed 100% of the run's `NpOutPos`
+    exclusions at the inlet corner, not the domain edge).
+
+    The outlet's `direction` points *upstream* (into the domain from its own wall), the mirror of
+    the inlet's downstream-pointing direction, matching the stock example's inlet/outlet direction
+    pair (`"right"` in vs `"left"` out in `02_OpenChannel`'s 2-D case): a box zone's `direction`
+    always points from the zone into the fluid domain, and the domain lies upstream of the outlet.
+    """
+    from shapely.geometry import Point
+
+    lon, lat = inflow_lon_lat
+    x_utm, y_utm = pyproj.Transformer.from_crs(4326, grid_near.crs_epsg, always_xy=True).transform(lon, lat)
+    s0 = centreline.project(Point(x_utm, y_utm))
+    left, bottom, right, top = grid_near.bounds
+    domain_x_m = grid_near.width * grid_near.cell_size_m
+    domain_y_m = grid_near.height * grid_near.cell_size_m
+
+    step = max(grid_near.cell_size_m, 1.0)
+    last_inside_s = None
+    s = s0
+    while s <= centreline.length:
+        p = centreline.interpolate(s)
+        if left <= p.x <= right and bottom <= p.y <= top:
+            last_inside_s = s
+            s += step
+        else:
+            break
+    if last_inside_s is None or last_inside_s <= s0:
+        raise ValueError(
+            "centreline does not extend downstream of the inflow point within the near-field grid"
+        )
+
+    # Back off from the grid's downstream edge, then keep backing off (bounded by s0) until the
+    # box's *rotated* footprint -- not just its centreline point -- fits inside the local domain:
+    # a box this wide (`width_m`) can swing a corner outside the grid even when its own centre,
+    # margin_m inside the edge, does not (diagnosed by GenCase's `JSphInOutPoints::CheckPoints`
+    # exception on the first outlet placement tried here, which put a rotated corner at local
+    # x=632 against a 600 m-wide domain -- docs/decisions.md "M4: SPH outlet zone").
+    s_outlet = max(s0, last_inside_s - margin_m)
+    bed_z = FLOAT_NODATA
+    x_local = y_local = rotate_deg = None
+    while s_outlet > s0:
+        outlet_pt = centreline.interpolate(s_outlet)
+        col_i = int((outlet_pt.x - grid_near.origin_x) / grid_near.cell_size_m)
+        row_i = int((grid_near.origin_y - outlet_pt.y) / grid_near.cell_size_m)
+        row_i = min(max(row_i, 0), grid_near.height - 1)
+        col_i = min(max(col_i, 0), grid_near.width - 1)
+        candidate_bed_z = float(dem_near[row_i, col_i])
+        if candidate_bed_z != FLOAT_NODATA:
+            tx, ty = _tangent_at_point(centreline, outlet_pt.x, outlet_pt.y)
+            candidate_rotate_deg = inlet_rotation_for_tangent(-tx, -ty)  # points upstream
+            candidate_x_local = outlet_pt.x - frame["origin_x"]
+            candidate_y_local = outlet_pt.y - frame["origin_y"]
+            if _box_corners_within_bounds(
+                candidate_x_local, candidate_y_local, width_m, candidate_rotate_deg,
+                domain_x_m, domain_y_m,
+            ):
+                bed_z, x_local, y_local, rotate_deg = (
+                    candidate_bed_z, candidate_x_local, candidate_y_local, candidate_rotate_deg,
+                )
+                break
+        s_outlet -= step
+    if bed_z == FLOAT_NODATA or x_local is None:
+        raise ValueError(
+            "no outlet placement along the centreline (valid terrain, rotated box within the "
+            "near-field domain) found downstream of the inflow point"
+        )
+
+    return OutletGeometry(
+        x_utm_m=x_local + frame["origin_x"], y_utm_m=y_local + frame["origin_y"],
+        point_xyz=(x_local - width_m / 2, y_local, bed_z),
+        size_xyz=(width_m, 0.0, height_m),
+        direction_xyz=(0.0, -1.0, 0.0),
+        rotate_deg=rotate_deg,
+        bed_z_m=bed_z,
+        zsurf0_m=bed_z + height_m / 2,
+    )
+
+
+@dataclass(frozen=True)
 class NearfieldProbe:
     probe: Probe
     x_m: float  # SPH frame
@@ -279,6 +420,22 @@ def build_nearfield_case(
         rotate_center_xy=(inlet.point_xyz[0] + inlet.size_xyz[0] / 2, inlet.point_xyz[1]),
     )
 
+    dem_valid = dem_near[dem_near != FLOAT_NODATA]
+    z_min = float(dem_valid.min()) if dem_valid.size else 0.0
+    z_max = max(float(dem_valid.max()) if dem_valid.size else 0.0, inlet.zsurf_m)
+
+    outlet = outlet_geometry(
+        tuple(inflow_location), grid_near, dem_near, frame, centreline,
+        settings.inlet_width_m, settings.inlet_height_m, settings.outlet_margin_m,
+    )
+    outlet_zone = InOutZone(
+        point_xyz=outlet.point_xyz, size_xyz=outlet.size_xyz, direction_xyz=outlet.direction_xyz,
+        layers=settings.inlet_layers, refilling=2, inputtreatment=1,
+        rotate_deg=outlet.rotate_deg,
+        rotate_center_xy=(outlet.point_xyz[0] + outlet.size_xyz[0] / 2, outlet.point_xyz[1]),
+        velocity_mode=2, imposerhop_mode=1, zsurf_mode=2, zsurf_m=outlet.zsurf0_m,
+    )
+
     probes = load_probes(terrain_dir)
     kept_probes, skipped_probes = probes_in_nearfield(probes, frame, grid_near, dem_near)
 
@@ -299,10 +456,6 @@ def build_nearfield_case(
     else:
         dp_m = float(dp_setting)
         vram_info = check_vram(dp_m, domain_x_m, domain_y_m, fluid_depth_m, settings)
-
-    dem_valid = dem_near[dem_near != FLOAT_NODATA]
-    z_min = float(dem_valid.min()) if dem_valid.size else 0.0
-    z_max = max(float(dem_valid.max()) if dem_valid.size else 0.0, inlet.zsurf_m)
 
     draw_commands = [
         E("setmkfluid", {"mk": 0}),
@@ -363,7 +516,7 @@ def build_nearfield_case(
             ("RhopOutMin", 700, "Minimum rhop valid -- DualSPHysics 01_DamBreak default"),
             ("RhopOutMax", 1300, "Maximum rhop valid -- DualSPHysics 01_DamBreak default"),
         ],
-        inout_zones=[inout_zone],
+        inout_zones=[inout_zone, outlet_zone],
         swl_gauges=swl_gauges,
         vel_gauges=vel_gauges,
     )
@@ -378,6 +531,11 @@ def build_nearfield_case(
             "x_utm_m": inlet.x_utm_m, "y_utm_m": inlet.y_utm_m,
             "area_m2": inlet.area_m2, "bed_z_m": inlet.bed_z_m, "zsurf_m": inlet.zsurf_m,
             "rotate_deg": inlet.rotate_deg,
+        },
+        "outlet": {
+            "x_utm_m": outlet.x_utm_m, "y_utm_m": outlet.y_utm_m,
+            "bed_z_m": outlet.bed_z_m, "zsurf0_m": outlet.zsurf0_m,
+            "rotate_deg": outlet.rotate_deg,
         },
         "probes_used": [p.probe.poi_id for p in kept_probes],
         "probes_skipped": skipped_probes,
