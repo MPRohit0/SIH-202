@@ -45,6 +45,7 @@ function sampleIndices(lo: number, hi: number, target: number) {
 
 export type BreachMarker = {
   utmX: number; utmY: number; // reprojected breach_location, same CRS as scene.terrain
+  lonLat: [number, number]; // same point, for the 2D map's lon/lat percent placement
   title: string; lines: string[]; caveat: string;
 };
 
