@@ -141,9 +141,9 @@ def test_estimates_never_mix_observed_and_predicted_and_are_labelled(fixture_nam
         basis = estimate.get("basis", "")
         is_frozen_pilot = basis.startswith(FROZEN_PILOT_BASIS_PREFIX)
         if kind == "predicted" and not is_frozen_pilot:
-            assert basis == "illustrative", (
-                f"{fixture_name}{path}: a non-frozen-pilot predicted Estimate must have "
-                f"basis='illustrative' (or a 'frozen pilot...' basis), got {basis!r}"
+            assert basis.startswith("illustrative"), (
+                f"{fixture_name}{path}: a non-frozen-pilot predicted Estimate must have a "
+                f"basis starting with 'illustrative' (or a 'frozen pilot...' basis), got {basis!r}"
             )
 
 

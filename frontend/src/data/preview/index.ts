@@ -29,6 +29,9 @@ import runMetaTeestaPilot from './run_meta.teesta_pilot_s001__delft3d.json';
 import floodQueryTeestaSph from './flood_query_response.teesta.sph_direct.json';
 import scene3dTeestaSph from './scene3d.q_20260929T093000Z_9f3ab2.json';
 import compareTeesta from './compare.teesta.json';
+import floodQueryTeestaAzmiLow from './flood_query_response.teesta.scenario_azmi_low.json';
+import floodQueryTeestaAzmiHigh from './flood_query_response.teesta.scenario_azmi_high.json';
+import floodQueryTeestaUnknownBreach from './flood_query_response.teesta.unknown_breach.json';
 import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse} from '../api';
 
 const siteDetails: Record<string, SiteDetail> = {
@@ -110,6 +113,8 @@ export async function getTerrainMeta(siteId: string): Promise<Record<string, unk
 // illustrative, per the fixture's own provenance note.
 const FLOOD_QUERY_FIXTURES: Record<string, FloodQueryResponse> = {
   'teesta|sph|scenario': floodQueryTeestaSph as unknown as FloodQueryResponse,
+  'teesta|delft3d|scenario': floodQueryTeestaAzmiLow as unknown as FloodQueryResponse,
+  'teesta|delft3d|unknown_breach': floodQueryTeestaUnknownBreach as unknown as FloodQueryResponse,
 };
 const SCENE3D_FIXTURES: Record<string, Scene3DResponse> = {
   [(floodQueryTeestaSph as unknown as FloodQueryResponse).query_id]: scene3dTeestaSph as unknown as Scene3DResponse,
@@ -151,4 +156,21 @@ export async function getCompare(siteId: string): Promise<CompareResponse> {
   const fixture = COMPARE_FIXTURES[siteId];
   if (!fixture) throw new Error(`No preview compare fixture for site_id ${JSON.stringify(siteId)}.`);
   return structuredClone(fixture);
+}
+
+/** Screen 6 (scenario mode): "Scenario mode shows both Azmi pair members as
+ * separate scenarios, with no probabilities" -- both members are returned
+ * together rather than picking one, since the target-state UI shows them
+ * side by side, not toggled between. */
+const SCENARIO_PAIR_FIXTURES: Record<string, {low: FloodQueryResponse; high: FloodQueryResponse}> = {
+  teesta: {
+    low: floodQueryTeestaAzmiLow as unknown as FloodQueryResponse,
+    high: floodQueryTeestaAzmiHigh as unknown as FloodQueryResponse,
+  },
+};
+
+export async function getScenarioPair(siteId: string): Promise<{low: FloodQueryResponse; high: FloodQueryResponse}> {
+  const pair = SCENARIO_PAIR_FIXTURES[siteId];
+  if (!pair) throw new Error(`No preview Azmi-pair fixture for site_id ${JSON.stringify(siteId)}.`);
+  return {low: structuredClone(pair.low), high: structuredClone(pair.high)};
 }

@@ -1,0 +1,287 @@
+{
+  "_comment": "Computed by frontend/scripts/gen_preview_assets.py:gen_confidence_ensemble(). Training design ranges are read from site_detail.teesta.json's emulator_inputs; zone_high_p/zone_possible_p are parsed from docs/impact_outputs.md's config block (config/impact.yaml does not define them -- see that function's docstring). Nothing here is hand-typed; re-run the script and re-copy this file's numbers if the ensemble/training design ever changes.",
+  "training_design": {
+    "n_train": 30,
+    "median_nn_distance_unit": 0.2742,
+    "ranges": {
+      "water_volume_m3": [
+        5000000.0,
+        15000000.0
+      ],
+      "breach_width_m": [
+        60.0,
+        180.0
+      ],
+      "failure_time_s": [
+        900.0,
+        10800.0
+      ]
+    }
+  },
+  "ensemble": {
+    "n": 200,
+    "widened_ranges": {
+      "water_volume_m3": [
+        4000000.0,
+        16000000.0
+      ],
+      "breach_width_m": [
+        48.0,
+        192.0
+      ],
+      "failure_time_s": [
+        -90.0,
+        11790.0
+      ]
+    },
+    "in_box_fraction": 0.57
+  },
+  "thresholds": {
+    "zone_high_p": 0.5,
+    "zone_possible_p": 0.1,
+    "wet_threshold_m": 0.3
+  },
+  "skill_s": {
+    "f1": 1.0,
+    "arrival_rmse_pct": 4.5,
+    "grade": "GOOD",
+    "level": "High",
+    "reference_poi": "teesta__poi__mangan_district_hospital"
+  },
+  "spread_u": {
+    "p5_depth_m": 0.208,
+    "p95_depth_m": 0.474,
+    "width_m": 0.266,
+    "width_pct_of_median": 84.8,
+    "grade": "NARROW",
+    "level": "High"
+  },
+  "azmi_low": {
+    "inputs": {
+      "water_volume_m3": 10000000.0,
+      "breach_width_m": 75.0,
+      "failure_time_s": 1200.0
+    },
+    "summary": {
+      "max_depth_m": 0.404,
+      "max_velocity_ms": 1.017,
+      "arrival_s": 30476.9,
+      "inundated_area_m2": 1761600.0,
+      "peak_discharge_m3s": 440.5
+    },
+    "confidence": {
+      "level": "HIGH",
+      "components": {
+        "validation_skill": "GOOD",
+        "query_coverage": "INSIDE",
+        "spread": "NARROW"
+      },
+      "computed_weakest": "S",
+      "reason_detail": null
+    },
+    "poi_results": [
+      {
+        "poi_id": "teesta__poi__lachen",
+        "name": "Lachen",
+        "chainage_m": 2000.0,
+        "depth_m": 1.999,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__chungthang",
+        "name": "Chungthang",
+        "chainage_m": 12000.0,
+        "depth_m": 1.431,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__teesta_iii",
+        "name": "Teesta III (Chungthang) dam",
+        "chainage_m": 12200.0,
+        "depth_m": 1.431,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__sangkalang_bridge",
+        "name": "Sangkalang bridge",
+        "chainage_m": 24000.0,
+        "depth_m": 0.772,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__mangan_district_hospital",
+        "name": "Mangan district hospital",
+        "chainage_m": 31000.0,
+        "depth_m": 0.362,
+        "zone": "HIGH"
+      }
+    ]
+  },
+  "azmi_high": {
+    "inputs": {
+      "water_volume_m3": 10000000.0,
+      "breach_width_m": 165.0,
+      "failure_time_s": 9000.0
+    },
+    "summary": {
+      "max_depth_m": 0.362,
+      "max_velocity_ms": 0.963,
+      "arrival_s": 32192.0,
+      "inundated_area_m2": 2620800.0,
+      "peak_discharge_m3s": 585.4
+    },
+    "confidence": {
+      "level": "HIGH",
+      "components": {
+        "validation_skill": "GOOD",
+        "query_coverage": "INSIDE",
+        "spread": "NARROW"
+      },
+      "computed_weakest": "S",
+      "reason_detail": null
+    },
+    "poi_results": [
+      {
+        "poi_id": "teesta__poi__lachen",
+        "name": "Lachen",
+        "chainage_m": 2000.0,
+        "depth_m": 1.846,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__chungthang",
+        "name": "Chungthang",
+        "chainage_m": 12000.0,
+        "depth_m": 1.321,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__teesta_iii",
+        "name": "Teesta III (Chungthang) dam",
+        "chainage_m": 12200.0,
+        "depth_m": 1.321,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__sangkalang_bridge",
+        "name": "Sangkalang bridge",
+        "chainage_m": 24000.0,
+        "depth_m": 0.712,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__mangan_district_hospital",
+        "name": "Mangan district hospital",
+        "chainage_m": 31000.0,
+        "depth_m": 0.335,
+        "zone": "HIGH"
+      }
+    ]
+  },
+  "scenario_zone_basis": {
+    "lower_member": "azmi_low",
+    "upper_member": "azmi_high",
+    "lower_area_m2": 1761600.0,
+    "upper_area_m2": 2620800.0
+  },
+  "unknown_breach": {
+    "confidence": {
+      "level": "LOW",
+      "components": {
+        "validation_skill": "GOOD",
+        "query_coverage": "OUTSIDE",
+        "spread": "NARROW"
+      },
+      "computed_weakest": "C",
+      "reason_detail": {
+        "letter": "C",
+        "text": "Low (C: only 57% of Monte Carlo samples fall inside the trained V_w/B_ave/T_f design box)"
+      }
+    },
+    "poi_results": [
+      {
+        "poi_id": "teesta__poi__lachen",
+        "name": "Lachen",
+        "chainage_m": 2000.0,
+        "p_floods": 1.0,
+        "median_depth_m": 1.73,
+        "p5_depth_m": 1.148,
+        "p95_depth_m": 2.615,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__chungthang",
+        "name": "Chungthang",
+        "chainage_m": 12000.0,
+        "p_floods": 1.0,
+        "median_depth_m": 1.238,
+        "p5_depth_m": 0.822,
+        "p95_depth_m": 1.872,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__teesta_iii",
+        "name": "Teesta III (Chungthang) dam",
+        "chainage_m": 12200.0,
+        "p_floods": 1.0,
+        "median_depth_m": 1.238,
+        "p5_depth_m": 0.822,
+        "p95_depth_m": 1.872,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__sangkalang_bridge",
+        "name": "Sangkalang bridge",
+        "chainage_m": 24000.0,
+        "p_floods": 1.0,
+        "median_depth_m": 0.668,
+        "p5_depth_m": 0.443,
+        "p95_depth_m": 1.009,
+        "zone": "HIGH"
+      },
+      {
+        "poi_id": "teesta__poi__mangan_district_hospital",
+        "name": "Mangan district hospital",
+        "chainage_m": 31000.0,
+        "p_floods": 0.59,
+        "median_depth_m": 0.314,
+        "p5_depth_m": 0.208,
+        "p95_depth_m": 0.474,
+        "zone": "HIGH"
+      }
+    ],
+    "reference_poi_summary": {
+      "poi_id": "teesta__poi__mangan_district_hospital",
+      "median_depth_m": 0.314,
+      "p5_depth_m": 0.208,
+      "p95_depth_m": 0.474,
+      "median_velocity_ms": 0.896,
+      "p5_velocity_ms": 0.73,
+      "p95_velocity_ms": 1.102,
+      "median_arrival_s": 34599.1,
+      "fast_arrival_s_at_p95_depth": 28140.2,
+      "slow_arrival_s_at_p5_depth": 42463.1
+    },
+    "breach_cell_summary": {
+      "median_depth_m": 1.828,
+      "p5_depth_m": 1.214,
+      "p95_depth_m": 2.764,
+      "median_discharge_m3s": 403.5,
+      "p5_discharge_m3s": 218.3,
+      "p95_discharge_m3s": 750.0
+    },
+    "extent_area_m2": {
+      "high_zone": 2116800.0,
+      "high_plus_possible_zone": 2880000.0
+    }
+  },
+  "downgrade_example": {
+    "row": 26,
+    "col": 18,
+    "chainage_m": 10532.0,
+    "p_wet": 0.515,
+    "breach_width_sensitivity_gap": 0.91,
+    "raw_zone": "HIGH",
+    "shown_zone": "POSSIBLE"
+  }
+}

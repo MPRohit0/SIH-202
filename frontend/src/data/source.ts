@@ -247,6 +247,14 @@ export async function getTerrainMeta(siteId: string): Promise<Record<string, unk
   return preview.getTerrainMeta(siteId);
 }
 
+/** design/target-state-preview screen 6 (scenario mode): both Azmi-pair
+ * members, shown side by side with no probabilities. Preview-only -- no
+ * equivalent default-mode route exists yet for "run both pair members". */
+export async function getScenarioPair(siteId: string): Promise<{low: FloodQueryResponse; high: FloodQueryResponse} | null> {
+  if (!siteId || !isPreviewMode()) return null;
+  return preview.getScenarioPair(siteId);
+}
+
 /** Saved runs / sites. No endpoint exists for this in the contract yet (the
  * prototype used Cloudflare D1/R2 + ChatGPT auth, which rule 11 disallows).
  * Ask before wiring this to a real route. */

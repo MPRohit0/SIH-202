@@ -142,8 +142,15 @@ export type JobStatus = {
 /** A dam entry's key_specs is an open dict of SourcedValues by contract (§5.1) --
  * this doesn't add a schema field, just types what real sites already put there. */
 export type SourcedValue = {value: unknown; unit: string | null; source: string | null; status: string};
+/** Contract §5.1's emulator_inputs entry -- the Exact/Slider control ranges. */
+export type EmulatorInput = {
+  name: 'water_volume_m3' | 'initial_water_level_m' | 'breach_width_m' | 'failure_time_s' | 'manning_multiplier';
+  dam_id: string; label_key: string; unit: string | null; low: number | null; high: number | null;
+  slider: {positions: number[]; mapping: 'linear' | 'log'}; default?: number | null;
+};
 export type SiteDetail = SiteSummary & {
   dams: Array<{dam_id: string; name: string; kind: string | null; order: number; key_specs: Record<string, SourcedValue>}>;
+  emulator_inputs?: EmulatorInput[];
 };
 export type SiteCreateRequest = {site_config: Record<string, unknown>; demo_mode?: boolean};
 export type SiteCreateAccepted = {job_id: string; site_id: string};
