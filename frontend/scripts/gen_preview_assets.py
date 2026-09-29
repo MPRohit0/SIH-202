@@ -230,7 +230,11 @@ def gen_nearfield_pair() -> dict:
         "_comment": "Computed by frontend/scripts/gen_preview_assets.py:gen_nearfield_pair() "
                     "from the FM/SPH depth and velocity grids for near-field section NF-1. "
                     "Every number here is transcribed verbatim into flood_query_response.teesta.sph_direct.json "
-                    "and compare.teesta.json -- do not hand-edit this file; re-run the script instead.",
+                    "and compare.teesta.json -- do not hand-edit this file; re-run the script instead. "
+                    "arrival_s is a travel-time PROXY (section_length_m / mean wet-cell velocity), not the "
+                    "contract arrival definition (first time depth > 0.1 m, m5_specs.md SS4) -- a static "
+                    "max-depth grid has no time axis to measure that from. arrival_diff_s is SPH minus FM: "
+                    "negative means SPH arrives sooner.",
         "section": "NF-1", "wet_threshold_m": NF1_WET_THRESHOLD_M, "section_length_m": NF1_SECTION_LENGTH_M,
         "fm": {"max_depth_m": round(max_depth_fm, 3), "max_velocity_ms": round(max_vel_fm, 3),
                "inundated_area_m2": area_fm, "arrival_s": round(arrival_fm_s, 1)},
@@ -241,6 +245,7 @@ def gen_nearfield_pair() -> dict:
             "depth_rmse_wet_m": round(depth_rmse, 3) if depth_rmse is not None else None,
             "velocity_mae_ms": round(velocity_mae, 3) if velocity_mae is not None else None,
             "arrival_diff_s": round(arrival_sph_s - arrival_fm_s, 1),
+            "arrival_diff_sign_convention": "sph_minus_fm",
         },
     }
     DATA_OUT_DIR.mkdir(parents=True, exist_ok=True)

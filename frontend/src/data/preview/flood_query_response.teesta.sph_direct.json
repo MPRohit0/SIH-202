@@ -33,6 +33,7 @@
     {"id": "direct_solver_output", "severity": "warning", "text_key": "direct_solver_output"},
     {"id": "clear_water", "severity": "warning", "text_key": "clear_water"},
     {"id": "nearfield_arrival_from_section_inflow", "severity": "info", "text_key": "nearfield_arrival_from_section_inflow"},
+    {"id": "nearfield_arrival_travel_time_proxy", "severity": "info", "text_key": "nearfield_arrival_travel_time_proxy"},
     {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
   ],
   "provenance": {

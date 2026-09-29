@@ -31,6 +31,7 @@
     {"id": "clear_water", "severity": "info", "text_key": "clear_water"},
     {"id": "comparison_metrics_illustrative", "severity": "warning", "text_key": "comparison_metrics_illustrative"},
     {"id": "nearfield_arrival_from_section_inflow", "severity": "info", "text_key": "nearfield_arrival_from_section_inflow"},
+    {"id": "nearfield_arrival_travel_time_proxy", "severity": "info", "text_key": "nearfield_arrival_travel_time_proxy"},
     {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
   ],
   "x_preview_provenance": {
