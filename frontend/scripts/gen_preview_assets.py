@@ -830,6 +830,44 @@ def gen_satellite_thumbnail(path: Path, label: str, water_frac: float) -> None:
     img.save(path)
 
 
+def gen_chamoli_illustrative_source_estimate() -> dict:
+    """Screen 8 (historical validation, Chamoli 2021). docs/real_input_checklist.json
+    rishiganga.event_model_contract is CONTRACT DECISION REQUIRED: 'the current
+    dam-breach contract cannot describe the observed mass flow' -- there is no
+    admissible event model for this avalanche. This function does NOT try to
+    predict at Rishiganga or Tapovan (that would need a routing/decay assumption
+    from the source to those distances, which nothing in the repo sources) --
+    it computes exactly one neutral, undirected estimate: what the project's
+    ordinary clear-water breach-profile formula (_profile_depth_velocity, the
+    same one used everywhere else in this script) outputs AT THE SOURCE if fed
+    the event's real observed volume (26.9M m3, src_042) with the site's own
+    ordinary reference defaults for breach_width_m/failure_time_s (120 m /
+    3600 s -- the same defaults used as teesta's emulator_inputs 'default'
+    values elsewhere, not chosen to hit any target). No multiplier or target
+    direction is applied. This is not comparable to the downstream Rishiganga/
+    Tapovan observations (different location), so it is reported as its own
+    point, not scored against them.
+    """
+    ranges = _teesta_emulator_input_ranges()
+    vw, bave, tf = 26900000.0, 120.0, 3600.0
+    depth, vel = _profile_depth_velocity(vw, bave, tf, 0.0)
+    width_m = 2 * _channel_half_width_frac(bave, ranges) * VALLEY_WIDTH_M
+    discharge = vel * depth * width_m
+    result = {
+        "_comment": "Computed by frontend/scripts/gen_preview_assets.py:gen_chamoli_illustrative_source_estimate(). "
+                    "No target direction: this is the project's ordinary clear-water breach-profile formula fed the "
+                    "event's real observed volume and neutral reference defaults, not tuned toward or away from the "
+                    "observed downstream values (which are at different, unrelated locations).",
+        "inputs": {"water_volume_m3": vw, "breach_width_m": bave, "failure_time_s": tf},
+        "source_peak_depth_m": round(depth, 3), "source_peak_velocity_ms": round(vel, 3),
+        "source_peak_discharge_m3s": round(discharge, 1),
+    }
+    DATA_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    (DATA_OUT_DIR / "chamoli_illustrative_source.json").write_text(json.dumps(result, indent=2) + "\n")
+    print(json.dumps(result, indent=2))
+    return result
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     gen_dem_hillshade(OUT_DIR / "dem_hillshade_teesta.png")
@@ -838,6 +876,7 @@ def main() -> None:
     gen_confidence_ensemble()
     gen_satellite_thumbnail(OUT_DIR / "gee_teesta_pre_20230928.png", "illustrative imagery, real date 2023-09-28", 1.0)
     gen_satellite_thumbnail(OUT_DIR / "gee_teesta_post_20231004.png", "illustrative imagery, real date 2023-10-04", 0.36)
+    gen_chamoli_illustrative_source_estimate()
     print(f"Wrote preview rasters to {OUT_DIR}")
 
 

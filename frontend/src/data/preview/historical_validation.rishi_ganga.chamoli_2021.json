@@ -4,7 +4,7 @@
   "event_id": "chamoli_2021",
   "comparison_domain": "Rishiganga hydropower project (~15 km downstream of the Ronti Peak source) and Tapovan-Vishnugad (upstream and downstream of the project intake)",
   "x_preview_event_kind": "mass_flow",
-  "x_preview_framing": "Chamoli 2021 was a rock-and-ice avalanche that transformed into a debris flow and downstream flood -- it was NOT a glacial lake outburst or a dam-breach flood (docs/events/chamoli_2021.md line 8). This is a mass-flow EVENT comparison, shown to illustrate what workstream 8 (historical validation) would look like once built; it is not, and cannot become, a dam-breach validation for this event.",
+  "x_preview_framing": "Chamoli 2021 was a rock-and-ice avalanche that transformed into a debris flow and downstream flood -- it was NOT a glacial lake outburst or a dam-breach flood (docs/events/chamoli_2021.md line 8). Event model for Chamoli 2021 not yet defined; comparison layout only. docs/real_input_checklist.json rishiganga.event_model_contract is CONTRACT DECISION REQUIRED: 'the current dam-breach contract cannot describe the observed mass flow.' This screen shows what workstream 8 (historical validation) would look like once that decision is made; it is not, and cannot become, a dam-breach validation for this event.",
   "observed": {
     "event_type": {"value": "Rock-and-ice avalanche from Ronti Peak, transformed into a debris flow and downstream flood", "source": "src_042", "note": "docs/events/chamoli_2021.md line 7-8"},
     "onset_utc": {"value": "2021-02-07T04:51:13Z– 04:51:21Z", "source": "src_042", "note": "docs/events/chamoli_2021.md line 9"},
@@ -21,21 +21,14 @@
     "total_deposit_volume_m3": {"value": 8000000.0, "low": null, "high": null, "unit": "m3", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, at and just downstream of the confluence, docs/events/chamoli_2021.md line 22"}
   },
   "predicted": {
-    "method": "illustrative clear-water dam-breach-style emulator prediction, approximated as if the avalanche were a breach hydrograph -- a mismatch the mass_flow_approximation caveat exists for",
-    "rishiganga_frontal_speed_ms": {"value": 17.5, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"},
-    "rishiganga_discharge_m3s": {"value": 6160.0, "low": null, "high": null, "unit": "m3/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"},
-    "tapovan_upstream_frontal_speed_ms": {"value": 11.2, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"},
-    "tapovan_downstream_frontal_speed_ms": {"value": 8.4, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"},
-    "tapovan_discharge_m3s": {"value": 2145.0, "low": null, "high": null, "unit": "m3/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"}
+    "method": "No admissible event model exists for this avalanche (docs/real_input_checklist.json rishiganga.event_model_contract: CONTRACT DECISION REQUIRED). The single estimate below is NOT a prediction at Rishiganga or Tapovan -- it is what the project's ordinary clear-water breach-profile formula outputs AT THE SOURCE if fed the event's real observed volume and neutral reference defaults (breach_width_m=120, failure_time_s=3600, the same defaults used elsewhere in this preview), with no multiplier or target direction applied. It is not routed downstream and is not comparable to the observed values below, which are at different locations.",
+    "source_peak_depth_m": {"value": 3.06, "low": null, "high": null, "unit": "m", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative — not a model performance finding"},
+    "source_peak_velocity_ms": {"value": 2.799, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative — not a model performance finding"},
+    "source_peak_discharge_m3s": {"value": 873.4, "low": null, "high": null, "unit": "m3/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative — not a model performance finding"}
   },
-  "metrics": {
-    "rishiganga_frontal_speed_relative_error_pct": {"value": -30.0, "basis": "illustrative", "note": "(predicted - observed) / observed x 100, both illustrative-vs-real; not a real skill score"},
-    "rishiganga_discharge_relative_error_pct": {"value": -45.0, "basis": "illustrative", "note": "computed against the observed midpoint (8200-14200 m3/s)"},
-    "tapovan_upstream_speed_relative_error_pct": {"value": -30.0, "basis": "illustrative"},
-    "tapovan_downstream_speed_relative_error_pct": {"value": -30.0, "basis": "illustrative"},
-    "tapovan_discharge_relative_error_pct": {"value": -45.0, "basis": "illustrative", "note": "computed against the observed midpoint (2900-4900 m3/s)"}
-  },
+  "metrics": {},
   "caveats": [
+    {"id": "event_model_not_defined", "severity": "critical", "text_key": "event_model_not_defined"},
     {"id": "mass_flow_approximation", "severity": "critical", "text_key": "mass_flow_approximation"},
     {"id": "clear_water", "severity": "warning", "text_key": "clear_water"},
     {"id": "observed_data_sparse", "severity": "info", "text_key": "observed_data_sparse"},
@@ -43,6 +36,6 @@
   ],
   "provenance": {
     "source": "fixture:preview",
-    "note": "Every observed.* value is real, from src_042 (Shugar et al. 2021, Science 373, eabh4455) as summarized in docs/events/chamoli_2021.md, with the exact supporting line cited in each field's basis/note. No observed value here is estimated or guessed -- anything the doc doesn't state (e.g. a gridded observed depth/arrival raster) is simply absent from this fixture, not filled in. The predicted.* side and every metrics.* value are entirely illustrative: there is no real Chamoli/Rishi Ganga simulation in this repo (docs/events/chamoli_2021.md 'Still needed before an M3/M5 campaign' lists exactly what is missing -- a sourced DEM/domain, an approved event representation, and a validation target). predicted values are deliberately set BELOW observed (a clear-water model without debris-flow bulking would plausibly underestimate a debris flow's speed/discharge), not copied from or fitted to the observed values, so the illustrative 'error' shown is a modelling argument, not a circular match."
+    "note": "Every observed.* value is real, from src_042 (Shugar et al. 2021, Science 373, eabh4455) as summarized in docs/events/chamoli_2021.md, with the exact supporting line cited in each field's basis/note. No observed value here is estimated or guessed -- anything the doc doesn't state is simply absent from this fixture, not filled in. predicted.* is a single neutral, undirected estimate computed by gen_preview_assets.py:gen_chamoli_illustrative_source_estimate() at the source only (not routed to Rishiganga/Tapovan, since no distance/routing source exists) -- it carries no target direction and is not scored against the observed values (different location), so metrics is empty rather than showing a fabricated comparison."
   }
 }

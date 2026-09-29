@@ -318,11 +318,11 @@ function MassFlowEventComparison({data}:{data:HistoricalValidationResponse}){
         <div className="inspector-data">{rows(data.predicted).map(([k,v])=><div key={k}><span>{k.replaceAll('_',' ')}</span><strong><FactValue v={v}/></strong></div>)}</div>
       </section>
     </div>
-    <section className="s-panel"><div className="panel-title"><h3>Metrics</h3><Badge tone="amber">Illustrative</Badge></div>
+    {Object.keys(data.metrics).length>0&&<section className="s-panel"><div className="panel-title"><h3>Metrics</h3><Badge tone="amber">Illustrative — not a model performance finding</Badge></div>
       <Table><TableHeader><TableRow><TableHead>Quantity</TableHead><TableHead>Value</TableHead></TableRow></TableHeader><TableBody>
         {Object.entries(data.metrics).map(([k,v])=><TableRow key={k}><TableCell>{k.replaceAll('_',' ')}</TableCell><TableCell><FactValue v={v}/></TableCell></TableRow>)}
       </TableBody></Table>
-    </section>
+    </section>}
     {data.caveats.map(c=><div className={c.severity==='info'?'s-notice':'s-notice warning'} key={c.id}><AlertTriangle size={16}/><span>{uiText.floodQuery.caveats[c.id as keyof typeof uiText.floodQuery.caveats]??uiText.floodQuery.unknownCaveat}</span></div>)}
   </>;
 }
