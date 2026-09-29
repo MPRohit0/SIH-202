@@ -3,9 +3,9 @@
   "source": "cache",
   "fetched_at": "2026-06-02T09:00:00Z",
   "lake_area_series": [
-    {"date": "2021-02-10", "area_m2": 180000.0, "method": "s1_threshold", "cloud_pct": null},
-    {"date": "2025-06-01", "area_m2": 205000.0, "method": "s2_water_index", "cloud_pct": 8.0},
-    {"date": "2026-06-01", "area_m2": 236000.0, "method": "s2_water_index", "cloud_pct": 5.0}
+    {"date": "2021-02-10", "area_m2": 180000.0, "method": "s1_threshold", "cloud_pct": null, "source": null},
+    {"date": "2025-06-01", "area_m2": 205000.0, "method": "s2_water_index", "cloud_pct": 8.0, "source": null},
+    {"date": "2026-06-01", "area_m2": 236000.0, "method": "s2_water_index", "cloud_pct": 5.0, "source": null}
   ],
   "lake_latest": {
     "type": "FeatureCollection",
@@ -23,9 +23,11 @@
   "recheck": {"outdated": true, "change_pct": 15.1, "threshold_pct": 10},
   "x_preview_provenance": {
     "source": "fixture:preview",
-    "note": "Illustrative throughout: this preview has no real remote-sensing source for the Raunthi Gad landslide lake (unlike Teesta's src_072). recheck.outdated=true / change_pct=15.1% (above the 10% threshold_pct default, docs/decisions.md 2026-09-27) demonstrates the library-outdated banner and pairs with this site's own status_reason_key (outdated_config_changed, site_list.json)."
+    "note": "Illustrative throughout: this preview has no real remote-sensing source for the Raunthi Gad landslide lake (unlike Teesta's src_072) -- every lake_area_series point's source field is null. recheck.outdated=true / change_pct=15.1% (above threshold_pct=10, the real default at backend/m7_gee/settings.py:78, GeeSettings.recheck_threshold_pct, PENDING team agreement per docs/decisions.md:772) demonstrates the library-outdated banner; change_pct=15.1 itself is an invented number chosen to exceed that threshold, not computed from any observation, and pairs with this site's own status_reason_key (outdated_config_changed, site_list.json)."
   },
   "caveats": [
+    {"id": "lake_area_series_illustrative", "severity": "warning", "text_key": "lake_area_series_illustrative"},
+    {"id": "recheck_change_pct_illustrative", "severity": "info", "text_key": "recheck_change_pct_illustrative"},
     {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
   ]
 }

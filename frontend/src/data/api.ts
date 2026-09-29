@@ -84,12 +84,13 @@ export type CompareResponse = {
 };
 export type GeeLayers = {
   site_id: string; source: 'live' | 'cache' | 'screenshot_fallback'; fetched_at: string;
-  lake_area_series: Array<{date: string; area_m2: number; method: 's2_water_index' | 's1_threshold'; cloud_pct: number | null}>;
+  lake_area_series: Array<{date: string; area_m2: number; method: 's2_water_index' | 's1_threshold'; cloud_pct: number | null; source?: string | null}>;
   lake_latest: {type: 'FeatureCollection'; features: Array<{type: 'Feature'; geometry: {type: string; coordinates: unknown}; properties: Record<string, unknown>}>};
   rainfall: Array<{date: string; precip_mm: number; dataset: 'chirps' | 'gpm_imerg'}>;
   imagery: Array<{event_id: string; phase: 'pre' | 'post'; date: string; url: string; bounds_latlng: number[][]}>;
   observed_extents: Array<{event_id: string; url: string; method: 'manual_digitized' | 'change_detection'}>;
   recheck: {outdated: boolean; change_pct: number | null; threshold_pct: number};
+  caveats?: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
 };
 export type Timeline = {
   query_id: string; interval_s: number; t_end_s: number;
