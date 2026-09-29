@@ -3,7 +3,7 @@
 // from world.ts + physics.ts + raster.ts, so preview/index.ts's exported
 // functions can delegate to a single place instead of holding this assembly
 // logic themselves.
-import type {Estimate, FloodQueryRequest, FloodQueryResponse, ImpactResponse, CompareResponse, GeeLayers, HistoricalValidationResponse} from './types';
+import type {Estimate, FloodQueryRequest, FloodQueryResponse, ImpactResponse, CompareResponse, GeeLayers, HistoricalValidationResponse, Timeline} from './types';
 import {getWorld, widthAt, type ScenarioType, type World} from './world';
 import {computeProfile, computeConfidence, computeEnsemble, pWetAndMedianAt, seedForInputs, type EngineInputs} from './physics';
 import {renderRaster} from './raster';
@@ -103,7 +103,7 @@ function buildScenarioResponse(world: World, queryId: string, scenarioType: Scen
       {layer_id: 'depth_p50', type: 'raster_png', url: raster.dataUrl, bounds_latlng: raster.bounds_latlng, style_id: 'depth_p50', unit: 'm', available: true},
     ],
     vectors: {extent_url: ''},
-    flags: {outside_trained_range: confidence.overall.level === 'LOW', demo_mode: true, library_outdated: false, has_placeholders: false},
+    flags: {outside_trained_range: confidence.overall.level === 'LOW', demo_mode: false, library_outdated: false, has_placeholders: false},
     placeholder_fields: [],
     caveats: [],
     provenance: {method: 'gp_emulator', contract_version: '0.3.0', source: 'fixture:preview', code_version: 'demo-engine-1.0'},
@@ -141,7 +141,7 @@ function buildUnknownBreachResponse(world: World, queryId: string, scenarioType:
       {layer_id: 'p_inundation', type: 'raster_png', url: raster.dataUrl, bounds_latlng: raster.bounds_latlng, style_id: 'p_inundation', unit: null, available: true},
     ],
     vectors: {extent_url: ''},
-    flags: {outside_trained_range: confidence.overall.level === 'LOW', demo_mode: true, library_outdated: false, has_placeholders: false},
+    flags: {outside_trained_range: confidence.overall.level === 'LOW', demo_mode: false, library_outdated: false, has_placeholders: false},
     placeholder_fields: [],
     caveats: [],
     provenance: {method: 'gp_emulator', contract_version: '0.3.0', source: 'fixture:preview', code_version: 'demo-engine-1.0'},
@@ -302,6 +302,78 @@ function hashCode(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return Math.abs(h);
+}
+
+/** A plausible hydrograph shape: rises linearly to the peak at failure_time_s,
+ * then recedes to 15% of peak by t_end -- not a routed time-stepped solve,
+ * just a believable envelope so the timeline has something to animate. */
+function envelopeAt(tS: number, failureTimeS: number, tEndS: number): number {
+  if (tS <= failureTimeS) return tS / failureTimeS;
+  const recedeFrac = (tS - failureTimeS) / Math.max(tEndS - failureTimeS, 1);
+  return Math.max(0.15, 1 - 0.85 * recedeFrac);
+}
+
+const TIMELINE_FRAME_COUNT = 10;
+
+/** Builds the playback timeline (hydrograph + arrival profile + per-frame
+ * depth rasters) for an already-run query_id. */
+export function buildTimeline(queryId: string): Timeline {
+  const stored = store.getQuery(queryId);
+  if (!stored) throw new Error(`No demo-engine query cached for query_id ${queryId}`);
+  const world = getWorld(stored.site_id);
+  const {inputs, scenario_type: scenarioType} = stored;
+  const tEndS = inputs.failure_time_s * 6;
+  const peakAtSource = computeProfile(world, inputs, scenarioType, 0).discharge_m3s;
+
+  const hydrographs: Timeline['hydrographs'] = [{
+    dam_id: world.emulatorInputs.length ? `${world.site_id}__source` : world.site_id, t_offset_s: 0,
+    points: Array.from({length: 12}, (_, i) => {
+      const t = (i / 11) * tEndS;
+      return {t_s: Math.round(t), q_m3s: Math.round(peakAtSource * envelopeAt(t, inputs.failure_time_s, tEndS))};
+    }),
+  }];
+  if (scenarioType === 'cascade' && world.cascadeDam) {
+    const dam = world.cascadeDam;
+    const arrivalAtDam = computeProfile(world, inputs, scenarioType, dam.chainage_m).arrival_s;
+    const peakAtDamOnward = computeProfile(world, inputs, scenarioType, dam.chainage_m + 100).discharge_m3s;
+    if (Number.isFinite(arrivalAtDam)) {
+      hydrographs.push({
+        dam_id: dam.dam_id, t_offset_s: Math.round(arrivalAtDam),
+        points: Array.from({length: 8}, (_, i) => {
+          const t = (i / 7) * (tEndS - arrivalAtDam);
+          return {t_s: Math.round(arrivalAtDam + t), q_m3s: Math.round(peakAtDamOnward * envelopeAt(t, inputs.failure_time_s * 0.5, tEndS - arrivalAtDam))};
+        }),
+      });
+    }
+  }
+
+  const arrivalProfile: Timeline['arrival_profile'] = [];
+  for (let c = 0; c <= world.length_m; c += world.length_m / 16) {
+    const pt = computeProfile(world, inputs, scenarioType, c);
+    const isEnsemble = stored.mode === 'unknown_breach';
+    let p10: number | null = null, p90: number | null = null;
+    if (isEnsemble) {
+      const seedKey = seedForInputs(world.site_id, scenarioType, 'timeline', inputs, String(c));
+      const draws = computeEnsemble(world, scenarioType, seedKey).draws;
+      const arrivals = draws.map(d => computeProfile(world, d, scenarioType, c).arrival_s).filter(Number.isFinite).sort((a, b) => a - b);
+      if (arrivals.length) { p10 = arrivals[Math.floor(arrivals.length * 0.1)]; p90 = arrivals[Math.floor(arrivals.length * 0.9)]; }
+    }
+    arrivalProfile.push({chainage_m: Math.round(c), arrival_p50_s: Number.isFinite(pt.arrival_s) ? Math.round(pt.arrival_s) : 0, arrival_p10_s: p10, arrival_p90_s: p90});
+  }
+
+  const frames: Timeline['frames'] = Array.from({length: TIMELINE_FRAME_COUNT}, (_, i) => {
+    const t = (i / (TIMELINE_FRAME_COUNT - 1)) * tEndS;
+    const env = envelopeAt(t, inputs.failure_time_s, tEndS);
+    const raster = renderRaster(world, 'depth', c => computeProfile(world, inputs, scenarioType, c).depth_m * env);
+    return {t_s: Math.round(t), median_url: raster.dataUrl, high_url: raster.dataUrl, possible_url: raster.dataUrl, bounds_latlng: raster.bounds_latlng};
+  });
+
+  return {
+    query_id: queryId, interval_s: Math.round(tEndS / (TIMELINE_FRAME_COUNT - 1)), t_end_s: Math.round(tEndS),
+    frames, hydrographs, arrival_profile: arrivalProfile,
+    pois_on_profile: world.pois.map(p => ({poi_id: p.poi_id, name: p.name, chainage_m: p.chainage_m})),
+    caveats: [], provenance: {method: 'gp_emulator', source: 'fixture:preview'},
+  };
 }
 
 /** One representative run per site, for the Node-side fixture dump script

@@ -11,7 +11,7 @@ import type {
 } from '../api';
 import {getWorld, type ScenarioType} from './engine/world';
 import {computeProfile, seedForInputs, type EngineInputs} from './engine/physics';
-import {runFloodQuery, buildImpact, buildCompare, depthClass, dvClass} from './engine/index';
+import {runFloodQuery, buildImpact, buildCompare, buildTimeline, depthClass, dvClass} from './engine/index';
 import {store} from './engine/store';
 import {renderScene3d} from './engine/scene3d';
 
@@ -151,6 +151,10 @@ export async function getScene3dArrays(scene: Scene3DResponse): Promise<{terrain
 
 export async function getImpact(queryId: string): Promise<ImpactResponse> {
   return buildImpact(queryId);
+}
+
+export async function getTimeline(queryId: string) {
+  return buildTimeline(queryId);
 }
 
 export async function getCompare(siteId: string): Promise<CompareResponse> {

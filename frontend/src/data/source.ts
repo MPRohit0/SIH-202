@@ -165,6 +165,7 @@ export async function setRecheckFrequency(siteId: string, frequencyDays: number)
 }
 export async function getTimeline(queryId: string, intervalS = 300): Promise<Timeline> {
   if (!queryId) throw new Error('A query_id is required to load the flood timeline.');
+  if (isPreviewMode()) return preview.getTimeline(queryId);
   return api.timeline(queryId, intervalS);
 }
 

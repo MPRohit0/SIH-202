@@ -92,6 +92,15 @@ export type HistoricalValidationResponse = {
   x_preview_event_kind?: 'mass_flow';
   x_preview_framing?: string;
 };
+export type Timeline = {
+  query_id: string; interval_s: number; t_end_s: number;
+  frames: Array<{t_s: number; median_url: string; high_url: string; possible_url: string; bounds_latlng: number[][]}>;
+  hydrographs: Array<{dam_id: string; t_offset_s: number; points: Array<{t_s: number; q_m3s: number}>}>;
+  arrival_profile: Array<{chainage_m: number; arrival_p10_s: number | null; arrival_p50_s: number; arrival_p90_s: number | null}>;
+  pois_on_profile: Array<{poi_id: string; name: string; chainage_m: number}>;
+  caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
+  provenance: Record<string, unknown>;
+};
 export type Scene3DResponse = {
   contract_version: string; query_id: string;
   frame: {crs_epsg: number | null; origin_x_utm_m: number; origin_y_utm_m: number; vertical_exaggeration: number; vertical_exaggeration_applies_to: string; units: string; axis_order: string};
