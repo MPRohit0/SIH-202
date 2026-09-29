@@ -401,15 +401,22 @@ def gen_confidence_ensemble() -> dict:
     nn_dists = [_nearest_neighbour_distance(p, training_unit[:i] + training_unit[i + 1:]) for i, p in enumerate(training_unit)]
     median_nn_dist = statistics.median(nn_dists)
 
-    def coverage_grade(query_unit: list[float]) -> str:
-        if any(u < 0.0 or u > 1.0 for u in query_unit):
-            return "OUTSIDE"
+    INPUT_SYMBOLS = {"water_volume_m3": "V_w", "breach_width_m": "B_ave", "failure_time_s": "T_f"}
+
+    def coverage_grade(query_unit: list[float]) -> tuple[str, str | None]:
+        """Returns (grade, out_of_range_input_symbol_or_None). m5_specs.md SS6:
+        'r > 2, or any input outside the training box' -> OUTSIDE; the out-of-range
+        input name (if any) is what the 'Low (C: query outside trained <input>
+        range)' reason text names, matching the spec's own quoted example."""
+        out_of_range = [INPUT_SYMBOLS[k] for k, u in zip(INPUT_ORDER, query_unit) if u < 0.0 or u > 1.0]
+        if out_of_range:
+            return "OUTSIDE", out_of_range[0]
         r = _nearest_neighbour_distance(query_unit, training_unit) / median_nn_dist
         if r <= 1.0:
-            return "INSIDE"
+            return "INSIDE", None
         if r <= 2.0:
-            return "EDGE"
-        return "OUTSIDE"
+            return "EDGE", None
+        return "OUTSIDE", None
 
     def to_unit(real_point: list[float]) -> list[float]:
         return [(v - lo) / (hi - lo) for v, (lo, hi) in zip(real_point, ranges_list)]
@@ -441,16 +448,40 @@ def gen_confidence_ensemble() -> dict:
         s_grade, s_level = "FAIR", "Medium"
     else:
         s_grade, s_level = "POOR", "Low"
+    # This illustrative generator (_profile_depth_velocity) is a smooth, low-order
+    # deterministic function of 3 inputs, so a 1-NN leave-one-out check over just 30
+    # points is trivially learnable -- f1_skill lands at (or very near) 1.0 below not
+    # because a real emulator would, but because there is almost nothing hard to
+    # predict in this synthetic setup. This is NOT an emulator skill estimate; every
+    # fixture that cites s_grade/s_level says so via the skill_s_illustrative caveat.
+    s_skill_caveat = (
+        "S (LOOCV skill) is illustrative: the synthetic generator behind this preview is "
+        "trivially learnable by 1-nearest-neighbour, so a perfect-looking F1 here reflects "
+        "the toy generator, not a real emulator's skill."
+    )
 
     # -- Far-field grid: per-cell P(depth>0.3m), median, P5/P95 across the 200-sample ensemble --
+    # m5_specs.md SS5.2 exactly, not an independently invented widening:
+    #  - B_ave, T_f: "uniform between the low and high Azmi pair values, widened by
+    #    20%" -- site_detail.teesta.json's emulator_inputs low/high ARE that already-
+    #    widened Azmi pair (SS2's training design uses the identical "widened by 20%"
+    #    rule to build the training box), so sampling them again would double-widen.
+    #    Both the training box and this query distribution use the exact same
+    #    [low, high] for B_ave/T_f.
+    #  - V_w: "log-uniform over its sourced range (a single sourced value gets +-20%)"
+    #    -- a DIFFERENT, narrower range than the training box: +-20% of one fixed
+    #    point value, log-uniform, not the wide Azmi-style training range.
     ensemble_unit = _weyl_points(N_ENSEMBLE, 3, offset=5000)
-    ensemble_real_inbox = [_to_real(p, ranges_list) for p in ensemble_unit]
-    # Unknown-breach mode samples WIDENED ranges (m5_specs.md SS5.2: "+-20%" on
-    # V_w, B_ave and T_f widened by 20%) -- implemented as +-10% of each range's
-    # span per side (20% growth of span), which is why some ensemble members
-    # legitimately fall outside the TRAINED box below.
-    widened_ranges = [(lo - 0.1 * (hi - lo), hi + 0.1 * (hi - lo)) for lo, hi in ranges_list]
-    ensemble_real = [_to_real(p, widened_ranges) for p in ensemble_unit]
+    vw_point = ranges["water_volume_m3"][0] + 0.5 * (ranges["water_volume_m3"][1] - ranges["water_volume_m3"][0])
+    vw_query_lo, vw_query_hi = vw_point * 0.8, vw_point * 1.2
+
+    def _sample_vw_log_uniform(u: float) -> float:
+        return vw_query_lo * (vw_query_hi / vw_query_lo) ** u
+
+    ensemble_real = [
+        [_sample_vw_log_uniform(p[0]), *_to_real(p[1:], ranges_list[1:])]
+        for p in ensemble_unit
+    ]
     in_box_count = sum(
         1 for real_pt in ensemble_real
         if all(lo <= v <= hi for v, (lo, hi) in zip(real_pt, ranges_list))
@@ -459,19 +490,8 @@ def gen_confidence_ensemble() -> dict:
 
     n = FAR_WIDTH * FAR_HEIGHT
     depth_samples: list[list[float]] = [[] for _ in range(n)]
-    # Track wet/dry split by breach-width tercile per cell, to find the cell whose
-    # flooding status is most sensitive to breach width (the downgrade candidate).
-    bave_median = statistics.median(pt[1] for pt in ensemble_real_inbox)
-    wet_narrow = [0] * n
-    wet_wide = [0] * n
-    narrow_count = wide_count = 0
-    for sample_idx, (vw, bave, tf) in enumerate(ensemble_real_inbox):
+    for vw, bave, tf in ensemble_real:
         half_width = _channel_half_width_frac(bave, ranges)
-        is_narrow = bave < bave_median
-        if is_narrow:
-            narrow_count += 1
-        else:
-            wide_count += 1
         for row in range(FAR_HEIGHT):
             chainage_m = row / (FAR_HEIGHT - 1) * FAR_TOTAL_LENGTH_M
             depth_c, _ = _profile_depth_velocity(vw, bave, tf, chainage_m)
@@ -479,21 +499,26 @@ def gen_confidence_ensemble() -> dict:
                 across = col / (FAR_WIDTH - 1)
                 dist = abs(across - 0.5)
                 cell = row * FAR_WIDTH + col
-                if dist >= half_width:
-                    depth_samples[cell].append(0.0)
-                    continue
-                d = depth_c * (half_width - dist) / half_width
-                depth_samples[cell].append(d)
-                if d >= NF1_WET_THRESHOLD_M:
-                    if is_narrow:
-                        wet_narrow[cell] += 1
-                    else:
-                        wet_wide[cell] += 1
+                depth_samples[cell].append(0.0 if dist >= half_width else depth_c * (half_width - dist) / half_width)
 
     p_wet = [sum(1 for d in cell if d >= NF1_WET_THRESHOLD_M) / N_ENSEMBLE for cell in depth_samples]
     median_depth = [statistics.median(cell) for cell in depth_samples]
+    mean_depth = [sum(cell) / N_ENSEMBLE for cell in depth_samples]
     p5_depth = [sorted(cell)[max(0, round(0.05 * (N_ENSEMBLE - 1)))] for cell in depth_samples]
     p95_depth = [sorted(cell)[min(N_ENSEMBLE - 1, round(0.95 * (N_ENSEMBLE - 1)))] for cell in depth_samples]
+
+    def cell_u_grade(width: float, mean_val: float) -> tuple[str, str]:
+        """m5_specs.md SS6 U thresholds, using the MEAN (the spec's own wording:
+        '<= 50% of the mean'), not the median."""
+        width_pct = 100.0 * width / mean_val if mean_val else 0.0
+        if width <= 0.5 or width_pct <= 50.0:
+            return "NARROW", "High"
+        if width <= 1.0 or width_pct <= 100.0:
+            return "MEDIUM", "Medium"
+        return "WIDE", "Low"
+
+    cell_width = [p95_depth[i] - p5_depth[i] for i in range(n)]
+    cell_u = [cell_u_grade(cell_width[i], mean_depth[i]) for i in range(n)]
 
     zone = []
     for p in p_wet:
@@ -504,18 +529,18 @@ def gen_confidence_ensemble() -> dict:
         else:
             zone.append("DRY")
 
-    # Downgrade candidate: among HIGH cells, the one most sensitive to breach width
-    # (wet fraction among wide-breach samples minus wet fraction among narrow-breach
-    # samples is largest) -- i.e. whether it floods depends heavily on which ensemble
-    # member you draw, so its local confidence is treated as LOW even though its
-    # overall P(depth>0.3m) clears the HIGH threshold.
-    downgrade_idx, downgrade_gap = None, -1.0
-    for i in range(n):
-        if zone[i] != "HIGH" or narrow_count == 0 or wide_count == 0:
-            continue
-        gap = (wet_wide[i] / wide_count) - (wet_narrow[i] / narrow_count)
-        if gap > downgrade_gap:
-            downgrade_gap, downgrade_idx = gap, i
+    # Downgrade candidate: a HIGH cell whose OWN computed U (90% interval width,
+    # SS6 thresholds, via cell_u_grade above) is Low -- not a heuristic. If no HIGH
+    # cell's U genuinely reaches Low, the widest-U HIGH cell is used instead and the
+    # shortfall is recorded honestly in downgrade_info rather than silently forcing one.
+    high_cells = [i for i in range(n) if zone[i] == "HIGH"]
+    low_u_high_cells = [i for i in high_cells if cell_u[i][1] == "Low"]
+    downgrade_idx = None
+    natural_low_u = bool(low_u_high_cells)
+    if low_u_high_cells:
+        downgrade_idx = max(low_u_high_cells, key=lambda i: cell_width[i])
+    elif high_cells:
+        downgrade_idx = max(high_cells, key=lambda i: cell_width[i])
     downgraded_zone = list(zone)
     downgrade_info = None
     if downgrade_idx is not None:
@@ -524,7 +549,19 @@ def gen_confidence_ensemble() -> dict:
             "row": downgrade_idx // FAR_WIDTH, "col": downgrade_idx % FAR_WIDTH,
             "chainage_m": round((downgrade_idx // FAR_WIDTH) / (FAR_HEIGHT - 1) * FAR_TOTAL_LENGTH_M, 0),
             "p_wet": round(p_wet[downgrade_idx], 3),
-            "breach_width_sensitivity_gap": round(downgrade_gap, 3),
+            "p5_depth_m": round(p5_depth[downgrade_idx], 3), "p95_depth_m": round(p95_depth[downgrade_idx], 3),
+            "width_m": round(cell_width[downgrade_idx], 3), "mean_depth_m": round(mean_depth[downgrade_idx], 3),
+            "width_pct_of_mean": round(100.0 * cell_width[downgrade_idx] / mean_depth[downgrade_idx], 1) if mean_depth[downgrade_idx] else None,
+            "u_grade": cell_u[downgrade_idx][0], "u_level": cell_u[downgrade_idx][1],
+            "natural_low_u_cell_exists": natural_low_u,
+            "note": (
+                "This HIGH cell's own 90% interval width genuinely grades U=Low (SS6 thresholds)."
+                if natural_low_u else
+                "No HIGH cell's 90% interval width reaches U=Low under this illustrative ensemble's "
+                "spread (SS6 thresholds: >1.0 m AND >100% of mean); this is the widest-U HIGH cell "
+                "available (U grade shown above), used as the closest honest example rather than "
+                "forcing a Low that was not computed."
+            ),
             "raw_zone": "HIGH", "shown_zone": "POSSIBLE",
         }
 
@@ -545,8 +582,8 @@ def gen_confidence_ensemble() -> dict:
     # depth/velocity/discharge Estimates --
     breach_cell = 0 * FAR_WIDTH + FAR_WIDTH // 2
     breach_median, breach_p5, breach_p95 = median_depth[breach_cell], p5_depth[breach_cell], p95_depth[breach_cell]
-    bave_median_inbox = statistics.median(pt[1] for pt in ensemble_real_inbox)
-    breach_channel_width_m = 2 * _channel_half_width_frac(bave_median_inbox, ranges) * VALLEY_WIDTH_M
+    bave_median = statistics.median(pt[1] for pt in ensemble_real)
+    breach_channel_width_m = 2 * _channel_half_width_frac(bave_median, ranges) * VALLEY_WIDTH_M
 
     def _velocity_of(depth_m: float) -> float:
         return 1.6 * math.sqrt(max(depth_m, 0.0))
@@ -560,18 +597,14 @@ def gen_confidence_ensemble() -> dict:
     area_high_m2 = sum(1 for p in p_wet if p >= zone_high_p) * cell_area_m2
     area_high_possible_m2 = sum(1 for p in p_wet if p >= zone_possible_p) * cell_area_m2
 
-    # -- U (spread) at the reference POI, from the unknown-breach ensemble --
+    # -- U (spread) at the reference POI, from the unknown-breach ensemble (same
+    # cell_u_grade helper as the per-cell grid, using the mean per m5_specs.md SS6) --
     ref_row = min(FAR_HEIGHT - 1, round(ref_poi["chainage_m"] / FAR_TOTAL_LENGTH_M * (FAR_HEIGHT - 1)))
     ref_cell = ref_row * FAR_WIDTH + FAR_WIDTH // 2
-    ref_median, ref_p5, ref_p95 = median_depth[ref_cell], p5_depth[ref_cell], p95_depth[ref_cell]
+    ref_median, ref_p5, ref_p95, ref_mean = median_depth[ref_cell], p5_depth[ref_cell], p95_depth[ref_cell], mean_depth[ref_cell]
     ref_width = ref_p95 - ref_p5
-    ref_width_pct = 100.0 * ref_width / ref_median if ref_median else 0.0
-    if ref_width <= 0.5 or ref_width_pct <= 50.0:
-        u_grade, u_level = "NARROW", "High"
-    elif ref_width <= 1.0 or ref_width_pct <= 100.0:
-        u_grade, u_level = "MEDIUM", "Medium"
-    else:
-        u_grade, u_level = "WIDE", "Low"
+    ref_width_pct = 100.0 * ref_width / ref_mean if ref_mean else 0.0
+    u_grade, u_level = cell_u_grade(ref_width, ref_mean)
 
     # -- C for unknown-breach mode: in-training-box SAMPLE FRACTION (m5_specs.md SS5.2) --
     if in_box_fraction >= 0.95:
@@ -589,34 +622,46 @@ def gen_confidence_ensemble() -> dict:
             return "Medium"
         return "High"
 
-    def build_confidence(c_level: str, c_grade: str, c_reason: str) -> dict:
+    # S is deliberately excluded from being reported as the reason letter: this
+    # illustrative generator's LOOCV F1 is trivially 1.0 (see skill_s.caveat below),
+    # which is not a meaningful emulator skill signal, so a reason naming "S" would
+    # overstate what was actually checked.
+    def build_confidence(c_level: str, c_grade: str, c_out_of_range: str | None) -> dict:
         overall = weakest_link(s_level, c_level, u_level)
-        weakest = min([("S", s_level), ("C", c_level), ("U", u_level)], key=lambda kv: {"Low": 0, "Medium": 1, "High": 2}[kv[1]])
-        reason = None
-        if overall == "Low":
-            reason = {"letter": weakest[0], "text": c_reason if weakest[0] == "C" else f"{weakest[0]}: see components"}
+        reason_key = None
+        if c_level == "Low" and c_out_of_range:
+            reason_key = f"Low (C: query outside trained {c_out_of_range} range)"
+        elif overall == "Low" and c_level == "Low":
+            reason_key = "Low (C: query coverage weak -- see components)"
+        elif overall == "Low" and u_level == "Low":
+            reason_key = "Low (U: prediction spread wide -- see components)"
         return {
             "level": overall.upper() if overall != "Medium" else "MODERATE",
             "components": {"validation_skill": s_grade, "query_coverage": c_grade, "spread": u_grade},
-            "computed_weakest": weakest[0], "reason_detail": reason,
+            "reason_key": reason_key,
         }
 
     # -- Azmi pair scenario members: V_w fixed (a single sourced-style value), --
     # -- breach_width_m/failure_time_s at illustrative "low"/"high" method points --
-    vw_fixed = ranges["water_volume_m3"][0] + 0.5 * (ranges["water_volume_m3"][1] - ranges["water_volume_m3"][0])
-    azmi_low_real = [vw_fixed, 75.0, 1200.0]
-    azmi_high_real = [vw_fixed, 165.0, 9000.0]
-    azmi_low_c = coverage_grade(to_unit(azmi_low_real))
-    azmi_high_c = coverage_grade(to_unit(azmi_high_real))
+    azmi_low_real = [vw_point, 75.0, 1200.0]
+    azmi_high_real = [vw_point, 165.0, 9000.0]
+    azmi_low_c, azmi_low_oor = coverage_grade(to_unit(azmi_low_real))
+    azmi_high_c, azmi_high_oor = coverage_grade(to_unit(azmi_high_real))
     c_level_map = {"INSIDE": "High", "EDGE": "Medium", "OUTSIDE": "Low"}
 
-    azmi_low_conf = build_confidence(c_level_map[azmi_low_c], azmi_low_c, "azmi low member")
-    azmi_high_conf = build_confidence(c_level_map[azmi_high_c], azmi_high_c, "azmi high member")
-    unknown_breach_conf = build_confidence(
-        c_level_unknown, c_grade_unknown,
-        f"Low (C: only {in_box_fraction * 100:.0f}% of Monte Carlo samples fall inside the trained "
-        f"V_w/B_ave/T_f design box)",
-    )
+    azmi_low_conf = build_confidence(c_level_map[azmi_low_c], azmi_low_c, azmi_low_oor)
+    azmi_high_conf = build_confidence(c_level_map[azmi_high_c], azmi_high_c, azmi_high_oor)
+    unknown_breach_conf = build_confidence(c_level_unknown, c_grade_unknown, None)
+
+    # -- Acceptance test A6 example (docs/m5_specs.md SS7): "queries 10% outside the
+    # training box are labelled confidence C = Low". A dedicated scenario-mode query
+    # with V_w set 10% above the training box's high edge, B_ave/T_f held at the
+    # azmi_low member's in-box values -- so V_w is the ONLY out-of-range input, and
+    # the reason names it exactly as m5_specs.md SS6's own quoted example does.
+    train_vw_lo, train_vw_hi = ranges["water_volume_m3"]
+    outside_range_real = [train_vw_hi * 1.10, azmi_low_real[1], azmi_low_real[2]]
+    outside_range_c, outside_range_oor = coverage_grade(to_unit(outside_range_real))
+    outside_range_conf = build_confidence(c_level_map[outside_range_c], outside_range_c, outside_range_oor)
 
     # -- Scenario mode: two single-run grids (no Monte Carlo). docs/impact_outputs.md
     # SS"Scenario mode" rule: HIGH = wet under the member with the SMALLER footprint
@@ -674,14 +719,29 @@ def gen_confidence_ensemble() -> dict:
                     "Nothing here is hand-typed; re-run the script and re-copy this file's numbers if "
                     "the ensemble/training design ever changes.",
         "training_design": {"n_train": N_TRAIN, "median_nn_distance_unit": round(median_nn_dist, 4),
-                             "ranges": {k: list(ranges[k]) for k in INPUT_ORDER}},
-        "ensemble": {"n": N_ENSEMBLE, "widened_ranges": {k: list(widened_ranges[i]) for i, k in enumerate(INPUT_ORDER)},
+                             "ranges": {k: list(ranges[k]) for k in INPUT_ORDER},
+                             "note": "This box IS 'the Azmi pair widened by 20%' (m5_specs.md SS2); "
+                                     "breach_width_m/failure_time_s are read as-is from site_detail.teesta.json."},
+        "ensemble": {"n": N_ENSEMBLE,
+                     "sampling": {
+                         "water_volume_m3": {"distribution": "log-uniform", "low": round(vw_query_lo, 0), "high": round(vw_query_hi, 0),
+                                              "note": "+-20% of a single fixed sourced point (m5_specs.md SS5.2), NOT the training box"},
+                         "breach_width_m": {"distribution": "uniform", "low": ranges["breach_width_m"][0], "high": ranges["breach_width_m"][1],
+                                             "note": "identical to the training box -- SS5.2's 'Azmi pair widened by 20%' is the same widening SS2 already used to build the box"},
+                         "failure_time_s": {"distribution": "uniform", "low": ranges["failure_time_s"][0], "high": ranges["failure_time_s"][1],
+                                             "note": "identical to the training box, same reasoning as breach_width_m"},
+                     },
                      "in_box_fraction": round(in_box_fraction, 3)},
         "thresholds": {"zone_high_p": zone_high_p, "zone_possible_p": zone_possible_p, "wet_threshold_m": NF1_WET_THRESHOLD_M},
         "skill_s": {"f1": round(f1_skill, 3), "arrival_rmse_pct": round(arrival_rmse_pct, 1), "grade": s_grade, "level": s_level,
-                    "reference_poi": ref_poi["poi_id"]},
-        "spread_u": {"p5_depth_m": round(ref_p5, 3), "p95_depth_m": round(ref_p95, 3), "width_m": round(ref_width, 3),
-                     "width_pct_of_median": round(ref_width_pct, 1), "grade": u_grade, "level": u_level},
+                    "reference_poi": ref_poi["poi_id"], "caveat": s_skill_caveat},
+        "spread_u": {"p5_depth_m": round(ref_p5, 3), "p95_depth_m": round(ref_p95, 3), "mean_depth_m": round(ref_mean, 3),
+                     "width_m": round(ref_width, 3), "width_pct_of_mean": round(ref_width_pct, 1), "grade": u_grade, "level": u_level},
+        "outside_range_example": {
+            "inputs": {"water_volume_m3": outside_range_real[0], "breach_width_m": outside_range_real[1], "failure_time_s": outside_range_real[2]},
+            "note": f"V_w = training box high ({train_vw_hi:.0f}) x 1.10 -- 10% beyond the trained edge, per acceptance test A6.",
+            "confidence": outside_range_conf,
+        },
         "azmi_low": {"inputs": {"water_volume_m3": azmi_low_real[0], "breach_width_m": azmi_low_real[1], "failure_time_s": azmi_low_real[2]},
                      "summary": profile_summary(azmi_low_real, azmi_low_grid), "confidence": azmi_low_conf,
                      "poi_results": scenario_poi_results(azmi_low_grid)},

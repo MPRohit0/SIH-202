@@ -35,6 +35,7 @@
     {"id": "placeholder_data", "severity": "warning", "text_key": "placeholder_data"},
     {"id": "moraine_extrapolation", "severity": "warning", "text_key": "moraine_extrapolation"},
     {"id": "scenario_no_probabilities", "severity": "info", "text_key": "scenario_no_probabilities"},
+    {"id": "skill_illustrative_not_emulator_estimate", "severity": "info", "text_key": "skill_illustrative_not_emulator_estimate"},
     {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
   ],
   "provenance": {

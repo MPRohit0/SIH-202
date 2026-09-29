@@ -255,6 +255,13 @@ export async function getScenarioPair(siteId: string): Promise<{low: FloodQueryR
   return preview.getScenarioPair(siteId);
 }
 
+/** design/target-state-preview screen 6: acceptance test A6's "10% outside the
+ * training box" confidence example (m5_specs.md §7). Preview-only. */
+export async function getOutsideRangeExample(siteId: string): Promise<FloodQueryResponse | null> {
+  if (!siteId || !isPreviewMode()) return null;
+  return preview.getOutsideRangeExample(siteId);
+}
+
 /** Saved runs / sites. No endpoint exists for this in the contract yet (the
  * prototype used Cloudflare D1/R2 + ChatGPT auth, which rule 11 disallows).
  * Ask before wiring this to a real route. */

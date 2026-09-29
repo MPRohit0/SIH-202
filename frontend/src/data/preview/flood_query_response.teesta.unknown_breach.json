@@ -6,23 +6,23 @@
   "method": "gp_emulator",
   "mode": "unknown_breach",
   "resolved_inputs": {
-    "water_volume_m3": {"value": null, "low": 4000000.0, "high": 16000000.0, "unit": "m3", "interval": "method_range", "kind": "input", "confidence": null, "basis": "illustrative: emulator_inputs range widened +-10% per side (m5_specs.md §5.2)"},
-    "breach_width_m": {"value": null, "low": 48.0, "high": 192.0, "unit": "m", "interval": "method_range", "kind": "input", "confidence": null, "basis": "illustrative: emulator_inputs range widened +-10% per side"},
-    "failure_time_s": {"value": null, "low": -90.0, "high": 11790.0, "unit": "s", "interval": "method_range", "kind": "input", "confidence": null, "basis": "illustrative: emulator_inputs range widened +-10% per side (negative lower bound is a known artifact of uniform widening near zero; sampling clips at 0)"}
+    "water_volume_m3": {"value": null, "low": 8000000.0, "high": 12000000.0, "unit": "m3", "interval": "method_range", "kind": "input", "confidence": null, "basis": "illustrative: log-uniform, +-20% of a single fixed sourced point (m5_specs.md §5.2)"},
+    "breach_width_m": {"value": null, "low": 60.0, "high": 180.0, "unit": "m", "interval": "method_range", "kind": "input", "confidence": null, "basis": "illustrative: uniform over the Azmi pair widened by 20% (m5_specs.md §5.2) -- identical to the trained design box"},
+    "failure_time_s": {"value": null, "low": 900.0, "high": 10800.0, "unit": "s", "interval": "method_range", "kind": "input", "confidence": null, "basis": "illustrative: uniform over the Azmi pair widened by 20% -- identical to the trained design box"}
   },
   "summary": {
-    "inundated_area_m2": {"value": null, "low": 2116800.0, "high": 2880000.0, "unit": "m2", "interval": "zone_range", "kind": "predicted", "confidence": "LOW", "basis": "illustrative; low = HIGH-zone area, high = HIGH+POSSIBLE-zone area (docs/impact_outputs.md population convention)"},
-    "max_depth_m": {"value": 1.828, "low": 1.214, "high": 2.764, "unit": "m", "interval": "P10-P90", "kind": "predicted", "confidence": "LOW", "basis": "illustrative; at the breach cell, actually the 5th/95th percentile (see interval_label_p5_p95_not_p10_p90 caveat)"},
-    "max_velocity_ms": {"value": 2.163, "low": 1.763, "high": 2.66, "unit": "m/s", "interval": "P10-P90", "kind": "predicted", "confidence": "LOW", "basis": "illustrative; 1.6*sqrt(depth) of the breach-cell depth percentiles above"},
-    "peak_discharge_m3s": {"value": 403.5, "low": 218.3, "high": 750.0, "unit": "m3/s", "interval": "P10-P90", "kind": "predicted", "confidence": "LOW", "basis": "illustrative continuity estimate (velocity x depth x channel width) at the breach-cell depth percentiles"},
-    "first_arrival": {"poi_id": "teesta__poi__mangan_district_hospital", "name": "Mangan district hospital", "arrival_s": {"value": 34599.1, "low": 28140.2, "high": 42463.1, "unit": "s", "interval": "P10-P90", "kind": "predicted", "confidence": "LOW", "basis": "illustrative travel-time proxy; low = fastest (P95 depth), high = slowest (P5 depth) -- see far_field_arrival_travel_time_proxy caveat"}}
+    "inundated_area_m2": {"value": null, "low": 2131200.0, "high": 2884800.0, "unit": "m2", "interval": "zone_range", "kind": "predicted", "confidence": "MODERATE", "basis": "illustrative; low = HIGH-zone area, high = HIGH+POSSIBLE-zone area (docs/impact_outputs.md population convention)"},
+    "max_depth_m": {"value": 1.846, "low": 1.264, "high": 2.783, "unit": "m", "interval": "P10-P90", "kind": "predicted", "confidence": "MODERATE", "basis": "illustrative; at the breach cell, actually the 5th/95th percentile (see interval_label_p5_p95_not_p10_p90 caveat)"},
+    "max_velocity_ms": {"value": 2.174, "low": 1.799, "high": 2.669, "unit": "m/s", "interval": "P10-P90", "kind": "predicted", "confidence": "MODERATE", "basis": "illustrative; 1.6*sqrt(depth) of the breach-cell depth percentiles above"},
+    "peak_discharge_m3s": {"value": 409.4, "low": 231.9, "high": 757.6, "unit": "m3/s", "interval": "P10-P90", "kind": "predicted", "confidence": "MODERATE", "basis": "illustrative continuity estimate (velocity x depth x channel width) at the breach-cell depth percentiles"},
+    "first_arrival": {"poi_id": "teesta__poi__mangan_district_hospital", "name": "Mangan district hospital", "arrival_s": {"value": 34431.7, "low": 28045.6, "high": 41616.5, "unit": "s", "interval": "P10-P90", "kind": "predicted", "confidence": "MODERATE", "basis": "illustrative travel-time proxy; low = fastest (P95 depth), high = slowest (P5 depth) -- see far_field_arrival_travel_time_proxy caveat"}}
   },
   "confidence": {
-    "overall": {"level": "LOW", "components": {"validation_skill": "GOOD", "query_coverage": "OUTSIDE", "spread": "NARROW"}, "reason_key": "Low (C: only 57% of Monte Carlo samples fall inside the trained V_w/B_ave/T_f design box)"},
-    "extent": {"level": "LOW", "components": {"validation_skill": "GOOD", "query_coverage": "OUTSIDE", "spread": "NARROW"}, "reason_key": "Low (C: only 57% of Monte Carlo samples fall inside the trained V_w/B_ave/T_f design box)"},
-    "depth": {"level": "MODERATE", "components": {"validation_skill": "GOOD", "query_coverage": "EDGE", "spread": "NARROW"}, "reason_key": "Capped at MODERATE — placeholder inputs."},
-    "arrival": {"level": "LOW", "components": {"validation_skill": "GOOD", "query_coverage": "OUTSIDE", "spread": "NARROW"}, "reason_key": "Low (C: only 57% of Monte Carlo samples fall inside the trained V_w/B_ave/T_f design box)"},
-    "velocity": {"level": "MODERATE", "components": {"validation_skill": "GOOD", "query_coverage": "EDGE", "spread": "NARROW"}, "reason_key": "Capped at MODERATE — placeholder inputs."}
+    "overall": {"level": "MODERATE", "components": {"validation_skill": "GOOD", "query_coverage": "INSIDE", "spread": "NARROW"}, "reason_key": "Capped at MODERATE — placeholder inputs (south_lhonak breach_location, dam_height_m are status: placeholder)."},
+    "extent": {"level": "MODERATE", "components": {"validation_skill": "GOOD", "query_coverage": "INSIDE", "spread": "NARROW"}, "reason_key": "Capped at MODERATE — placeholder inputs."},
+    "depth": {"level": "MODERATE", "components": {"validation_skill": "GOOD", "query_coverage": "INSIDE", "spread": "NARROW"}, "reason_key": "Capped at MODERATE — placeholder inputs."},
+    "arrival": {"level": "MODERATE", "components": {"validation_skill": "GOOD", "query_coverage": "INSIDE", "spread": "NARROW"}, "reason_key": "Capped at MODERATE — placeholder inputs."},
+    "velocity": {"level": "MODERATE", "components": {"validation_skill": "GOOD", "query_coverage": "INSIDE", "spread": "NARROW"}, "reason_key": "Capped at MODERATE — placeholder inputs."}
   },
   "layers": [
     {"layer_id": "p_inundation", "type": "raster_png", "url": "/preview/far_p_inundation.png", "bounds_latlng": [[27.5, 88.0], [28.2, 89.0]], "style_id": "p_inundation", "unit": null, "available": true},
@@ -30,22 +30,22 @@
     {"layer_id": "extent_class", "type": "raster_png", "url": "/preview/far_zone.png", "bounds_latlng": [[27.5, 88.0], [28.2, 89.0]], "style_id": "extent_class", "unit": null, "available": true}
   ],
   "vectors": {"extent_url": "/preview/extent_placeholder.geojson"},
-  "flags": {"outside_trained_range": true, "demo_mode": false, "library_outdated": false, "has_placeholders": true},
+  "flags": {"outside_trained_range": false, "demo_mode": false, "library_outdated": false, "has_placeholders": true},
   "placeholder_fields": ["dams.teesta__south_lhonak.key_specs.dam_height_m", "dams.teesta__south_lhonak.key_specs.breach_location"],
   "caveats": [
-    {"id": "outside_trained_range", "severity": "warning", "text_key": "outOfRange"},
     {"id": "placeholder_data", "severity": "warning", "text_key": "placeholder_data"},
     {"id": "moraine_extrapolation", "severity": "warning", "text_key": "moraine_extrapolation"},
     {"id": "far_field_arrival_travel_time_proxy", "severity": "info", "text_key": "far_field_arrival_travel_time_proxy"},
     {"id": "interval_label_p5_p95_not_p10_p90", "severity": "info", "text_key": "interval_label_p5_p95_not_p10_p90"},
     {"id": "downgrade_cell_example", "severity": "info", "text_key": "downgrade_cell_example"},
+    {"id": "skill_illustrative_not_emulator_estimate", "severity": "info", "text_key": "skill_illustrative_not_emulator_estimate"},
     {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
   ],
   "provenance": {
     "method": "gp_emulator", "contract_version": "0.3.0",
     "code_version": "preview", "run_ids": [],
     "source": "fixture:preview",
-    "note": "200-sample Monte Carlo ensemble over Teesta's own emulator_inputs ranges widened +-10% per side (m5_specs.md §5.2), computed by gen_preview_assets.py:gen_confidence_ensemble(); see frontend/src/data/preview/generated/teesta_confidence.json for the full computation (per-cell P/median/P5/P95, per-POI results, the training design, and the HIGH-to-POSSIBLE downgrade example at row 26 col 18, chainage ~10,532 m, P(depth>0.3m)=0.515, flagged for being highly sensitive to breach width). Confidence's 'depth'/'velocity' outputs are separately capped at MODERATE (not LOW) because their own weakest link is the placeholder-inputs cap, not coverage -- 'overall'/'extent'/'arrival' are already LOW from coverage alone, so the cap does not raise them; this reflects m5_specs.md §6's per-output confidence, not a single site-wide number."
+    "note": "200-sample Monte Carlo ensemble, sampled per m5_specs.md §5.2 exactly: breach_width_m/failure_time_s uniform over the Azmi pair widened by 20% (identical to the trained design box, since that box is itself 'Azmi pair widened by 20%' per §2 -- sampling it again is not a further widening), water_volume_m3 log-uniform at +-20% of one fixed sourced point (narrower than, and normally inside, the training box). Computed by gen_preview_assets.py:gen_confidence_ensemble(); see frontend/src/data/preview/generated/teesta_confidence.json for the full computation. This ensemble's own query_coverage genuinely computes INSIDE (in_box_fraction=1.0) and S/U also compute High, so its only reason for being below HIGH is the placeholder-inputs cap -- the dedicated Low(C: outside trained V_w range) demonstration lives in flood_query_response.teesta.scenario_outside_range.json instead (m5_specs.md §7 acceptance test A6), not in this ensemble's natural sampling. The HIGH-to-POSSIBLE downgrade example is at row 0, col 28 (the breach cell, chainage 0 m): its own 90% interval width genuinely grades U=Low (1.265 m, 108% of the ensemble mean there) per m5_specs.md §6 thresholds -- not a heuristic pick."
   },
   "timing_ms": {"median_phase": 0, "full_phase": 0}
 }

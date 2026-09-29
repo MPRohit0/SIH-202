@@ -35,13 +35,14 @@
     {"id": "placeholder_data", "severity": "warning", "text_key": "placeholder_data"},
     {"id": "moraine_extrapolation", "severity": "warning", "text_key": "moraine_extrapolation"},
     {"id": "scenario_no_probabilities", "severity": "info", "text_key": "scenario_no_probabilities"},
+    {"id": "skill_illustrative_not_emulator_estimate", "severity": "info", "text_key": "skill_illustrative_not_emulator_estimate"},
     {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
   ],
   "provenance": {
     "method": "gp_emulator", "contract_version": "0.3.0",
     "code_version": "preview", "run_ids": [],
     "source": "fixture:preview",
-    "note": "One of two Azmi-pair scenario members (the 'low'/lower-footprint one, by computed inundated area -- see frontend/src/data/preview/generated/teesta_confidence.json 'scenario_zone_basis'). water_volume_m3 is a fixed illustrative point value (not an Azmi output); breach_width_m/failure_time_s are the illustrative low-member point. Every summary and confidence value is computed by gen_preview_assets.py:gen_confidence_ensemble() from a deterministic profile formula and a 30-point illustrative training design read from this site's own emulator_inputs ranges -- none is hand-typed. Confidence is capped at MODERATE because Teesta's site config still has placeholder inputs (CLAUDE.md rule 3 / m5_specs.md SS6)."
+    "note": "One of two Azmi-pair scenario members (the 'low'/lower-footprint one, by computed inundated area -- see frontend/src/data/preview/generated/teesta_confidence.json 'scenario_zone_basis'). water_volume_m3 is a fixed illustrative point value (not an Azmi output); breach_width_m/failure_time_s are the illustrative low-member point, INSIDE the training box (query_coverage=INSIDE), which is why this member's own weakest-link check computes HIGH before the placeholder cap. Every summary and confidence value is computed by gen_preview_assets.py:gen_confidence_ensemble() from a deterministic profile formula and a 30-point illustrative training design read from this site's own emulator_inputs ranges -- none is hand-typed. Confidence is capped at MODERATE because Teesta's site config still has placeholder inputs (CLAUDE.md rule 3 / m5_specs.md SS6)."
   },
   "timing_ms": {"median_phase": 0, "full_phase": 0}
 }

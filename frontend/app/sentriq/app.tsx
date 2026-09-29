@@ -287,9 +287,10 @@ function ScenarioConfidencePanel({siteId}:{siteId:string}){
   const [inputMode,setInputMode]=useState<'exact'|'slider'>('exact');
   const [pair,setPair]=useState<{low:FloodQueryResponse;high:FloodQueryResponse}|null>(null);
   const [unknownResult,setUnknownResult]=useState<FloodQueryResponse|null>(null);
+  const [outsideRangeExample,setOutsideRangeExample]=useState<FloodQueryResponse|null>(null);
   const [loading,setLoading]=useState(false);
   useEffect(()=>{let current=true;source.getSiteDetail(siteId).then(detail=>{if(!current)return;const inputs=detail.emulator_inputs??[];setEmulatorInputs(inputs);setValues(Object.fromEntries(inputs.map(i=>[i.name,i.default??(i.low??0)])));}).catch(()=>{});return()=>{current=false;};},[siteId]);
-  async function run(){setLoading(true);setPair(null);setUnknownResult(null);try{if(queryMode==='scenario'){const p=await source.getScenarioPair(siteId);setPair(p);}else{const r=await source.queryFlood({site_id:siteId,model:'delft3d',mode:'unknown_breach',inputs:{}});setUnknownResult(r);}}catch{/* leave empty on failure */}finally{setLoading(false);}}
+  async function run(){setLoading(true);setPair(null);setUnknownResult(null);setOutsideRangeExample(null);try{if(queryMode==='scenario'){const [p,oor]=await Promise.all([source.getScenarioPair(siteId),source.getOutsideRangeExample(siteId)]);setPair(p);setOutsideRangeExample(oor);}else{const r=await source.queryFlood({site_id:siteId,model:'delft3d',mode:'unknown_breach',inputs:{}});setUnknownResult(r);}}catch{/* leave empty on failure */}finally{setLoading(false);}}
   function sliderPosition(input:import('@/src/data/api').EmulatorInput):number{
     const steps=input.slider.positions;const lo=input.low??0,hi=input.high??1,v=values[input.name]??lo;
     const t=input.slider.mapping==='log'&&lo>0?Math.log(v/lo)/Math.log(hi/lo):(v-lo)/(hi-lo||1);
@@ -319,6 +320,11 @@ function ScenarioConfidencePanel({siteId}:{siteId:string}){
       :<Range key={input.name} label={input.name} value={sliderPosition(input)} min={0} max={input.slider.positions.length-1} unit="" onChange={(pos:number)=>setValues(s=>({...s,[input.name]:valueFromSlider(input,pos)}))}/>)}
     <button className="s-btn primary full" disabled={loading} onClick={run}><Play size={15}/>{loading?'Running…':queryMode==='scenario'?'Run Azmi pair (no probabilities)':'Run Monte Carlo ensemble'}</button>
     {queryMode==='scenario'&&pair&&<div className="model-compare-grid">{resultCard('Azmi — low',pair.low)}{resultCard('Azmi — high',pair.high)}</div>}
+    {queryMode==='scenario'&&outsideRangeExample&&<>
+      <div className="panel-title"><h3>Acceptance test A6 — confidence rule check</h3></div>
+      <p className="fine-print">m5_specs.md §7: "queries 10% outside the training box are labelled confidence C = Low." The example below deliberately sets V_w 10% beyond the trained range to verify the rule fires.</p>
+      {resultCard('Outside-range example (A6)',outsideRangeExample)}
+    </>}
     {queryMode==='unknown_breach'&&unknownResult&&resultCard('Unknown-breach ensemble',unknownResult)}
   </section>;
 }

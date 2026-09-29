@@ -32,6 +32,7 @@ import compareTeesta from './compare.teesta.json';
 import floodQueryTeestaAzmiLow from './flood_query_response.teesta.scenario_azmi_low.json';
 import floodQueryTeestaAzmiHigh from './flood_query_response.teesta.scenario_azmi_high.json';
 import floodQueryTeestaUnknownBreach from './flood_query_response.teesta.unknown_breach.json';
+import floodQueryTeestaOutsideRange from './flood_query_response.teesta.scenario_outside_range.json';
 import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse} from '../api';
 
 const siteDetails: Record<string, SiteDetail> = {
@@ -173,4 +174,17 @@ export async function getScenarioPair(siteId: string): Promise<{low: FloodQueryR
   const pair = SCENARIO_PAIR_FIXTURES[siteId];
   if (!pair) throw new Error(`No preview Azmi-pair fixture for site_id ${JSON.stringify(siteId)}.`);
   return {low: structuredClone(pair.low), high: structuredClone(pair.high)};
+}
+
+/** Acceptance test A6 (m5_specs.md §7): a scenario-mode query deliberately
+ * placed 10% outside the trained V_w range, showing confidence correctly
+ * firing "Low (C: query outside trained V_w range)". */
+const OUTSIDE_RANGE_EXAMPLE_FIXTURES: Record<string, FloodQueryResponse> = {
+  teesta: floodQueryTeestaOutsideRange as unknown as FloodQueryResponse,
+};
+
+export async function getOutsideRangeExample(siteId: string): Promise<FloodQueryResponse> {
+  const fixture = OUTSIDE_RANGE_EXAMPLE_FIXTURES[siteId];
+  if (!fixture) throw new Error(`No preview A6 example fixture for site_id ${JSON.stringify(siteId)}.`);
+  return structuredClone(fixture);
 }
