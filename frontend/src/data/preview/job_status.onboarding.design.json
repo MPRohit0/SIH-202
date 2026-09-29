@@ -1,0 +1,16 @@
+{
+  "job_id": "job_20260929T090000Z_prevw1",
+  "kind": "onboarding",
+  "site_id": "new_reach_preview",
+  "stage": "design",
+  "stage_label_key": "job_stage_design",
+  "progress": {"current": 1, "total": 1, "unit": "designs"},
+  "eta_s": 12,
+  "demo_mode": false,
+  "started_at": "2026-09-29T09:00:00Z",
+  "updated_at": "2026-09-29T09:00:09Z",
+  "log_tail": ["maximin-LHS scenario set designed"],
+  "error": null,
+  "x_preview_provenance": {"source": "fixture:preview", "note": "Target-state preview fixture; illustrative onboarding timeline."},
+  "caveats": ["preview_illustrative"]
+}

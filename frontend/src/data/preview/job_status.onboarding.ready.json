@@ -1,0 +1,16 @@
+{
+  "job_id": "job_20260929T090000Z_prevw1",
+  "kind": "onboarding",
+  "site_id": "new_reach_preview",
+  "stage": "ready",
+  "stage_label_key": "job_stage_ready",
+  "progress": {"current": null, "total": null, "unit": null},
+  "eta_s": 0,
+  "demo_mode": false,
+  "started_at": "2026-09-29T09:00:00Z",
+  "updated_at": "2026-09-29T09:00:20Z",
+  "log_tail": ["site ready"],
+  "error": null,
+  "x_preview_provenance": {"source": "fixture:preview", "note": "Target-state preview fixture; illustrative onboarding timeline."},
+  "caveats": ["preview_illustrative"]
+}

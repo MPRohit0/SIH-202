@@ -16,7 +16,17 @@ import siteDetailTeesta from './site_detail.teesta.json';
 import siteDetailRishiGanga from './site_detail.rishi_ganga.json';
 import siteDetailDemoValley from './site_detail.demo_valley.json';
 import siteDetailSynthEngdam from './site_detail.synth_engdam.json';
-import type {SiteSummary, SiteDetail} from '../api';
+import siteCreateAccepted from './site_create_accepted.json';
+import jobStageQueued from './job_status.onboarding.queued.json';
+import jobStageTerrain from './job_status.onboarding.terrain.json';
+import jobStageBreach from './job_status.onboarding.breach.json';
+import jobStageDesign from './job_status.onboarding.design.json';
+import jobStageSimulating from './job_status.onboarding.simulating.json';
+import jobStageTraining from './job_status.onboarding.training.json';
+import jobStageValidating from './job_status.onboarding.validating.json';
+import jobStageReady from './job_status.onboarding.ready.json';
+import runMetaTeestaPilot from './run_meta.teesta_pilot_s001__delft3d.json';
+import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus} from '../api';
 
 const siteDetails: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -42,4 +52,40 @@ export async function getSiteDetail(siteId: string): Promise<SiteDetail> {
 export async function getSite(): Promise<SiteSummary | null> {
   const sites = await listSites();
   return sites[0] ?? null;
+}
+
+// Screen 2 (Add-a-Dam / run flow / job progress): a single scripted onboarding
+// job that actually advances through the 8 real contract stages (job_status
+// schema: onboarding kind) over ~20s of wall-clock time, so the preview shows
+// live progress rather than a static snapshot. jobStartedAt is keyed by
+// job_id so multiple "Add a new site" attempts in one session each get their
+// own timeline.
+const PREVIEW_JOB_ID = (siteCreateAccepted as unknown as SiteCreateAccepted).job_id;
+const JOB_STAGE_SEQUENCE: JobStatus[] = [
+  jobStageQueued, jobStageTerrain, jobStageBreach, jobStageDesign,
+  jobStageSimulating, jobStageTraining, jobStageValidating, jobStageReady,
+] as unknown as JobStatus[];
+const JOB_STAGE_DURATION_MS = 2500;
+const jobStartedAt = new Map<string, number>();
+
+export async function createSite(): Promise<SiteCreateAccepted> {
+  const accepted = structuredClone(siteCreateAccepted) as unknown as SiteCreateAccepted;
+  jobStartedAt.set(accepted.job_id, Date.now());
+  return accepted;
+}
+
+export async function getJob(jobId: string): Promise<JobStatus> {
+  if (jobId !== PREVIEW_JOB_ID) throw new Error(`No preview fixture for job_id ${JSON.stringify(jobId)}.`);
+  const startedAt = jobStartedAt.get(jobId) ?? Date.now();
+  const elapsedMs = Date.now() - startedAt;
+  const stageIndex = Math.min(JOB_STAGE_SEQUENCE.length - 1, Math.floor(elapsedMs / JOB_STAGE_DURATION_MS));
+  return structuredClone(JOB_STAGE_SEQUENCE[stageIndex]);
+}
+
+/** Screen 2's run-metadata panel. The only real solver run in the repo is the
+ * frozen teesta_pilot_s001 D-Flow FM pilot (docs/m3_spec.md) -- it is shown as
+ * an example of the target-state panel, not as the new site's own output; see
+ * the fixture's own x_preview_provenance note. */
+export async function getRunMeta(): Promise<Record<string, unknown>> {
+  return structuredClone(runMetaTeestaPilot);
 }

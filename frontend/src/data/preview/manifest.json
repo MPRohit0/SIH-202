@@ -5,6 +5,16 @@
     "site_detail.teesta": {"file": "site_detail.teesta.json", "schema": "site_detail.schema.json"},
     "site_detail.rishi_ganga": {"file": "site_detail.rishi_ganga.json", "schema": "site_detail.schema.json"},
     "site_detail.demo_valley": {"file": "site_detail.demo_valley.json", "schema": "site_detail.schema.json"},
-    "site_detail.synth_engdam": {"file": "site_detail.synth_engdam.json", "schema": "site_detail.schema.json"}
+    "site_detail.synth_engdam": {"file": "site_detail.synth_engdam.json", "schema": "site_detail.schema.json"},
+    "site_create_accepted": {"file": "site_create_accepted.json", "schema": "site_create_accepted.schema.json"},
+    "job_status.onboarding.queued": {"file": "job_status.onboarding.queued.json", "schema": "job_status.schema.json"},
+    "job_status.onboarding.terrain": {"file": "job_status.onboarding.terrain.json", "schema": "job_status.schema.json"},
+    "job_status.onboarding.breach": {"file": "job_status.onboarding.breach.json", "schema": "job_status.schema.json"},
+    "job_status.onboarding.design": {"file": "job_status.onboarding.design.json", "schema": "job_status.schema.json"},
+    "job_status.onboarding.simulating": {"file": "job_status.onboarding.simulating.json", "schema": "job_status.schema.json"},
+    "job_status.onboarding.training": {"file": "job_status.onboarding.training.json", "schema": "job_status.schema.json"},
+    "job_status.onboarding.validating": {"file": "job_status.onboarding.validating.json", "schema": "job_status.schema.json"},
+    "job_status.onboarding.ready": {"file": "job_status.onboarding.ready.json", "schema": "job_status.schema.json"},
+    "run_meta.teesta_pilot_s001__delft3d": {"file": "run_meta.teesta_pilot_s001__delft3d.json", "schema": "run_meta.schema.json"}
   }
 }

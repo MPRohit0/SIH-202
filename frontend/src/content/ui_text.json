@@ -278,6 +278,26 @@
     "noPairedSph": "D-Flow run only. The Teesta SPH attempt (a02) completed, but its particle-exclusion warning and anomalous depth field mean its results are under investigation and are not shown here.",
     "libraryUnavailable": "No real scenario library is registered. The Teesta MVP contains one direct solver event run, not prepared emulator nodes."
   },
+  "onboardingJob": {
+    "start": "Start preview onboarding job",
+    "restart": "Run again",
+    "stage": {
+      "job_stage_queued": "Queued",
+      "job_stage_terrain": "Terrain (M1)",
+      "job_stage_breach": "Breach parameters (M2)",
+      "job_stage_design": "Scenario design (M5)",
+      "job_stage_simulating": "Simulating (M3/M4)",
+      "job_stage_training": "Training emulator (M5)",
+      "job_stage_validating": "Validating (M5 LOOCV)",
+      "job_stage_ready": "Ready"
+    },
+    "eta": "ETA",
+    "runMetaHeading": "Run metadata (example)",
+    "runMetaNote": "The only real solver run in this repo is the frozen teesta_pilot_s001 D-Flow FM pilot. It is shown here as an example of the target-state run-metadata panel — it is not output from the site above.",
+    "runtime": "Wall-clock runtime",
+    "meshCells": "Mesh cells",
+    "diskUsage": "Disk used (case tree)"
+  },
   "dataLayers": {
     "realDepthName": "D-Flow FM flood outputs",
     "realDepthDesc": "Generated from the registered Teesta MVP solver run: depth, velocity, arrival and extent artifacts.",

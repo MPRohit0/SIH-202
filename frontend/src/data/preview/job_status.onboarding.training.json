@@ -1,0 +1,16 @@
+{
+  "job_id": "job_20260929T090000Z_prevw1",
+  "kind": "onboarding",
+  "site_id": "new_reach_preview",
+  "stage": "training",
+  "stage_label_key": "job_stage_training",
+  "progress": {"current": 1, "total": 1, "unit": "models"},
+  "eta_s": 5,
+  "demo_mode": false,
+  "started_at": "2026-09-29T09:00:00Z",
+  "updated_at": "2026-09-29T09:00:15Z",
+  "log_tail": ["PCA + GP emulator trained on 6 runs"],
+  "error": null,
+  "x_preview_provenance": {"source": "fixture:preview", "note": "Target-state preview fixture; illustrative onboarding timeline."},
+  "caveats": ["preview_illustrative"]
+}

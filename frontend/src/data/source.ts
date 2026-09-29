@@ -210,6 +210,10 @@ export async function exportUrl(format: 'shp' | 'kml' | 'geojson' | 'pdf', query
 
 /** Contract §5.2 — POST /sites (Add a Dam). */
 export async function createSite(_input: {name: string; grid: Grid; params: Params}): Promise<Awaiting & {jobId: string | null}> {
+  if (isPreviewMode()) {
+    const accepted = await preview.createSite();
+    return {status: 'awaiting', reason: 'Preview onboarding job accepted; the legacy UI has no contract job-progress state.', jobId: accepted.job_id};
+  }
   if (useMocks) {
     try { const accepted = await api.createSite(api.examples.siteRequest); return {status: 'awaiting', reason: 'Mock onboarding job accepted; the legacy UI has no contract job-progress state.', jobId: accepted.job_id}; } catch { /* retain the empty state */ }
   }
@@ -219,7 +223,15 @@ export async function createSite(_input: {name: string; grid: Grid; params: Para
 /** Contract §5.3 — GET /jobs/{job_id}. */
 export async function getJob(jobId: string): Promise<JobStatus> {
   if (!jobId) throw new Error('A job_id is required to load job status.');
+  if (isPreviewMode()) return preview.getJob(jobId);
   return api.job(jobId);
+}
+
+/** design/target-state-preview screen 2's run-metadata panel (runtime, mesh
+ * size, disk). Shows the one real solver run in the repo -- see the fixture's
+ * own x_preview_provenance note for what it is and isn't. */
+export async function getPreviewRunMeta(): Promise<Record<string, unknown>> {
+  return preview.getRunMeta();
 }
 
 /** Saved runs / sites. No endpoint exists for this in the contract yet (the

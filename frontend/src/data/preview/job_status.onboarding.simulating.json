@@ -1,0 +1,16 @@
+{
+  "job_id": "job_20260929T090000Z_prevw1",
+  "kind": "onboarding",
+  "site_id": "new_reach_preview",
+  "stage": "simulating",
+  "stage_label_key": "job_stage_simulating",
+  "progress": {"current": 3, "total": 6, "unit": "runs"},
+  "eta_s": 9,
+  "demo_mode": false,
+  "started_at": "2026-09-29T09:00:00Z",
+  "updated_at": "2026-09-29T09:00:12Z",
+  "log_tail": ["run new_reach_preview_s003__delft3d started"],
+  "error": null,
+  "x_preview_provenance": {"source": "fixture:preview", "note": "Target-state preview fixture; illustrative onboarding timeline."},
+  "caveats": ["preview_illustrative"]
+}
