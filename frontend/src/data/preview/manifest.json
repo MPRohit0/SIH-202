@@ -1,0 +1,10 @@
+{
+  "_comment": "Maps every preview fixture to the contract schema it must validate against, and to the file that carries it. Read by both src/data/preview/index.ts (at runtime) and tests/frontend/test_preview_fixtures.py (in CI). Keys under 'fixtures' are stable lookup names used by index.ts; they are not contract identifiers.",
+  "fixtures": {
+    "site_list": {"file": "site_list.json", "schema": "site_list.schema.json"},
+    "site_detail.teesta": {"file": "site_detail.teesta.json", "schema": "site_detail.schema.json"},
+    "site_detail.rishi_ganga": {"file": "site_detail.rishi_ganga.json", "schema": "site_detail.schema.json"},
+    "site_detail.demo_valley": {"file": "site_detail.demo_valley.json", "schema": "site_detail.schema.json"},
+    "site_detail.synth_engdam": {"file": "site_detail.synth_engdam.json", "schema": "site_detail.schema.json"}
+  }
+}

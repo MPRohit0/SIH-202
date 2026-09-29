@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 // Single seam between the UI and real data.
 //
 // Legacy UI adapters call the contract client in api.ts. Responses whose
@@ -10,6 +11,7 @@
 import type {Grid, Params, Result} from '@/lib/model';
 import type {Scenario} from '@/lib/sentriq';
 import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type SiteDetail, type JobStatus, type ValidationResponse, type HistoricalValidationResponse, type Scene3DResponse} from './api';
+import * as preview from './preview';
 import uiText from '../content/ui_text.json';
 import * as offlineCache from '../offline/cache-store';
 import {collectGlobalUrls, collectResourceUrls, type OfflineBundle} from '../offline/resource-list';
@@ -20,27 +22,40 @@ export type {SiteSummary} from './api';
 export type {SavedQuery} from '../offline/cache-store';
 export type {OfflineBundle} from '../offline/resource-list';
 
+/** design/target-state-preview: a third data source, alongside the live API and
+ * VITE_USE_MOCKS, that serves the fixtures in src/data/preview/*.json. It exists
+ * so the target-state screens can be demonstrated with illustrative, schema-valid
+ * data before the real pipelines (M1-M7) produce it. Selected by
+ * VITE_DATA_MODE=preview; every other value (including unset) leaves every
+ * function below on its original, unchanged code path. See frontend/README.md
+ * "Preview mode" for what this does and does not mean. */
+export const isPreviewMode = (): boolean => import.meta.env.VITE_DATA_MODE === 'preview';
+
 /** Mock switch and the one registered direct solver scenario exposed for the MVP site. */
 export function isMockMode(): boolean { return useMocks; }
 export function directEventScenarioId(siteId: string): string | undefined {
-  return !useMocks && siteId === 'teesta' ? 'teesta_2023_mvp' : undefined;
+  return !useMocks && !isPreviewMode() && siteId === 'teesta' ? 'teesta_2023_mvp' : undefined;
 }
 
 /** Contract §5.1 — GET /sites. */
 export async function listSites(): Promise<SiteSummary[]> {
+  if (isPreviewMode()) return preview.listSites();
   return api.sites();
 }
 
 /** Contract §5.1 — GET /sites, GET /sites/{site_id}. */
 export async function getSite(): Promise<SiteSummary | null> {
+  if (isPreviewMode()) return preview.getSite();
   const sites = await api.sites();
   return sites[0] ?? null;
 }
 
 /** Terrain for the active site (part of site detail / GET /scene3d/{query_id}). */
 export async function getTerrain(siteId?: string): Promise<Awaiting & {grid: Grid | null}> {
-  if (siteId) await api.site(siteId);
-  else await api.sites();
+  if (!isPreviewMode()) {
+    if (siteId) await api.site(siteId);
+    else await api.sites();
+  }
   return {status: 'awaiting', reason: 'Site contract loaded; terrain grids are exposed through scene3d binary files, not the legacy Grid array required by this canvas.', grid: null};
 }
 
@@ -151,6 +166,7 @@ export async function getScene3dArrays(scene: Scene3DResponse): Promise<Scene3DA
 /** Contract §5.1 — GET /sites/{site_id}, for the real dam list (location/breach_location). */
 export async function getSiteDetail(siteId: string): Promise<SiteDetail> {
   if (!siteId) throw new Error('A site_id is required to load site detail.');
+  if (isPreviewMode()) return preview.getSiteDetail(siteId);
   return api.site(siteId) as Promise<SiteDetail>;
 }
 
@@ -178,7 +194,11 @@ export async function getSiteArtifactJson(siteId: string, relPath: string): Prom
  * colour classes; see STYLE_GUIDE.md §2.6 for the frontend palette that
  * should seed it. */
 export async function getStyles(): Promise<Awaiting & {styles: unknown | null}> {
-  return {status: 'awaiting', reason: 'Styles loaded from the contract; no display change is applied until map data is available.', styles: await api.styles()};
+  // contracts/styles.json is the project's real, checked-in style definition (legend
+  // colours/class edges), not simulation output, so preview mode serves it directly
+  // rather than adding a fixture copy.
+  const styles = isPreviewMode() ? api.examples.styles : await api.styles();
+  return {status: 'awaiting', reason: 'Styles loaded from the contract; no display change is applied until map data is available.', styles};
 }
 
 /** Contract §5 #18 — GET /export/{query_id}?format=. */

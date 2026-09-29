@@ -248,8 +248,10 @@ export const api = {
     const relativePath = path.replace(/^\/api\/v1\/?/, '').replace(/^\/+/, '');
     return `${baseUrl}/${relativePath}`;
   },
-  // Contract example fixture access for contract data with no GET route.
-  examples: {scenarioDesign, siteRequest, breachParams, geojson, floodRequest},
+  // Contract example fixture access for contract data with no GET route, and
+  // (styles) for design/target-state-preview to read the real contract style
+  // definitions without a network round trip.
+  examples: {scenarioDesign, siteRequest, breachParams, geojson, floodRequest, styles},
 };
 
 export type Api = typeof api;

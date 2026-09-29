@@ -1,0 +1,27 @@
+/* design/target-state-preview only. Imported by src/preview/PreviewBanner.tsx,
+ * which is only ever mounted when source.isPreviewMode() is true (see
+ * frontend/src/data/source.ts). Never imported from app/globals.css or any
+ * default-mode code path, so default-mode screenshots are byte-for-byte
+ * unaffected by this file's existence.
+ *
+ * Colours are taken from STYLE_GUIDE.md §2.5 (status styles) -- no new
+ * palette is introduced. */
+
+.preview-banner{position:sticky;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:center;gap:10px;padding:9px 16px;background:#3e321e;border-bottom:1px solid #615135;color:#deb77c;font-size:11px;font-weight:600;letter-spacing:.4px;text-align:center}
+.preview-banner svg{flex-shrink:0}
+
+.preview-watermark-host{position:relative}
+.preview-watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;z-index:5}
+.preview-watermark span{transform:rotate(-28deg);font-size:13vw;line-height:1;font-weight:700;letter-spacing:6px;color:#ccc8a833;white-space:nowrap;user-select:none}
+.preview-watermark-host.small .preview-watermark span{font-size:34px}
+
+/* Explicit contract confidence / data-quality states (m5_specs.md §6,
+ * docs/decisions.md site-status table). These reuse the existing Badge and
+ * s-notice colour language; they exist because the target state renders them
+ * unconditionally on every relevant preview screen, so the fixtures always
+ * exercise all four. */
+.state-chip{display:inline-flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.4px;padding:5px 8px;border-radius:4px;white-space:nowrap}
+.state-chip.state-low{color:#f28e8e;background:#42252680;border:1px solid #653c3b}
+.state-chip.state-fallback{color:#cab28e;background:#372e1d66;border:1px solid #4e422e}
+.state-chip.state-demo{color:#deb77c;background:#3e321e80;border:1px solid #615135}
+.state-chip.state-placeholder{color:#9db6c6;background:#1730408c;border:1px solid #345060}

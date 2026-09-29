@@ -28,7 +28,10 @@
       "failed": "Unavailable"
     },
     "statusReasons": {
-      "real_run_no_trained_emulator": "Served from a direct physics run; no GP emulator has been trained for this site yet."
+      "real_run_no_trained_emulator": "Served from a direct physics run; no GP emulator has been trained for this site yet.",
+      "outdated_config_changed": "Site configuration changed since the library was last trained.",
+      "outdated_lake_area_change": "Observed lake area has changed enough to invalidate the trained library.",
+      "outdated_library_age": "The trained library is more than 365 days old."
     }
   },
   "floodQuery": {
