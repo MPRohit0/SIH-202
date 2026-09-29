@@ -124,12 +124,14 @@ export async function getCompare(siteId: string, scenarioId?: string): Promise<C
 /** Contract §5.7 — GET /validation/{site_id}. */
 export async function getValidation(siteId: string): Promise<ValidationResponse> {
   if (!siteId) throw new Error('A site_id is required to load validation status.');
+  if (isPreviewMode()) return preview.getValidation(siteId);
   return api.validation(siteId);
 }
 /** Contract §5.7 — GET /validation/{site_id}?event={event_id}. */
 export async function getHistoricalValidation(siteId: string, eventId: string): Promise<HistoricalValidationResponse> {
   if (!siteId) throw new Error('A site_id is required to load historical validation.');
   if (!eventId) throw new Error('An event_id is required to load historical validation.');
+  if (isPreviewMode()) return preview.getHistoricalValidation(siteId, eventId);
   return api.historicalValidation(siteId, eventId);
 }
 

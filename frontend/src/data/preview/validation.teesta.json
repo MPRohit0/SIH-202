@@ -1,0 +1,16 @@
+{
+  "contract_version": "0.3.0",
+  "site_id": "teesta",
+  "model": "delft3d",
+  "n_runs": 0,
+  "per_run": [],
+  "summary": {},
+  "baseline_linear": {},
+  "grade_thresholds_ref": "docs/m5_specs.md#6",
+  "events": ["teesta_2023"],
+  "x_preview_provenance": {
+    "source": "fixture:preview",
+    "note": "No real LOOCV runs exist for teesta (n_runs=0, honestly). No historical_validation fixture exists for teesta_2023 in this preview branch -- screen 8's worked example uses rishi_ganga/chamoli_2021 instead (real docs/events/chamoli_2021.md source material). Selecting Teesta's Validation screen will honestly show a load error for the historical comparison, not a fabricated one."
+  },
+  "caveats": ["preview_illustrative"]
+}

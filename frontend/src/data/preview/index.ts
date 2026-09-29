@@ -35,7 +35,10 @@ import floodQueryTeestaUnknownBreach from './flood_query_response.teesta.unknown
 import floodQueryTeestaOutsideRange from './flood_query_response.teesta.scenario_outside_range.json';
 import geeLayersTeesta from './gee_layers.teesta.json';
 import geeLayersRishiGanga from './gee_layers.rishi_ganga.json';
-import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse, GeeLayers} from '../api';
+import validationTeesta from './validation.teesta.json';
+import validationRishiGanga from './validation.rishi_ganga.json';
+import historicalValidationChamoli from './historical_validation.rishi_ganga.chamoli_2021.json';
+import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse, GeeLayers, ValidationResponse, HistoricalValidationResponse} from '../api';
 
 const siteDetails: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -231,4 +234,31 @@ export async function updateRecheckFrequency(siteId: string, frequencyDays: numb
   const nextCheckAt = new Date(new Date(lastCheckedAt).getTime() + frequencyDays * 86400000).toISOString();
   site.recheck = {frequency_days: frequencyDays, last_checked_at: lastCheckedAt, next_check_at: nextCheckAt};
   return structuredClone(site);
+}
+
+// Screen 8 (historical validation). No real LOOCV runs exist for either site
+// (n_runs=0, honestly) -- these fixtures exist to carry each site's `events`
+// list so the historical comparison below can load.
+const VALIDATION_FIXTURES: Record<string, ValidationResponse> = {
+  teesta: validationTeesta as unknown as ValidationResponse,
+  rishi_ganga: validationRishiGanga as unknown as ValidationResponse,
+};
+
+export async function getValidation(siteId: string): Promise<ValidationResponse> {
+  const fixture = VALIDATION_FIXTURES[siteId];
+  if (!fixture) throw new Error(`No preview validation fixture for site_id ${JSON.stringify(siteId)}.`);
+  return structuredClone(fixture);
+}
+
+/** Chamoli 2021 (rishi_ganga): every observed.* value is real (src_042 via
+ * docs/events/chamoli_2021.md); predicted.* and metrics.* are illustrative.
+ * See the fixture's own provenance note. */
+const HISTORICAL_VALIDATION_FIXTURES: Record<string, HistoricalValidationResponse> = {
+  'rishi_ganga|chamoli_2021': historicalValidationChamoli as unknown as HistoricalValidationResponse,
+};
+
+export async function getHistoricalValidation(siteId: string, eventId: string): Promise<HistoricalValidationResponse> {
+  const fixture = HISTORICAL_VALIDATION_FIXTURES[`${siteId}|${eventId}`];
+  if (!fixture) throw new Error(`No preview historical_validation fixture for site_id=${siteId}, event_id=${eventId}.`);
+  return structuredClone(fixture);
 }

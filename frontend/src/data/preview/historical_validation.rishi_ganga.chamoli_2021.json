@@ -1,0 +1,48 @@
+{
+  "contract_version": "0.3.0",
+  "site_id": "rishi_ganga",
+  "event_id": "chamoli_2021",
+  "comparison_domain": "Rishiganga hydropower project (~15 km downstream of the Ronti Peak source) and Tapovan-Vishnugad (upstream and downstream of the project intake)",
+  "x_preview_event_kind": "mass_flow",
+  "x_preview_framing": "Chamoli 2021 was a rock-and-ice avalanche that transformed into a debris flow and downstream flood -- it was NOT a glacial lake outburst or a dam-breach flood (docs/events/chamoli_2021.md line 8). This is a mass-flow EVENT comparison, shown to illustrate what workstream 8 (historical validation) would look like once built; it is not, and cannot become, a dam-breach validation for this event.",
+  "observed": {
+    "event_type": {"value": "Rock-and-ice avalanche from Ronti Peak, transformed into a debris flow and downstream flood", "source": "src_042", "note": "docs/events/chamoli_2021.md line 7-8"},
+    "onset_utc": {"value": "2021-02-07T04:51:13Z– 04:51:21Z", "source": "src_042", "note": "docs/events/chamoli_2021.md line 9"},
+    "source_volume_m3": {"value": 26900000.0, "low": 26500000.0, "high": 27300000.0, "unit": "m3", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed 95% CI, docs/events/chamoli_2021.md line 10-11"},
+    "material_composition": {"value": "approximately 80% rock, 20% glacier ice by volume", "source": "src_042", "note": "docs/events/chamoli_2021.md line 12-13"},
+    "rishiganga_frontal_speed_ms": {"value": 25.0, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, ~15 km downstream of source, docs/events/chamoli_2021.md line 15-16"},
+    "rishiganga_mean_discharge_m3s": {"value": null, "low": 8200.0, "high": 14200.0, "unit": "m3/s", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, docs/events/chamoli_2021.md line 16"},
+    "event_duration_min": {"value": null, "low": 10.0, "high": 20.0, "unit": "min", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, uncertain duration, docs/events/chamoli_2021.md line 17"},
+    "tapovan_upstream_frontal_speed_ms": {"value": 16.0, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, just upstream of the project, docs/events/chamoli_2021.md line 18"},
+    "tapovan_downstream_frontal_speed_ms": {"value": 12.0, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, below the project, docs/events/chamoli_2021.md line 18-19"},
+    "tapovan_downstream_mean_discharge_m3s": {"value": null, "low": 2900.0, "high": 4900.0, "unit": "m3/s", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, poorer model agreement reported near the project, docs/events/chamoli_2021.md line 19-20"},
+    "debris_blockage_height_m": {"value": 40.0, "low": null, "high": null, "unit": "m", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, near the Ronti Gad confluence, docs/events/chamoli_2021.md line 21"},
+    "landslide_lake_length_m": {"value": 700.0, "low": null, "high": null, "unit": "m", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, formed behind the debris blockage, docs/events/chamoli_2021.md line 21-22"},
+    "total_deposit_volume_m3": {"value": 8000000.0, "low": null, "high": null, "unit": "m3", "interval": "none", "kind": "observed", "confidence": null, "source": "src_042", "basis": "observed, at and just downstream of the confluence, docs/events/chamoli_2021.md line 22"}
+  },
+  "predicted": {
+    "method": "illustrative clear-water dam-breach-style emulator prediction, approximated as if the avalanche were a breach hydrograph -- a mismatch the mass_flow_approximation caveat exists for",
+    "rishiganga_frontal_speed_ms": {"value": 17.5, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"},
+    "rishiganga_discharge_m3s": {"value": 6160.0, "low": null, "high": null, "unit": "m3/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"},
+    "tapovan_upstream_frontal_speed_ms": {"value": 11.2, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"},
+    "tapovan_downstream_frontal_speed_ms": {"value": 8.4, "low": null, "high": null, "unit": "m/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"},
+    "tapovan_discharge_m3s": {"value": 2145.0, "low": null, "high": null, "unit": "m3/s", "interval": "none", "kind": "predicted", "confidence": "LOW", "basis": "illustrative"}
+  },
+  "metrics": {
+    "rishiganga_frontal_speed_relative_error_pct": {"value": -30.0, "basis": "illustrative", "note": "(predicted - observed) / observed x 100, both illustrative-vs-real; not a real skill score"},
+    "rishiganga_discharge_relative_error_pct": {"value": -45.0, "basis": "illustrative", "note": "computed against the observed midpoint (8200-14200 m3/s)"},
+    "tapovan_upstream_speed_relative_error_pct": {"value": -30.0, "basis": "illustrative"},
+    "tapovan_downstream_speed_relative_error_pct": {"value": -30.0, "basis": "illustrative"},
+    "tapovan_discharge_relative_error_pct": {"value": -45.0, "basis": "illustrative", "note": "computed against the observed midpoint (2900-4900 m3/s)"}
+  },
+  "caveats": [
+    {"id": "mass_flow_approximation", "severity": "critical", "text_key": "mass_flow_approximation"},
+    {"id": "clear_water", "severity": "warning", "text_key": "clear_water"},
+    {"id": "observed_data_sparse", "severity": "info", "text_key": "observed_data_sparse"},
+    {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
+  ],
+  "provenance": {
+    "source": "fixture:preview",
+    "note": "Every observed.* value is real, from src_042 (Shugar et al. 2021, Science 373, eabh4455) as summarized in docs/events/chamoli_2021.md, with the exact supporting line cited in each field's basis/note. No observed value here is estimated or guessed -- anything the doc doesn't state (e.g. a gridded observed depth/arrival raster) is simply absent from this fixture, not filled in. The predicted.* side and every metrics.* value are entirely illustrative: there is no real Chamoli/Rishi Ganga simulation in this repo (docs/events/chamoli_2021.md 'Still needed before an M3/M5 campaign' lists exactly what is missing -- a sourced DEM/domain, an approved event representation, and a validation target). predicted values are deliberately set BELOW observed (a clear-water model without debris-flow bulking would plausibly underestimate a debris flow's speed/discharge), not copied from or fitted to the observed values, so the illustrative 'error' shown is a modelling argument, not a circular match."
+  }
+}

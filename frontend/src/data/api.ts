@@ -126,6 +126,11 @@ export type HistoricalValidationResponse = {
     literature: Array<{source_id: string; citation: string; quantity: string; value: unknown; note: string}>;
     caveats: string[];
   };
+  /** design/target-state-preview only, proposed contract addition: marks an
+   * event (e.g. Chamoli 2021) as a mass-flow/avalanche comparison rather than
+   * a dam-breach validation, so the UI frames it correctly. */
+  x_preview_event_kind?: 'mass_flow';
+  x_preview_framing?: string;
 };
 export type SiteSummary = {
   site_id: string; name: string;

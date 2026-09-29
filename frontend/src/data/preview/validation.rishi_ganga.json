@@ -1,0 +1,16 @@
+{
+  "contract_version": "0.3.0",
+  "site_id": "rishi_ganga",
+  "model": "delft3d",
+  "n_runs": 0,
+  "per_run": [],
+  "summary": {},
+  "baseline_linear": {},
+  "grade_thresholds_ref": "docs/m5_specs.md#6",
+  "events": ["chamoli_2021"],
+  "x_preview_provenance": {
+    "source": "fixture:preview",
+    "note": "No real LOOCV runs exist for rishi_ganga (n_runs=0, honestly), so this fixture exists only to carry events=['chamoli_2021'] for screen 8's historical validation to load. See historical_validation.rishi_ganga.chamoli_2021.json for the actual comparison."
+  },
+  "caveats": ["preview_illustrative"]
+}

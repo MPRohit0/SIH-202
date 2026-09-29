@@ -12,7 +12,7 @@ import {Toaster,toast} from 'sonner';
 import {Grid,Params,Result,defaults,pointIndex} from '@/lib/model';
 import {Scenario,Exposure,stats,nf} from '@/lib/sentriq';
 import * as source from '@/src/data/source';
-import type {FloodQueryResponse,ImpactResponse,CompareResponse,GeeLayers,Timeline,JobStatus} from '@/src/data/api';
+import type {FloodQueryResponse,ImpactResponse,CompareResponse,GeeLayers,Timeline,JobStatus,HistoricalValidationResponse} from '@/src/data/api';
 import uiText from '@/src/content/ui_text.json';
 import Terrain3D from './terrain-3d';
 import type {BreachMarker} from './terrain-3d';
@@ -181,6 +181,7 @@ export default function SentriqApp({initialView='home'}:{initialView?:string}){
        {historicalError&&<div className="s-notice warning"><AlertTriangle size={16}/><span>{uiText.onboarding.validationHistoricalError}</span></div>}
        {historicalData&&<>
          <div className="panel-title"><h2>{uiText.onboarding.validationHistoricalHeading.replace('{event}',historicalData.event_id)}</h2></div>
+         {historicalData.x_preview_event_kind==='mass_flow'?<MassFlowEventComparison data={historicalData}/>:<>
          {historicalData.observed?.available?<p className="fine-print">Observed extent: {historicalData.observed.extent_url}</p>:<div className="s-notice warning"><AlertTriangle size={16}/><span>{uiText.onboarding.validationObservedUnavailable}{historicalData.observed?.note?`: ${historicalData.observed.note}`:''}</span></div>}
          {historicalData.caveats.map(c=><div className={c.severity==='info'?'s-notice':'s-notice warning'} key={c.id}><AlertTriangle size={16}/><span>{uiText.floodQuery.caveats[c.id as keyof typeof uiText.floodQuery.caveats]??uiText.floodQuery.unknownCaveat}</span></div>)}
          <h3>{uiText.onboarding.validationLiteratureHeading}</h3>
@@ -189,6 +190,7 @@ export default function SentriqApp({initialView='home'}:{initialView?:string}){
            <TableRow><TableCell>Peak depth / velocity at {historicalData.literature_comparison.poi}</TableCell><TableCell>{String(historicalData.literature_comparison.simulated?.peak_depth_m??'—')} m · {String(historicalData.literature_comparison.simulated?.peak_velocity_ms??'—')} m/s</TableCell><TableCell colSpan={2}>Not comparable — literature reports discharge (m³/s); this run only outputs depth/velocity here</TableCell></TableRow>
            {historicalData.literature_comparison.literature.filter(l=>l.quantity==='peak_discharge_m3s').map(l=><TableRow key={l.source_id+l.quantity}><TableCell>Peak discharge ({l.source_id})</TableCell><TableCell>not computed by this run</TableCell><TableCell>{String(l.value)} m³/s</TableCell><TableCell>{l.source_id}</TableCell></TableRow>)}
          </TableBody></Table><p className="fine-print">{historicalData.literature_comparison.caveats.join(' ')}</p></>:<Empty icon={ClipboardCheck} title={uiText.onboarding.validationLiteratureNone}>{uiText.onboarding.validationLiteratureNone}</Empty>}
+         </>}
        </>}
      </>}
    </>}
@@ -284,6 +286,45 @@ function PreviewJobPanel({job,runMeta,onStart}:{job:JobStatus|null;runMeta:Recor
 function ConfidenceBadge({level,reasonKey}:{level:string;reasonKey?:string|null}){
   const tone=level==='HIGH'?'ready':level==='MODERATE'?'amber':'danger';
   return <div className="confidence-box"><ShieldCheck size={16}/><div><strong><Badge tone={tone}>{level}</Badge></strong>{reasonKey&&<p>{reasonKey}</p>}</div></div>;
+}
+// Screen 8 (target-state preview): historical validation for a mass-flow event
+// (Chamoli 2021), where observed.*/predicted.* are open records of arbitrary
+// named quantities (frontal speed, discharge, deposit volume...), not the
+// hardcoded Teesta-shaped fields (arrival_time_ist, peak_depth_m) the existing
+// literature_comparison table above expects. Renders generically over
+// whatever keys the fixture actually has, keeping observed and predicted in
+// visually separate panels per the task's explicit rule.
+function FactValue({v}:{v:unknown}){
+  if(v&&typeof v==='object'&&'value' in (v as Record<string,unknown>)){
+    const e=v as {value:unknown;low?:number|null;high?:number|null;unit?:string|null};
+    if(typeof e.value==='number'||e.low!=null||e.high!=null){
+      const range=e.low!=null&&e.high!=null?`${nf(e.low)}–${nf(e.high)}`:e.low!=null?`≥ ${nf(e.low)}`:e.high!=null?`≤ ${nf(e.high)}`:null;
+      return <>{typeof e.value==='number'?nf(e.value):range}{typeof e.value==='number'&&range?` (${range})`:''}{e.unit?` ${e.unit}`:''}</>;
+    }
+    return <>{String(e.value)}</>;
+  }
+  return <>{String(v)}</>;
+}
+function MassFlowEventComparison({data}:{data:HistoricalValidationResponse}){
+  const rows=(obj:Record<string,unknown>)=>Object.entries(obj).filter(([k])=>k!=='method');
+  return <>
+    {data.x_preview_framing&&<div className="s-notice warning"><AlertTriangle size={16}/><span>{data.x_preview_framing}</span></div>}
+    <div className="model-compare-grid">
+      <section className="s-panel"><div className="panel-title"><h3>Observed</h3><Badge tone="ready">src_042</Badge></div>
+        <div className="inspector-data">{rows(data.observed).map(([k,v])=><div key={k}><span>{k.replaceAll('_',' ')}</span><strong><FactValue v={v}/></strong></div>)}</div>
+      </section>
+      <section className="s-panel"><div className="panel-title"><h3>Predicted</h3><Badge tone="amber">Illustrative</Badge></div>
+        {typeof data.predicted.method==='string'&&<p className="fine-print">{data.predicted.method}</p>}
+        <div className="inspector-data">{rows(data.predicted).map(([k,v])=><div key={k}><span>{k.replaceAll('_',' ')}</span><strong><FactValue v={v}/></strong></div>)}</div>
+      </section>
+    </div>
+    <section className="s-panel"><div className="panel-title"><h3>Metrics</h3><Badge tone="amber">Illustrative</Badge></div>
+      <Table><TableHeader><TableRow><TableHead>Quantity</TableHead><TableHead>Value</TableHead></TableRow></TableHeader><TableBody>
+        {Object.entries(data.metrics).map(([k,v])=><TableRow key={k}><TableCell>{k.replaceAll('_',' ')}</TableCell><TableCell><FactValue v={v}/></TableCell></TableRow>)}
+      </TableBody></Table>
+    </section>
+    {data.caveats.map(c=><div className={c.severity==='info'?'s-notice':'s-notice warning'} key={c.id}><AlertTriangle size={16}/><span>{uiText.floodQuery.caveats[c.id as keyof typeof uiText.floodQuery.caveats]??uiText.floodQuery.unknownCaveat}</span></div>)}
+  </>;
 }
 function ScenarioConfidencePanel({siteId}:{siteId:string}){
   const [emulatorInputs,setEmulatorInputs]=useState<import('@/src/data/api').EmulatorInput[]>([]);
