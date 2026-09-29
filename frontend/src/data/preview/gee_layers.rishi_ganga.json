@@ -1,0 +1,31 @@
+{
+  "site_id": "rishi_ganga",
+  "source": "cache",
+  "fetched_at": "2026-06-02T09:00:00Z",
+  "lake_area_series": [
+    {"date": "2021-02-10", "area_m2": 180000.0, "method": "s1_threshold", "cloud_pct": null},
+    {"date": "2025-06-01", "area_m2": 205000.0, "method": "s2_water_index", "cloud_pct": 8.0},
+    {"date": "2026-06-01", "area_m2": 236000.0, "method": "s2_water_index", "cloud_pct": 5.0}
+  ],
+  "lake_latest": {
+    "type": "FeatureCollection",
+    "features": [
+      {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[79.745, 30.575], [79.755, 30.575], [79.755, 30.582], [79.745, 30.582], [79.745, 30.575]]]}, "properties": {"date": "2026-06-01", "area_m2": 236000.0, "method": "s2_water_index"}}
+    ]
+  },
+  "rainfall": [
+    {"date": "2026-05-28", "precip_mm": 6.2, "dataset": "chirps"},
+    {"date": "2026-05-29", "precip_mm": 4.1, "dataset": "chirps"},
+    {"date": "2026-05-30", "precip_mm": 11.5, "dataset": "chirps"}
+  ],
+  "imagery": [],
+  "observed_extents": [],
+  "recheck": {"outdated": true, "change_pct": 15.1, "threshold_pct": 10},
+  "x_preview_provenance": {
+    "source": "fixture:preview",
+    "note": "Illustrative throughout: this preview has no real remote-sensing source for the Raunthi Gad landslide lake (unlike Teesta's src_072). recheck.outdated=true / change_pct=15.1% (above the 10% threshold_pct default, docs/decisions.md 2026-09-27) demonstrates the library-outdated banner and pairs with this site's own status_reason_key (outdated_config_changed, site_list.json)."
+  },
+  "caveats": [
+    {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
+  ]
+}

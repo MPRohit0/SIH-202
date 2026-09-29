@@ -136,13 +136,29 @@ export async function getHistoricalValidation(siteId: string, eventId: string): 
 /** Contract §5 #19/#20 — GET /gee/{site_id}, POST /gee/{site_id}/refresh. */
 export async function getObserved(siteId: string): Promise<GeeLayers> {
   if (!siteId) throw new Error('A site_id is required to load satellite layers.');
+  if (isPreviewMode()) return preview.getObserved(siteId);
   return api.gee(siteId);
 }
-/** Resolve a contract file reference through the shared API client origin. */
-export function fileUrl(path: string): string { return api.fileUrl(path); }
+/** Resolve a contract file reference through the shared API client origin.
+ * Preview URLs are already root-relative paths into frontend/public/preview/,
+ * served by Vite itself -- passed through unchanged rather than prefixed with
+ * the backend's own baseUrl (api.fileUrl targets the backend origin). */
+export function fileUrl(path: string): string {
+  if (isPreviewMode() && path.startsWith('/preview/')) return path;
+  return api.fileUrl(path);
+}
 export async function refreshObserved(siteId: string): Promise<GeeLayers> {
   if (!siteId) throw new Error('A site_id is required to refresh satellite layers.');
+  if (isPreviewMode()) return preview.refreshObserved(siteId);
   return api.refreshGee(siteId);
+}
+
+/** design/target-state-preview screen 7: the re-check frequency setting
+ * (contract §5 #7, PUT /sites/{site_id}/recheck). */
+export async function setRecheckFrequency(siteId: string, frequencyDays: number): Promise<SiteSummary> {
+  if (!siteId) throw new Error('A site_id is required to update the re-check frequency.');
+  if (isPreviewMode()) return preview.updateRecheckFrequency(siteId, frequencyDays);
+  return api.recheck(siteId, {frequency_days: frequencyDays}) as Promise<SiteSummary>;
 }
 export async function getTimeline(queryId: string, intervalS = 300): Promise<Timeline> {
   if (!queryId) throw new Error('A query_id is required to load the flood timeline.');

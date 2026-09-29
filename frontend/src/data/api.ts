@@ -131,6 +131,7 @@ export type SiteSummary = {
   status: 'onboarding' | 'demo_mode' | 'ready' | 'outdated' | 'failed';
   status_reason_key?: string | null; bbox_lonlat?: [number, number, number, number];
   has_placeholders?: boolean;
+  recheck?: {frequency_days: number; last_checked_at: string | null; next_check_at: string | null};
 };
 export type JobStatus = {
   job_id: string; kind: 'onboarding' | 'campaign' | 'recheck' | 'rerun';

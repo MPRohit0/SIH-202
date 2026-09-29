@@ -22,7 +22,9 @@
     "flood_query_response.teesta.scenario_azmi_low": {"file": "flood_query_response.teesta.scenario_azmi_low.json", "schema": "flood_query_response.schema.json"},
     "flood_query_response.teesta.scenario_azmi_high": {"file": "flood_query_response.teesta.scenario_azmi_high.json", "schema": "flood_query_response.schema.json"},
     "flood_query_response.teesta.unknown_breach": {"file": "flood_query_response.teesta.unknown_breach.json", "schema": "flood_query_response.schema.json"},
-    "flood_query_response.teesta.scenario_outside_range": {"file": "flood_query_response.teesta.scenario_outside_range.json", "schema": "flood_query_response.schema.json"}
+    "flood_query_response.teesta.scenario_outside_range": {"file": "flood_query_response.teesta.scenario_outside_range.json", "schema": "flood_query_response.schema.json"},
+    "gee_layers.teesta": {"file": "gee_layers.teesta.json", "schema": "gee_layers.schema.json"},
+    "gee_layers.rishi_ganga": {"file": "gee_layers.rishi_ganga.json", "schema": "gee_layers.schema.json"}
   },
   "sidecars": {
     "_comment": "Honesty-stamp-only companions to a strict (additionalProperties:false) schema fixture, keyed by the fixture name above they belong to. Not validated against any contracts/ schema -- only checked for the provenance/caveat stamp.",

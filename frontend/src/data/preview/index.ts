@@ -33,7 +33,9 @@ import floodQueryTeestaAzmiLow from './flood_query_response.teesta.scenario_azmi
 import floodQueryTeestaAzmiHigh from './flood_query_response.teesta.scenario_azmi_high.json';
 import floodQueryTeestaUnknownBreach from './flood_query_response.teesta.unknown_breach.json';
 import floodQueryTeestaOutsideRange from './flood_query_response.teesta.scenario_outside_range.json';
-import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse} from '../api';
+import geeLayersTeesta from './gee_layers.teesta.json';
+import geeLayersRishiGanga from './gee_layers.rishi_ganga.json';
+import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse, GeeLayers} from '../api';
 
 const siteDetails: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -46,8 +48,14 @@ const siteDetails: Record<string, SiteDetail> = {
  * lists them. Used by dev-time assertions; not required at runtime. */
 export const fixtureManifest = manifest;
 
+// Screen 7's re-check frequency control mutates this in place (via
+// updateRecheckFrequency below) so the change is visible everywhere
+// listSites() is read from in the same session -- a plain per-call
+// structuredClone(siteList) would silently discard the edit.
+const siteListStore: SiteSummary[] = structuredClone(siteList) as unknown as SiteSummary[];
+
 export async function listSites(): Promise<SiteSummary[]> {
-  return structuredClone(siteList) as unknown as SiteSummary[];
+  return structuredClone(siteListStore);
 }
 
 export async function getSiteDetail(siteId: string): Promise<SiteDetail> {
@@ -187,4 +195,40 @@ export async function getOutsideRangeExample(siteId: string): Promise<FloodQuery
   const fixture = OUTSIDE_RANGE_EXAMPLE_FIXTURES[siteId];
   if (!fixture) throw new Error(`No preview A6 example fixture for site_id ${JSON.stringify(siteId)}.`);
   return structuredClone(fixture);
+}
+
+// Screen 7 (GEE monitoring): teesta's series/imagery dates are the real
+// ISRO/NRSC South Lhonak figures (docs/data_sources.md src_072); rishi_ganga
+// is fully illustrative and demonstrates the library-outdated banner (its
+// recheck.change_pct exceeds threshold_pct) -- see each fixture's own
+// x_preview_provenance note for exactly which numbers are real vs illustrative.
+const GEE_LAYERS_FIXTURES: Record<string, GeeLayers> = {
+  teesta: geeLayersTeesta as unknown as GeeLayers,
+  rishi_ganga: geeLayersRishiGanga as unknown as GeeLayers,
+};
+
+export async function getObserved(siteId: string): Promise<GeeLayers> {
+  const fixture = GEE_LAYERS_FIXTURES[siteId];
+  if (!fixture) throw new Error(`No preview gee_layers fixture for site_id ${JSON.stringify(siteId)}.`);
+  return structuredClone(fixture);
+}
+
+/** "Refresh satellite cache" in preview mode re-serves the same fixture with
+ * fetched_at bumped to now -- there is no live Earth Engine call to make. */
+export async function refreshObserved(siteId: string): Promise<GeeLayers> {
+  const fixture = await getObserved(siteId);
+  fixture.fetched_at = new Date().toISOString();
+  return fixture;
+}
+
+/** Screen 7's re-check frequency control (contract §5 #7, PUT
+ * /sites/{site_id}/recheck). Mutates siteListStore in place so every reader
+ * of listSites() sees the change for the rest of the session. */
+export async function updateRecheckFrequency(siteId: string, frequencyDays: number): Promise<SiteSummary> {
+  const site = siteListStore.find(s => s.site_id === siteId);
+  if (!site) throw new Error(`No preview site_list entry for site_id ${JSON.stringify(siteId)}.`);
+  const lastCheckedAt = site.recheck?.last_checked_at ?? new Date().toISOString();
+  const nextCheckAt = new Date(new Date(lastCheckedAt).getTime() + frequencyDays * 86400000).toISOString();
+  site.recheck = {frequency_days: frequencyDays, last_checked_at: lastCheckedAt, next_check_at: nextCheckAt};
+  return structuredClone(site);
 }

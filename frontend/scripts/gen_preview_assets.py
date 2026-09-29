@@ -809,12 +809,35 @@ def _gen_zone_raster(path: Path, width: int, height: int, zone: list[str], downg
     img.save(path)
 
 
+def gen_satellite_thumbnail(path: Path, label: str, water_frac: float) -> None:
+    """Screen 7 (GEE monitoring): an illustrative pre/post Sentinel-2-style
+    thumbnail -- NOT real satellite imagery (this repo has no real Teesta
+    Sentinel-2 scene to embed) -- with a lake-like water patch whose size is
+    parameterised so 'post' visibly looks smaller than 'pre'. The acquisition
+    DATE attached to this image in the fixture is real (src_072); the pixels
+    are not."""
+    img = Image.new("RGB", (SIZE, SIZE))
+    px = img.load()
+    for y in range(SIZE):
+        for x in range(SIZE):
+            t = math.sin((x + y * 0.6) / SIZE * math.pi) * 0.5 + 0.5
+            px[x, y] = (int(35 + t * 50), int(60 + t * 70), int(40 + t * 50))
+    draw = ImageDraw.Draw(img)
+    cx, cy, r = SIZE * 0.42, SIZE * 0.38, SIZE * 0.28 * water_frac
+    draw.ellipse([cx - r, cy - r * 0.7, cx + r, cy + r * 0.7], fill=(40, 90, 150))
+    draw = ImageDraw.Draw(img, "RGBA")
+    _stamp(draw, label, (SIZE, SIZE))
+    img.save(path)
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     gen_dem_hillshade(OUT_DIR / "dem_hillshade_teesta.png")
     gen_domain_mask(OUT_DIR / "domain_mask_teesta.png")
     gen_nearfield_pair()
     gen_confidence_ensemble()
+    gen_satellite_thumbnail(OUT_DIR / "gee_teesta_pre_20230928.png", "illustrative imagery, real date 2023-09-28", 1.0)
+    gen_satellite_thumbnail(OUT_DIR / "gee_teesta_post_20231004.png", "illustrative imagery, real date 2023-10-04", 0.36)
     print(f"Wrote preview rasters to {OUT_DIR}")
 
 

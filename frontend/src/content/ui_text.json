@@ -202,7 +202,12 @@
     "observationSplit": "Observed versus simulated extent",
     "referenceTitle": "ISRO/NRSC reference (South Lhonak, Oct 2023)",
     "referenceSource": "Source: ISRO/NRSC, Oct 2023",
-    "referenceNote": "Independent published reference figures, shown for comparison only. Not used to calibrate the water-mask thresholds above."
+    "referenceNote": "Independent published reference figures, shown for comparison only. Not used to calibrate the water-mask thresholds above.",
+    "recheckFrequency": "Re-check frequency",
+    "recheckFrequencyDays": "Days between checks",
+    "recheckNextCheck": "Next check",
+    "recheckSave": "Save",
+    "recheckSaving": "Saving…"
   },
   "timeline": {
     "loading": "Loading time simulation…",
