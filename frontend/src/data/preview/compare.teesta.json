@@ -1,0 +1,40 @@
+{
+  "site_id": "teesta",
+  "scenario_id": "teesta__nf1_preview",
+  "sph_vs_delft3d": {
+    "available": true,
+    "domain": "nearfield_section_nf1",
+    "time_window_s": 600,
+    "metrics": {
+      "iou": 0.713,
+      "f1_0_3": 0.832,
+      "depth_rmse_wet_m": 0.281,
+      "velocity_mae_ms": 0.357
+    },
+    "probes": [
+      {"poi_id": "teesta__nf__section_nf1", "arrival_delft3d_s": 465.9, "arrival_sph_s": 373.4, "diff_s": -92.5}
+    ],
+    "layers": [
+      {"layer_id": "depth_diff_nearfield", "type": "raster_png", "url": "/preview/nf1_depth_diff.png", "bounds_latlng": [[27.80, 88.60], [27.87, 88.68]], "style_id": "depth_diff", "unit": "m", "available": true}
+    ],
+    "run_ids": ["teesta__nf1_preview__delft3d", "teesta__nf1_preview__sph"]
+  },
+  "emulator_vs_physics": {
+    "available": false,
+    "held_out_run_id": null,
+    "metrics": {},
+    "layers": []
+  },
+  "gp_vs_linear": {},
+  "when_to_use_key": "when_to_use_sph_delft3d",
+  "caveats": [
+    {"id": "clear_water", "severity": "info", "text_key": "clear_water"},
+    {"id": "comparison_metrics_illustrative", "severity": "warning", "text_key": "comparison_metrics_illustrative"},
+    {"id": "nearfield_arrival_from_section_inflow", "severity": "info", "text_key": "nearfield_arrival_from_section_inflow"},
+    {"id": "preview_illustrative", "severity": "critical", "text_key": "preview_illustrative"}
+  ],
+  "x_preview_provenance": {
+    "source": "fixture:preview",
+    "note": "Both sides are illustrative and share the same near-field section (NF-1) and scenario as flood_query_response.teesta.sph_direct.json. Every metric here (iou, f1_0_3, depth_rmse_wet_m, velocity_mae_ms, the probe arrival times) is computed by frontend/scripts/gen_preview_assets.py:gen_nearfield_pair() from the generated FM and SPH depth/velocity grids -- none is hand-typed. See frontend/src/data/preview/generated/nf1_comparison.json for the exact computation this was transcribed from."
+  }
+}

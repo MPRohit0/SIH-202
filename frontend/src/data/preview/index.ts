@@ -28,7 +28,8 @@ import jobStageReady from './job_status.onboarding.ready.json';
 import runMetaTeestaPilot from './run_meta.teesta_pilot_s001__delft3d.json';
 import floodQueryTeestaSph from './flood_query_response.teesta.sph_direct.json';
 import scene3dTeestaSph from './scene3d.q_20260929T093000Z_9f3ab2.json';
-import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse} from '../api';
+import compareTeesta from './compare.teesta.json';
+import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse} from '../api';
 
 const siteDetails: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -136,4 +137,18 @@ export async function getScene3dArrays(scene: Scene3DResponse): Promise<{terrain
   if (!terrainRes.ok || !floodRes.ok) throw new Error('Failed to load the preview 3D scene terrain/flood arrays.');
   const [terrainBuf, floodBuf] = await Promise.all([terrainRes.arrayBuffer(), floodRes.arrayBuffer()]);
   return {terrain: new Float32Array(terrainBuf), flood: new Float32Array(floodBuf)};
+}
+
+/** Screen 5 (Model Comparison): SPH vs D-Flow FM on the same near-field
+ * section and scenario as screen 4's flood_query_response. Every metric is
+ * computed by gen_preview_assets.py from generated grids, not hand-typed --
+ * see the fixture's own x_preview_provenance note. */
+const COMPARE_FIXTURES: Record<string, CompareResponse> = {
+  teesta: compareTeesta as unknown as CompareResponse,
+};
+
+export async function getCompare(siteId: string): Promise<CompareResponse> {
+  const fixture = COMPARE_FIXTURES[siteId];
+  if (!fixture) throw new Error(`No preview compare fixture for site_id ${JSON.stringify(siteId)}.`);
+  return structuredClone(fixture);
 }

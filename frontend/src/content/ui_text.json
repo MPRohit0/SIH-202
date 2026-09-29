@@ -69,6 +69,8 @@
       "caveat_arrival_depth_not_joint": "Arrival and depth percentiles are marginal estimates, not a joint distribution.",
       "direct_solver_output": "Direct solver output; confidence is LOW and this result is not scientifically validated.",
       "preview_illustrative": "Illustrative preview data — not a real solver or emulator result.",
+      "nearfield_arrival_from_section_inflow": "Arrival time is measured from this near-field section's own inflow start (the routed far-field discharge entering the section), not from the far-field breach t0.",
+      "comparison_metrics_illustrative": "Illustrative — computed from preview fixtures, not model output.",
       "timeline_single_solver": "Playback frames are selected snapshots from one real solver run; HIGH/POSSIBLE aliases are not uncertainty bands.",
       "mvp_reconstructed_forcing": "The South Lhonak forcing is an MVP reconstruction, not an observed hydrograph.",
       "single_run_impact": "Impact is calculated from one deterministic run. The POSSIBLE column is the run footprint, not an uncertainty probability.",

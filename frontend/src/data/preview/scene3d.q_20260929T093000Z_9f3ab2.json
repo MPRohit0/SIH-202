@@ -11,7 +11,7 @@
     "axis_order": "east,north,up"
   },
   "terrain": {
-    "url": "/preview/sph_nearfield_terrain.bin",
+    "url": "/preview/nf1_terrain.bin",
     "encoding": "float32_le_row_major",
     "width": 80,
     "height": 60,
@@ -29,7 +29,7 @@
     "byte_length": 19200
   },
   "flood_surface": {
-    "url": "/preview/sph_nearfield_flood.bin",
+    "url": "/preview/nf1_sph_flood.bin",
     "encoding": "float32_le_row_major",
     "nodata": -9999.0,
     "basis": "terrain + depth_p50",

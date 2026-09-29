@@ -118,6 +118,7 @@ export async function getImpact(queryId: string): Promise<ImpactResponse> {
 /** Contract §5 #15 — GET /compare/{site_id}. */
 export async function getCompare(siteId: string, scenarioId?: string): Promise<CompareResponse> {
   if (!siteId) throw new Error('A site_id is required to load model comparison.');
+  if (isPreviewMode()) return preview.getCompare(siteId);
   return api.compare(siteId, scenarioId);
 }
 /** Contract §5.7 — GET /validation/{site_id}. */
