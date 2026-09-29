@@ -90,6 +90,9 @@
       "impact_exposure_coverage": "Exposure has limited or unrecorded coverage; missing asset classes are not assessed.",
       "placeholder_data": "Some impact inputs remain placeholders, so monetary loss is unavailable.",
       "caveat_loss_national_average": "JRC max-damage values are 2010 national averages for India; Himalayan stone or timber-built houses may cost quite differently to rebuild — loss is a rough estimate, not a precise valuation.",
+      "population_density_illustrative": "Population and building counts use an illustrative density — this preview's synthetic valley has no WorldPop, Census or OSM building-footprint join.",
+      "emulator_input_placeholders": "Some emulator inputs (south_lhonak breach_location, dam_height_m) remain placeholders, which caps confidence at MODERATE.",
+      "loss_config_docs_stale": "config/impact.yaml's EUR→INR rate, price index and road width are now status: sourced, but docs/decisions.md and docs/impact_outputs.md §5/§6 still describe them as placeholder and say loss should be null — those two docs have not been updated to match the current config file.",
       "dem_depression_ponding": "The maximum depth sits in an unconditioned DEM depression that traps water rather than a hydraulic peak; the source terrain was never hydrologically conditioned.",
       "clear_water_steep_reach_velocity": "The maximum velocity is clear-water Manning flow on a steep gorge reach; it is not necessarily representative of a debris-laden event.",
       "poi_grid_snapping": "One or more downstream points of interest show no inundation despite a wet cell nearby, most likely 90 m grid resolution missing the channel at that point rather than the location being unaffected.",
@@ -135,7 +138,27 @@
     "assetClass": "Asset class",
     "lossByClassNone": "No priced asset class yet",
     "lossMethod": "JRC global flood depth-damage functions (Huizinga et al. 2017)",
-    "lossAssumptions": "Assumptions"
+    "lossAssumptions": "Assumptions",
+    "populationByBand": "Population by arrival band",
+    "arrivalBand": "Arrival band (min)",
+    "villageTable": "Villages",
+    "criticalFacilities": "Critical facilities",
+    "depthClass": "Depth class",
+    "dvClass": "D·V class",
+    "depthClasses": {
+      "dry": "Dry",
+      "wet": "Wet",
+      "low": "1 Low",
+      "moderate": "2 Moderate",
+      "high": "3 High",
+      "extreme": "4 Extreme"
+    },
+    "dvClasses": {
+      "lower_hazard": "Lower hazard",
+      "unsafe_adults": "Unsafe for adults",
+      "unsafe_most": "Unsafe for most people",
+      "structural_damage": "Masonry buildings damaged"
+    }
   },
   "comparison": {
     "loading": "Loading model comparison…",

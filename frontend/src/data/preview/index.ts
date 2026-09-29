@@ -38,7 +38,8 @@ import geeLayersRishiGanga from './gee_layers.rishi_ganga.json';
 import validationTeesta from './validation.teesta.json';
 import validationRishiGanga from './validation.rishi_ganga.json';
 import historicalValidationChamoli from './historical_validation.rishi_ganga.chamoli_2021.json';
-import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse, GeeLayers, ValidationResponse, HistoricalValidationResponse} from '../api';
+import impactTeestaUnknownBreach from './impact.teesta_unknown_breach.json';
+import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse, GeeLayers, ValidationResponse, HistoricalValidationResponse, ImpactResponse} from '../api';
 
 const siteDetails: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -260,5 +261,21 @@ const HISTORICAL_VALIDATION_FIXTURES: Record<string, HistoricalValidationRespons
 export async function getHistoricalValidation(siteId: string, eventId: string): Promise<HistoricalValidationResponse> {
   const fixture = HISTORICAL_VALIDATION_FIXTURES[`${siteId}|${eventId}`];
   if (!fixture) throw new Error(`No preview historical_validation fixture for site_id=${siteId}, event_id=${eventId}.`);
+  return structuredClone(fixture);
+}
+
+// Screen 9 (impact/loss): keyed by the query_id that flood_query_response.teesta
+// .unknown_breach.json carries, since that is the only preview flood query this
+// impact fixture is derived from (same ensemble, same poi_results). Every number
+// here traces to generated/teesta_confidence.json's "impact" key -- see the
+// fixture's own provenance note for exactly what is illustrative vs real (JRC
+// damage curves/asset values) sourced data.
+const IMPACT_FIXTURES: Record<string, ImpactResponse> = {
+  [(impactTeestaUnknownBreach as unknown as ImpactResponse).query_id]: impactTeestaUnknownBreach as unknown as ImpactResponse,
+};
+
+export async function getImpact(queryId: string): Promise<ImpactResponse> {
+  const fixture = IMPACT_FIXTURES[queryId];
+  if (!fixture) throw new Error(`No preview impact fixture for query_id ${JSON.stringify(queryId)}.`);
   return structuredClone(fixture);
 }

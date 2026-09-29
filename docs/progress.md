@@ -2839,3 +2839,42 @@ cloud stat → treated as fully cloudy).
 **Still limited:** `tests/data/breach_cases.csv` is gitignored (the `data/` pattern matches
 `tests/data/`), so `test_breach_cases.py` errors in any fresh checkout or worktree. `docs/data_sources.md`
 `src_071`/`src_073`/`src_074` still contain `<...>` fill-in placeholders.
+
+## 2026-09-29 — design/target-state-preview: screen 9 (Impact Analysis)
+
+Built the preview's Impact Analysis screen, reusing screen 6's computed unknown-breach ensemble
+(`generated/teesta_confidence.json`) rather than any new hand-typed numbers.
+
+**Population:** `gen_confidence_ensemble()` (`frontend/scripts/gen_preview_assets.py`) now also
+computes an `impact` block: population low/high from the same HIGH / HIGH+POSSIBLE extent areas as
+screen 6, times an illustrative density (150 persons/km² — no WorldPop/Census join in this preview),
+rounded to 2 sig figs with a 50-person floor (`docs/impact_outputs.md` §3.2, checks I2/I5), plus a
+per-arrival-band split (`x_preview_population_by_arrival_band`, a proposed contract addition) using
+the same `arrival_bands_min` edges.
+
+**Loss:** before building this, found that `config/impact.yaml`'s `eur_to_inr_2010`,
+`price_index_2010_to_current` and `default_road_width_m` are all now `status: sourced` (with real
+RBI/WPI/IRC:73 values), contradicting `docs/decisions.md`'s 2026-09-25 "M6 loss estimation" entry and
+`docs/impact_outputs.md` §5/§6, which still say these are placeholders and that `loss_inr` must be
+null. Flagged this to the user; they chose to compute a real loss estimate rather than force null.
+`loss_inr` now uses the **real, committed** `data/teesta/exposure/damage_curves.csv` /
+`asset_values.csv` (src_031/src_032, already computed with the config's sourced FX rate and price
+index — read directly, not retyped) applied to an **illustrative** exposed building area for the two
+named villages (Lachen, Chungthang) only, matching `backend/m6_impact/loss.py`'s real scope (dam/
+bridge/hospital points and roads/agriculture stay unpriced). The docs staleness is stated in both
+`loss_inr.assumptions` and a dedicated caveat, not silently resolved.
+
+**UI:** `frontend/app/sentriq/app.tsx`'s Impact Analysis view gained a "Population by arrival band"
+panel and split the single warning table into a villages table (zone/probability/arrival/depth
+class/D·V class, `docs/impact_outputs.md` §1/§1.1 edges) and a separate critical-facilities list
+(dam/bridge/hospital, zone+arrival only, not folded into population), per §3.2.
+
+**New fixture:** `impact.teesta_unknown_breach.json` (contracts/schemas/impact.schema.json),
+registered in `manifest.json`, wired through `preview/index.ts`'s `getImpact` and `source.ts`.
+`pytest -q tests/frontend/test_preview_fixtures.py`: 86 passed. `npm run check:shell` (tsc + build):
+clean. Screenshot-verified via a scripted flood-query run + client-side navigation to Impact Analysis
+(page reloads lose the in-memory `floodQuery` state, so the harness must click the sidebar link, not
+`page.goto`).
+
+Per the task's scope (stop after each screen for review), this is screen 9; screen 10 (Flood Summary
++ timeline) is not yet built.

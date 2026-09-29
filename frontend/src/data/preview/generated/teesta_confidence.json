@@ -223,51 +223,101 @@
         "poi_id": "teesta__poi__lachen",
         "name": "Lachen",
         "chainage_m": 2000.0,
+        "kind": "village",
         "p_floods": 1.0,
         "median_depth_m": 1.747,
         "p5_depth_m": 1.196,
         "p95_depth_m": 2.633,
-        "zone": "HIGH"
+        "zone": "HIGH",
+        "median_velocity_ms": 2.115,
+        "p5_velocity_ms": 1.75,
+        "p95_velocity_ms": 2.596,
+        "median_arrival_s": 945.8,
+        "fast_arrival_s": 770.4,
+        "slow_arrival_s": 1143.1,
+        "depth_class": "moderate",
+        "dv_class": "structural_damage",
+        "dv_m2s": 3.694
       },
       {
         "poi_id": "teesta__poi__chungthang",
         "name": "Chungthang",
         "chainage_m": 12000.0,
+        "kind": "village",
         "p_floods": 1.0,
         "median_depth_m": 1.25,
         "p5_depth_m": 0.856,
         "p95_depth_m": 1.884,
-        "zone": "HIGH"
+        "zone": "HIGH",
+        "median_velocity_ms": 1.789,
+        "p5_velocity_ms": 1.48,
+        "p95_velocity_ms": 2.196,
+        "median_arrival_s": 6707.7,
+        "fast_arrival_s": 5463.6,
+        "slow_arrival_s": 8107.3,
+        "depth_class": "moderate",
+        "dv_class": "unsafe_most",
+        "dv_m2s": 2.237
       },
       {
         "poi_id": "teesta__poi__teesta_iii",
         "name": "Teesta III (Chungthang) dam",
         "chainage_m": 12200.0,
+        "kind": "dam",
         "p_floods": 1.0,
         "median_depth_m": 1.25,
         "p5_depth_m": 0.856,
         "p95_depth_m": 1.884,
-        "zone": "HIGH"
+        "zone": "HIGH",
+        "median_velocity_ms": 1.789,
+        "p5_velocity_ms": 1.48,
+        "p95_velocity_ms": 2.196,
+        "median_arrival_s": 6819.5,
+        "fast_arrival_s": 5554.6,
+        "slow_arrival_s": 8242.4,
+        "depth_class": "moderate",
+        "dv_class": "unsafe_most",
+        "dv_m2s": 2.237
       },
       {
         "poi_id": "teesta__poi__sangkalang_bridge",
         "name": "Sangkalang bridge",
         "chainage_m": 24000.0,
+        "kind": "bridge",
         "p_floods": 1.0,
         "median_depth_m": 0.674,
         "p5_depth_m": 0.461,
         "p95_depth_m": 1.016,
-        "zone": "HIGH"
+        "zone": "HIGH",
+        "median_velocity_ms": 1.314,
+        "p5_velocity_ms": 1.087,
+        "p95_velocity_ms": 1.613,
+        "median_arrival_s": 18268.6,
+        "fast_arrival_s": 14880.3,
+        "slow_arrival_s": 22080.6,
+        "depth_class": "low",
+        "dv_class": "unsafe_adults",
+        "dv_m2s": 0.886
       },
       {
         "poi_id": "teesta__poi__mangan_district_hospital",
         "name": "Mangan district hospital",
         "chainage_m": 31000.0,
+        "kind": "hospital",
         "p_floods": 0.575,
         "median_depth_m": 0.317,
         "p5_depth_m": 0.217,
         "p95_depth_m": 0.477,
-        "zone": "HIGH"
+        "zone": "HIGH",
+        "median_velocity_ms": 0.9,
+        "p5_velocity_ms": 0.745,
+        "p95_velocity_ms": 1.105,
+        "median_arrival_s": 34431.7,
+        "fast_arrival_s": 28045.6,
+        "slow_arrival_s": 41616.5,
+        "depth_class": "low",
+        "dv_class": "lower_hazard",
+        "dv_m2s": 0.285
       }
     ],
     "reference_poi_summary": {
@@ -311,5 +361,73 @@
     "note": "This HIGH cell's own 90% interval width genuinely grades U=Low (SS6 thresholds).",
     "raw_zone": "HIGH",
     "shown_zone": "POSSIBLE"
+  },
+  "impact": {
+    "_comment": "Screen 9 (impact/loss). population_* and population_by_arrival_band use an ILLUSTRATIVE population density (no WorldPop/Census join in this preview) applied to the unknown_breach extent areas above -- illustrative. village_losses use the REAL JRC damage curve and REAL sourced asset value (data/teesta/exposure/*.csv, src_031/src_032, computed with config/impact.yaml's now-sourced FX rate and price index) applied to an ILLUSTRATIVE exposed building area per village -- see gen_impact_from_confidence() and the impact fixture's own provenance note for the real-vs-illustrative split.",
+    "population_density_persons_per_m2": 0.00015,
+    "population_low": 320,
+    "population_high": 430,
+    "population_expected": 315,
+    "population_by_arrival_band": [
+      {
+        "arrival_band_min": "0-15",
+        "low_persons": 50,
+        "high_persons": 50
+      },
+      {
+        "arrival_band_min": "15-30",
+        "low_persons": 50,
+        "high_persons": 50
+      },
+      {
+        "arrival_band_min": "30-60",
+        "low_persons": 50,
+        "high_persons": 50
+      },
+      {
+        "arrival_band_min": "60-120",
+        "low_persons": 58,
+        "high_persons": 61
+      },
+      {
+        "arrival_band_min": "120-180",
+        "low_persons": 50,
+        "high_persons": 53
+      },
+      {
+        "arrival_band_min": "180-360",
+        "low_persons": 96,
+        "high_persons": 110
+      },
+      {
+        "arrival_band_min": ">360",
+        "low_persons": 50,
+        "high_persons": 110
+      }
+    ],
+    "village_footprint_m2": 40000.0,
+    "built_up_fraction": 0.15,
+    "village_building_area_m2": 6000.0,
+    "avg_building_footprint_m2": 60.0,
+    "village_building_count": 100,
+    "residential_value_inr_per_m2": 28025.422975948677,
+    "residential_value_source": "src_032",
+    "village_losses": [
+      {
+        "poi_id": "teesta__poi__lachen",
+        "loss_inr_median": 112328772.0,
+        "loss_inr_low": 91151938.0,
+        "loss_inr_high": 137029618.0
+      },
+      {
+        "poi_id": "teesta__poi__chungthang",
+        "loss_inr_median": 93376992.0,
+        "loss_inr_low": 74964437.0,
+        "loss_inr_high": 117126880.0
+      }
+    ],
+    "loss_total_inr_median": 205705764.0,
+    "loss_total_inr_low": 166116375.0,
+    "loss_total_inr_high": 254156498.0
   }
 }

@@ -112,6 +112,7 @@ export async function listScenarios(): Promise<Awaiting & {scenarios: Scenario[]
 /** Contract §5 #14 / §4.7 — GET /impact/{query_id}. */
 export async function getImpact(queryId: string): Promise<ImpactResponse> {
   if (!queryId) throw new Error('A query_id is required to load impact results.');
+  if (isPreviewMode()) return preview.getImpact(queryId);
   return api.impact(queryId);
 }
 

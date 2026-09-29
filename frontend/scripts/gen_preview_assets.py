@@ -25,6 +25,7 @@ Usage: conda run -n sih26 python frontend/scripts/gen_preview_assets.py
 """
 from __future__ import annotations
 
+import csv
 import json
 import math
 import statistics
@@ -39,6 +40,10 @@ OUT_DIR = Path(__file__).resolve().parents[1] / "public" / "preview"
 DATA_OUT_DIR = Path(__file__).resolve().parents[1] / "src" / "data" / "preview" / "generated"
 SITE_DETAIL_TEESTA = Path(__file__).resolve().parents[1] / "src" / "data" / "preview" / "site_detail.teesta.json"
 IMPACT_OUTPUTS_DOC = REPO_ROOT / "docs" / "impact_outputs.md"
+# Real, sourced M6 exposure data (docs/data_sources.md src_031/src_032), read directly
+# rather than retyped -- see gen_impact()'s docstring for why this is real, not illustrative.
+DAMAGE_CURVES_CSV = REPO_ROOT / "data" / "teesta" / "exposure" / "damage_curves.csv"
+ASSET_VALUES_CSV = REPO_ROOT / "data" / "teesta" / "exposure" / "asset_values.csv"
 SIZE = 256
 NODATA = -9999.0
 
@@ -281,6 +286,78 @@ def _load_impact_thresholds() -> dict:
     return yaml.safe_load(text[start:end])
 
 
+def _load_real_damage_curve(asset_class: str) -> tuple[list[float], list[float]]:
+    """Reads one asset_class's (depth_m, damage_fraction) points straight from the
+    real, committed data/teesta/exposure/damage_curves.csv -- the same file
+    backend/m6_impact/loss.py reads, sourced to src_031 (Huizinga et al. 2017).
+    Not retyped, so it can't drift from the real extracted JRC curve."""
+    depths, fracs = [], []
+    with open(DAMAGE_CURVES_CSV, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row["asset_class"] == asset_class:
+                depths.append(float(row["depth_m"]))
+                fracs.append(float(row["damage_fraction"]))
+    pairs = sorted(zip(depths, fracs))
+    return [p[0] for p in pairs], [p[1] for p in pairs]
+
+
+def _real_damage_fraction(asset_class: str, depth_m: float, depth_cap_m: float = 6.0) -> float:
+    """Linear interpolation over the real curve (backend/m6_impact/loss.py's own
+    method), capped at depth_cap_m per docs/impact_outputs.md §5."""
+    depths, fracs = _load_real_damage_curve(asset_class)
+    d = min(max(depth_m, 0.0), depth_cap_m)
+    for i in range(len(depths) - 1):
+        if depths[i] <= d <= depths[i + 1]:
+            t = (d - depths[i]) / (depths[i + 1] - depths[i]) if depths[i + 1] > depths[i] else 0.0
+            return fracs[i] + t * (fracs[i + 1] - fracs[i])
+    return fracs[-1]
+
+
+def _load_real_asset_value(asset_class: str) -> dict:
+    """One row of the real, committed data/teesta/exposure/asset_values.csv
+    (src_032), already computed with config/impact.yaml's sourced FX rate and
+    price index -- see gen_impact()'s docstring."""
+    with open(ASSET_VALUES_CSV, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row["asset_class"] == asset_class:
+                return row
+    raise KeyError(f"no asset_values.csv row for asset_class {asset_class!r}")
+
+
+def _depth_class(depth_m: float, edges: list[float]) -> str:
+    """docs/impact_outputs.md §1 depth classes, from depth_classes_m edges
+    [wet, low, moderate, high] (index 4, 'extreme', is > edges[3])."""
+    labels = ["wet", "low", "moderate", "high", "extreme"]
+    if depth_m < edges[0]:
+        return "dry"
+    for i, e in enumerate(edges[1:], start=1):
+        if depth_m < e:
+            return labels[i - 1]
+    return labels[-1]
+
+
+def _dv_class(dv_m2s: float, edges: list[float]) -> str:
+    """docs/impact_outputs.md §1.1 D*V hazard classes, from dv_hazard_m2s edges
+    [0.5, 1.0, 3.0]. VERIFY note in the doc applies -- not a sourced threshold."""
+    labels = ["lower_hazard", "unsafe_adults", "unsafe_most", "structural_damage"]
+    for i, e in enumerate(edges):
+        if dv_m2s < e:
+            return labels[i]
+    return labels[-1]
+
+
+def _round_2sf_floor(value: float, floor: float) -> float:
+    """docs/impact_outputs.md §3.2: round population to 2 significant figures;
+    counts below `floor` show as the floor (UI renders '< floor')."""
+    if value <= 0:
+        return 0.0
+    if value < floor:
+        return floor
+    import math as _m
+    magnitude = 10 ** (_m.floor(_m.log10(value)) - 1)
+    return round(value / magnitude) * magnitude
+
+
 def _teesta_emulator_input_ranges() -> dict[str, tuple[float, float]]:
     """Reads water_volume_m3/breach_width_m/failure_time_s low/high directly
     from site_detail.teesta.json's emulator_inputs, so the illustrative
@@ -297,7 +374,8 @@ def _teesta_pois() -> list[dict]:
     chainages already shown elsewhere, not invented distances."""
     site = json.loads(SITE_DETAIL_TEESTA.read_text())
     return [
-        {"poi_id": f["properties"]["poi_id"], "name": f["properties"]["name"], "chainage_m": f["properties"]["chainage_m"]}
+        {"poi_id": f["properties"]["poi_id"], "name": f["properties"]["name"],
+         "chainage_m": f["properties"]["chainage_m"], "kind": f["properties"]["kind"]}
         for f in site["pois"]["features"]
     ]
 
@@ -565,17 +643,38 @@ def gen_confidence_ensemble() -> dict:
             "raw_zone": "HIGH", "shown_zone": "POSSIBLE",
         }
 
-    # -- Per-POI P(floods) at each real POI's chainage-mapped row (channel centre) --
+    def _velocity_of(depth_m: float) -> float:
+        return 1.6 * math.sqrt(max(depth_m, 0.0))
+
+    depth_classes_m = thresholds["depth_classes_m"]
+    dv_hazard_m2s = thresholds["dv_hazard_m2s"]
+    arrival_bands_min = thresholds["arrival_bands_min"]
+
+    # -- Per-POI P(floods) at each real POI's chainage-mapped row (channel centre).
+    # velocity_ms/arrival_s use the same _velocity_of formula as ref_poi's summary
+    # below, applied to every POI, not just the farthest one (screen 9's warning
+    # table needs a per-POI Estimate, not just a probability + depth). --
     poi_results = []
     for poi in pois:
         row = min(FAR_HEIGHT - 1, round(poi["chainage_m"] / FAR_TOTAL_LENGTH_M * (FAR_HEIGHT - 1)))
         col = FAR_WIDTH // 2
         cell = row * FAR_WIDTH + col
+        v_median, v_p5, v_p95 = _velocity_of(median_depth[cell]), _velocity_of(p5_depth[cell]), _velocity_of(p95_depth[cell])
+        arrival_median = poi["chainage_m"] / v_median if v_median > 0 else None
+        arrival_fast = poi["chainage_m"] / v_p95 if v_p95 > 0 else None  # p95 depth -> faster -> earlier arrival
+        arrival_slow = poi["chainage_m"] / v_p5 if v_p5 > 0 else None  # p5 depth -> slower -> later arrival
         poi_results.append({
-            "poi_id": poi["poi_id"], "name": poi["name"], "chainage_m": poi["chainage_m"],
+            "poi_id": poi["poi_id"], "name": poi["name"], "chainage_m": poi["chainage_m"], "kind": poi["kind"],
             "p_floods": round(p_wet[cell], 3), "median_depth_m": round(median_depth[cell], 3),
             "p5_depth_m": round(p5_depth[cell], 3), "p95_depth_m": round(p95_depth[cell], 3),
             "zone": downgraded_zone[cell],
+            "median_velocity_ms": round(v_median, 3), "p5_velocity_ms": round(v_p5, 3), "p95_velocity_ms": round(v_p95, 3),
+            "median_arrival_s": round(arrival_median, 1) if arrival_median is not None else None,
+            "fast_arrival_s": round(arrival_fast, 1) if arrival_fast is not None else None,
+            "slow_arrival_s": round(arrival_slow, 1) if arrival_slow is not None else None,
+            "depth_class": _depth_class(median_depth[cell], depth_classes_m),
+            "dv_class": _dv_class(median_depth[cell] * v_median, dv_hazard_m2s),
+            "dv_m2s": round(median_depth[cell] * v_median, 3),
         })
 
     # -- Breach-cell (row 0) percentiles, for the unknown-breach summary's peak
@@ -585,9 +684,6 @@ def gen_confidence_ensemble() -> dict:
     bave_median = statistics.median(pt[1] for pt in ensemble_real)
     breach_channel_width_m = 2 * _channel_half_width_frac(bave_median, ranges) * VALLEY_WIDTH_M
 
-    def _velocity_of(depth_m: float) -> float:
-        return 1.6 * math.sqrt(max(depth_m, 0.0))
-
     def _discharge_of(depth_m: float) -> float:
         return _velocity_of(depth_m) * depth_m * breach_channel_width_m
 
@@ -596,6 +692,96 @@ def gen_confidence_ensemble() -> dict:
     cell_area_m2 = (VALLEY_WIDTH_M / FAR_WIDTH) * (FAR_TOTAL_LENGTH_M / FAR_HEIGHT)
     area_high_m2 = sum(1 for p in p_wet if p >= zone_high_p) * cell_area_m2
     area_high_possible_m2 = sum(1 for p in p_wet if p >= zone_possible_p) * cell_area_m2
+
+    # -- Screen 9 (impact/loss): population by arrival band, and per-village
+    # residential loss. Population uses an ILLUSTRATIVE density (no WorldPop/
+    # Census join in this preview's synthetic valley) -- everything downstream
+    # of that density (population counts, population-by-band) is illustrative
+    # and labelled so. Loss, by contrast, uses REAL sourced JRC data (see
+    # gen_impact_from_confidence()'s docstring) applied to an illustrative
+    # exposed building area, so it is a real-methodology, illustrative-exposure
+    # estimate -- not a null, and not a fully invented figure either.
+    ILLUSTRATIVE_POPULATION_DENSITY_PERSONS_PER_M2 = 150.0 / 1.0e6  # 150 persons/km^2
+    population_sig_figs = thresholds["population_sig_figs"]
+    population_floor = thresholds["population_floor"]
+    assert population_sig_figs == 2, "population rounding below assumes 2 sig figs"
+
+    def _band_label(minutes: float) -> str:
+        for i, e in enumerate(arrival_bands_min):
+            if minutes <= e:
+                lo = 0 if i == 0 else arrival_bands_min[i - 1]
+                return f"{lo}-{e}"
+        return f">{arrival_bands_min[-1]}"
+
+    band_high_area: dict[str, float] = {}
+    band_possible_area: dict[str, float] = {}
+    for cell in range(n):
+        row = cell // FAR_WIDTH
+        zone_here = downgraded_zone[cell]
+        if zone_here not in ("HIGH", "POSSIBLE"):
+            continue
+        v = _velocity_of(median_depth[cell])
+        if v <= 0:
+            continue
+        chainage_m = row / (FAR_HEIGHT - 1) * FAR_TOTAL_LENGTH_M
+        band = _band_label(chainage_m / v / 60.0)
+        if zone_here == "HIGH":
+            band_high_area[band] = band_high_area.get(band, 0.0) + cell_area_m2
+        band_possible_area[band] = band_possible_area.get(band, 0.0) + cell_area_m2
+    band_order = [f"{0 if i == 0 else arrival_bands_min[i-1]}-{e}" for i, e in enumerate(arrival_bands_min)] + [f">{arrival_bands_min[-1]}"]
+    population_by_arrival_band = []
+    for band in band_order:
+        area_high_band = band_high_area.get(band, 0.0)
+        area_possible_band = band_possible_area.get(band, 0.0)  # HIGH+POSSIBLE cells in this band
+        low_p = area_high_band * ILLUSTRATIVE_POPULATION_DENSITY_PERSONS_PER_M2
+        high_p = area_possible_band * ILLUSTRATIVE_POPULATION_DENSITY_PERSONS_PER_M2
+        if low_p <= 0 and high_p <= 0:
+            continue
+        population_by_arrival_band.append({
+            "arrival_band_min": band,
+            "low_persons": _round_2sf_floor(low_p, population_floor) if low_p > 0 else 0,
+            "high_persons": _round_2sf_floor(max(high_p, low_p), population_floor) if high_p > 0 else 0,
+        })
+
+    population_low = _round_2sf_floor(area_high_m2 * ILLUSTRATIVE_POPULATION_DENSITY_PERSONS_PER_M2, population_floor)
+    population_high = _round_2sf_floor(area_high_possible_m2 * ILLUSTRATIVE_POPULATION_DENSITY_PERSONS_PER_M2, population_floor)
+    population_high = max(population_high, population_low)
+    # docs/impact_outputs.md §3.2: "Don't headline the probability-weighted expected
+    # count... put it in a details panel if at all" -- computed here (Sigma p x pop
+    # over counted cells), not headlined, per the contract's own basis convention.
+    population_expected_raw = sum(
+        p_wet[c] * cell_area_m2 for c in range(n) if p_wet[c] >= zone_possible_p
+    ) * ILLUSTRATIVE_POPULATION_DENSITY_PERSONS_PER_M2
+    population_expected = round(population_expected_raw)
+
+    # -- Per-village illustrative residential loss, using REAL JRC damage
+    # curve + REAL sourced asset value (see gen_impact_from_confidence() for
+    # why these two inputs are real, not illustrative). Only named villages
+    # (kind: village in site_detail.teesta.json's POIs) are priced; dams,
+    # bridges and hospitals are facilities.gpkg points -- unpriced by the real
+    # backend/m6_impact/loss.py too (no footprint), so they are not priced here.
+    ILLUSTRATIVE_VILLAGE_FOOTPRINT_M2 = 200.0 * 200.0  # illustrative village extent around the POI
+    ILLUSTRATIVE_BUILT_UP_FRACTION = 0.15  # illustrative rural built-up fraction
+    ILLUSTRATIVE_AVG_BUILDING_FOOTPRINT_M2 = 60.0  # illustrative small rural house footprint
+    village_building_area_m2 = ILLUSTRATIVE_VILLAGE_FOOTPRINT_M2 * ILLUSTRATIVE_BUILT_UP_FRACTION
+    village_building_count = round(village_building_area_m2 / ILLUSTRATIVE_AVG_BUILDING_FOOTPRINT_M2)
+    residential_value = _load_real_asset_value("residential")
+    village_kinds = {p["poi_id"]: p["kind"] for p in pois}
+    village_losses = []
+    for poi_res in poi_results:
+        if village_kinds.get(poi_res["poi_id"]) != "village":
+            continue
+        value_per_m2 = float(residential_value["value_inr_per_unit"])
+        loss_median = _real_damage_fraction("residential", poi_res["median_depth_m"]) * village_building_area_m2 * value_per_m2
+        loss_low = _real_damage_fraction("residential", poi_res["p5_depth_m"]) * village_building_area_m2 * value_per_m2
+        loss_high = _real_damage_fraction("residential", poi_res["p95_depth_m"]) * village_building_area_m2 * value_per_m2
+        village_losses.append({
+            "poi_id": poi_res["poi_id"], "loss_inr_median": round(loss_median, 0),
+            "loss_inr_low": round(loss_low, 0), "loss_inr_high": round(loss_high, 0),
+        })
+    loss_total_median = sum(v["loss_inr_median"] for v in village_losses)
+    loss_total_low = sum(v["loss_inr_low"] for v in village_losses)
+    loss_total_high = sum(v["loss_inr_high"] for v in village_losses)
 
     # -- U (spread) at the reference POI, from the unknown-breach ensemble (same
     # cell_u_grade helper as the per-cell grid, using the mean per m5_specs.md SS6) --
@@ -767,6 +953,31 @@ def gen_confidence_ensemble() -> dict:
             "extent_area_m2": {"high_zone": round(area_high_m2, 0), "high_plus_possible_zone": round(area_high_possible_m2, 0)},
         },
         "downgrade_example": downgrade_info,
+        "impact": {
+            "_comment": "Screen 9 (impact/loss). population_* and population_by_arrival_band use an "
+                        "ILLUSTRATIVE population density (no WorldPop/Census join in this preview) applied to "
+                        "the unknown_breach extent areas above -- illustrative. village_losses use the REAL "
+                        "JRC damage curve and REAL sourced asset value (data/teesta/exposure/*.csv, src_031/"
+                        "src_032, computed with config/impact.yaml's now-sourced FX rate and price index) "
+                        "applied to an ILLUSTRATIVE exposed building area per village -- see gen_impact_from_confidence() "
+                        "and the impact fixture's own provenance note for the real-vs-illustrative split.",
+            "population_density_persons_per_m2": ILLUSTRATIVE_POPULATION_DENSITY_PERSONS_PER_M2,
+            "population_low": population_low,
+            "population_high": population_high,
+            "population_expected": population_expected,
+            "population_by_arrival_band": population_by_arrival_band,
+            "village_footprint_m2": ILLUSTRATIVE_VILLAGE_FOOTPRINT_M2,
+            "built_up_fraction": ILLUSTRATIVE_BUILT_UP_FRACTION,
+            "village_building_area_m2": village_building_area_m2,
+            "avg_building_footprint_m2": ILLUSTRATIVE_AVG_BUILDING_FOOTPRINT_M2,
+            "village_building_count": village_building_count,
+            "residential_value_inr_per_m2": float(residential_value["value_inr_per_unit"]),
+            "residential_value_source": residential_value["source"],
+            "village_losses": village_losses,
+            "loss_total_inr_median": round(loss_total_median, 0),
+            "loss_total_inr_low": round(loss_total_low, 0),
+            "loss_total_inr_high": round(loss_total_high, 0),
+        },
     }
     DATA_OUT_DIR.mkdir(parents=True, exist_ok=True)
     (DATA_OUT_DIR / "teesta_confidence.json").write_text(json.dumps(result, indent=2) + "\n")

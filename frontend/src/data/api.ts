@@ -69,11 +69,15 @@ export type ImpactResponse = {
     hydropower: Array<{name: string; zone: 'high' | 'possible'; depth_m: Estimate}>;
   };
   loss_inr: Estimate & {by_asset_class?: Record<string, Estimate>; assumptions?: string[]};
-  warning_table: Array<{poi_id: string; name: string; kind: string; chainage_m: number; zone: 'high' | 'possible'; p_inundation: number; arrival_s: Estimate; depth_m: Estimate; velocity_ms: Estimate}>;
+  warning_table: Array<{poi_id: string; name: string; kind: string; chainage_m: number; zone: 'high' | 'possible'; p_inundation: number; arrival_s: Estimate; depth_m: Estimate; velocity_ms: Estimate; x_preview_depth_class?: string; x_preview_dv_class?: string; x_preview_dv_m2s?: number}>;
   not_affected_poi_count: number; data_coverage_notes: string[];
   has_placeholders: boolean; placeholder_fields: string[];
   caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
   provenance: Record<string, unknown>;
+  /** design/target-state-preview only: proposed contract addition, not contract. */
+  x_preview_population_by_arrival_band?: Array<{arrival_band_min: string; low_persons: number; high_persons: number}>;
+  x_preview_population_by_arrival_band_note?: string;
+  x_preview_critical_facilities_note?: string;
 };
 export type CompareResponse = {
   site_id: string; scenario_id: string;
