@@ -26,7 +26,9 @@ import jobStageTraining from './job_status.onboarding.training.json';
 import jobStageValidating from './job_status.onboarding.validating.json';
 import jobStageReady from './job_status.onboarding.ready.json';
 import runMetaTeestaPilot from './run_meta.teesta_pilot_s001__delft3d.json';
-import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus} from '../api';
+import floodQueryTeestaSph from './flood_query_response.teesta.sph_direct.json';
+import scene3dTeestaSph from './scene3d.q_20260929T093000Z_9f3ab2.json';
+import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse} from '../api';
 
 const siteDetails: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -98,4 +100,40 @@ export async function getRunMeta(): Promise<Record<string, unknown>> {
 export async function getTerrainMeta(siteId: string): Promise<Record<string, unknown> | null> {
   const detail = siteDetails[siteId] as unknown as {x_preview_terrain?: Record<string, unknown>} | undefined;
   return detail?.x_preview_terrain ? structuredClone(detail.x_preview_terrain) : null;
+}
+
+// Screen 4 (near-field 3D / SPH result), and future screens 5/6/8/9: canned
+// flood_query_response fixtures keyed by "site_id|model|mode". There is no
+// usable real Teesta SPH result in this repo to reuse (the real a02 attempt
+// is flagged anomalous, see ui_text.json onboarding.noPairedSph) -- this is
+// illustrative, per the fixture's own provenance note.
+const FLOOD_QUERY_FIXTURES: Record<string, FloodQueryResponse> = {
+  'teesta|sph|scenario': floodQueryTeestaSph as unknown as FloodQueryResponse,
+};
+const SCENE3D_FIXTURES: Record<string, Scene3DResponse> = {
+  [(floodQueryTeestaSph as unknown as FloodQueryResponse).query_id]: scene3dTeestaSph as unknown as Scene3DResponse,
+};
+
+export async function queryFlood(request: FloodQueryRequest): Promise<FloodQueryResponse> {
+  const key = `${request.site_id}|${request.model}|${request.mode}`;
+  const fixture = FLOOD_QUERY_FIXTURES[key];
+  if (!fixture) throw new Error(`No preview fixture for a flood query with site_id=${request.site_id}, model=${request.model}, mode=${request.mode}.`);
+  return structuredClone(fixture);
+}
+
+export async function getScene3d(queryId: string): Promise<Scene3DResponse> {
+  const scene = SCENE3D_FIXTURES[queryId];
+  if (!scene) throw new Error(`No preview scene3d fixture for query_id ${JSON.stringify(queryId)}.`);
+  return structuredClone(scene);
+}
+
+/** The scene3d binary arrays are served as static files under
+ * frontend/public/preview/ by Vite itself (root-relative URLs), so this reads
+ * them with a plain same-origin fetch rather than api.file (which targets the
+ * backend's own origin/baseUrl). */
+export async function getScene3dArrays(scene: Scene3DResponse): Promise<{terrain: Float32Array; flood: Float32Array}> {
+  const [terrainRes, floodRes] = await Promise.all([fetch(scene.terrain.url), fetch(scene.flood_surface.url)]);
+  if (!terrainRes.ok || !floodRes.ok) throw new Error('Failed to load the preview 3D scene terrain/flood arrays.');
+  const [terrainBuf, floodBuf] = await Promise.all([terrainRes.arrayBuffer(), floodRes.arrayBuffer()]);
+  return {terrain: new Float32Array(terrainBuf), flood: new Float32Array(floodBuf)};
 }

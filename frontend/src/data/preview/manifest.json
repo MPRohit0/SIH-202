@@ -15,6 +15,12 @@
     "job_status.onboarding.training": {"file": "job_status.onboarding.training.json", "schema": "job_status.schema.json"},
     "job_status.onboarding.validating": {"file": "job_status.onboarding.validating.json", "schema": "job_status.schema.json"},
     "job_status.onboarding.ready": {"file": "job_status.onboarding.ready.json", "schema": "job_status.schema.json"},
-    "run_meta.teesta_pilot_s001__delft3d": {"file": "run_meta.teesta_pilot_s001__delft3d.json", "schema": "run_meta.schema.json"}
+    "run_meta.teesta_pilot_s001__delft3d": {"file": "run_meta.teesta_pilot_s001__delft3d.json", "schema": "run_meta.schema.json"},
+    "flood_query_response.teesta.sph_direct": {"file": "flood_query_response.teesta.sph_direct.json", "schema": "flood_query_response.schema.json"},
+    "scene3d.q_20260929T093000Z_9f3ab2": {"file": "scene3d.q_20260929T093000Z_9f3ab2.json", "schema": "scene3d.schema.json"}
+  },
+  "sidecars": {
+    "_comment": "Honesty-stamp-only companions to a strict (additionalProperties:false) schema fixture, keyed by the fixture name above they belong to. Not validated against any contracts/ schema -- only checked for the provenance/caveat stamp.",
+    "scene3d.q_20260929T093000Z_9f3ab2": {"file": "scene3d.q_20260929T093000Z_9f3ab2.x_preview.json"}
   }
 }

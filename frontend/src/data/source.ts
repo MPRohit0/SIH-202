@@ -63,6 +63,7 @@ export async function getTerrain(siteId?: string): Promise<Awaiting & {grid: Gri
  * both the rapid-query slider and the Physics-run form. */
 export async function queryFlood(request: FloodQueryRequest): Promise<FloodQueryResponse> {
   if (!request.site_id) throw new Error('A site_id is required to run a flood query.');
+  if (isPreviewMode()) return preview.queryFlood(request);
   let response = await api.floodQuery(request);
   if (response.status === 'failed') throw new Error('Flood query failed.');
   while (response.status === 'partial') {
@@ -150,6 +151,7 @@ export async function getTimeline(queryId: string, intervalS = 300): Promise<Tim
 /** Contract §5.9 — GET /scene3d/{query_id}. */
 export async function getScene3d(queryId: string, verticalExaggeration = 1.5): Promise<Scene3DResponse> {
   if (!queryId) throw new Error('A query_id is required to load the 3D scene.');
+  if (isPreviewMode()) return preview.getScene3d(queryId);
   return api.scene3d(queryId, verticalExaggeration);
 }
 
@@ -157,6 +159,7 @@ export async function getScene3d(queryId: string, verticalExaggeration = 1.5): P
  * Kept here, not in the component, per this file's "components must not fetch" rule. */
 export type Scene3DArrays = {terrain: Float32Array; flood: Float32Array};
 export async function getScene3dArrays(scene: Scene3DResponse): Promise<Scene3DArrays> {
+  if (isPreviewMode()) return preview.getScene3dArrays(scene);
   const [terrainRes, floodRes] = await Promise.all([api.file(scene.terrain.url), api.file(scene.flood_surface.url)]);
   if (!terrainRes.ok || !floodRes.ok) throw new Error('Failed to load the 3D scene terrain/flood arrays.');
   const [terrainBuf, floodBuf] = await Promise.all([terrainRes.arrayBuffer(), floodRes.arrayBuffer()]);

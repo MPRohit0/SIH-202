@@ -1,0 +1,48 @@
+{
+  "contract_version": "0.3.0",
+  "query_id": "q_20260929T093000Z_9f3ab2",
+  "frame": {
+    "crs_epsg": 32645,
+    "origin_x_utm_m": 640000.0,
+    "origin_y_utm_m": 3079000.0,
+    "vertical_exaggeration": 1.5,
+    "vertical_exaggeration_applies_to": "z_axis",
+    "units": "m",
+    "axis_order": "east,north,up"
+  },
+  "terrain": {
+    "url": "/preview/sph_nearfield_terrain.bin",
+    "encoding": "float32_le_row_major",
+    "width": 80,
+    "height": 60,
+    "cell_size_x_m": 15.0,
+    "cell_size_y_m": 15.0,
+    "origin_x_utm_m": 640000.0,
+    "origin_y_utm_m": 3079000.0,
+    "origin_local_x_m": 0.0,
+    "origin_local_y_m": 0.0,
+    "transform": [15.0, 0.0, 640000.0, 0.0, -15.0, 3079000.0],
+    "crs_epsg": 32645,
+    "min_elev_m": 1750.0,
+    "max_elev_m": 1926.0,
+    "nodata": -9999.0,
+    "byte_length": 19200
+  },
+  "flood_surface": {
+    "url": "/preview/sph_nearfield_flood.bin",
+    "encoding": "float32_le_row_major",
+    "nodata": -9999.0,
+    "basis": "terrain + depth_p50",
+    "width": 80,
+    "height": 60,
+    "byte_length": 19200
+  },
+  "comparison": {
+    "nearfield_bounds_local": [[0.0, 0.0], [1200.0, 900.0]],
+    "delft3d_surface_url": null,
+    "delft3d_surface_basis": null,
+    "sph_surfaces": []
+  },
+  "payload_bytes": 38400,
+  "max_payload_mb": 20
+}

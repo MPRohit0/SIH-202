@@ -61,7 +61,9 @@ def test_fixture_validates_against_its_schema(fixture_name):
 
 
 def test_every_preview_json_file_is_in_the_manifest():
-    manifest_files = {entry["file"] for entry in _manifest()["fixtures"].values()}
+    manifest = _manifest()
+    manifest_files = {entry["file"] for entry in manifest["fixtures"].values()}
+    manifest_files |= {entry["file"] for entry in manifest.get("sidecars", {}).values() if isinstance(entry, dict)}
     on_disk = {p.name for p in PREVIEW_DIR.glob("*.json") if p.name != "manifest.json"}
     orphaned = on_disk - manifest_files
     assert not orphaned, f"Preview fixtures not listed in manifest.json: {sorted(orphaned)}"
@@ -82,13 +84,24 @@ def _iter_caveats(payload) -> list:
 FIXTURES_WITHOUT_OWN_PROVENANCE = {"site_list"}
 
 
+def _stamp_payload(fixture_name: str) -> dict:
+    """The payload to check for the honesty stamp: a fixture's own JSON, or --
+    for a strict (additionalProperties:false) schema that cannot carry
+    provenance/caveats itself, such as scene3d -- its manifest-registered
+    sidecar file."""
+    sidecar = _manifest().get("sidecars", {}).get(fixture_name)
+    if sidecar:
+        return json.loads((PREVIEW_DIR / sidecar["file"]).read_text())
+    return _load(fixture_name)
+
+
 @pytest.mark.parametrize(
     "fixture_name", [n for n in _fixture_names() if n not in FIXTURES_WITHOUT_OWN_PROVENANCE]
 )
 def test_fixture_is_stamped_as_preview(fixture_name):
     """Every fixture must be unambiguously marked as illustrative, not model
     output (CLAUDE.md rule 3; the branch's honesty requirements)."""
-    payload = _load(fixture_name)
+    payload = _stamp_payload(fixture_name)
     provenance = payload.get("provenance") or payload.get("x_preview_provenance")
     assert provenance is not None, (
         f"{fixture_name} has no provenance or x_preview_provenance object stamping it as preview data"
