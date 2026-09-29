@@ -1,6 +1,0 @@
-{
-  "job_id": "job_20260929T090000Z_prevw1",
-  "site_id": "new_reach_preview",
-  "x_preview_provenance": {"source": "fixture:preview", "note": "Target-state preview fixture; not a real POST /sites response."},
-  "caveats": ["preview_illustrative"]
-}

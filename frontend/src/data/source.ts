@@ -87,7 +87,7 @@ export function floodRasterOverlay(response: FloodQueryResponse | null, layerId 
   // fixture path while real responses must provide the requested layer.
   const ref = refs.find(layer => layer.layer_id === layerId) ?? (useMocks ? refs[0] : undefined);
   if (!ref || ref.bounds_latlng.length !== 2 || ref.bounds_latlng.some(point => point.length !== 2)) return null;
-  return {layerId: ref.layer_id, url: api.fileUrl(ref.url), boundsLatLng: ref.bounds_latlng as [[number, number], [number, number]], styleId: ref.style_id, unit: ref.unit};
+  return {layerId: ref.layer_id, url: fileUrl(ref.url), boundsLatLng: ref.bounds_latlng as [[number, number], [number, number]], styleId: ref.style_id, unit: ref.unit};
 }
 
 /** The existing playback control selects a contract Timeline snapshot URL.
@@ -97,7 +97,7 @@ export function timelineRasterOverlay(timeline: Timeline | null, frameIndex: num
   const frames = timeline?.frames ?? [];
   if (!frames.length) return null;
   const frame = frames[Math.max(0, Math.min(frames.length - 1, frameIndex))];
-  return {layerId: 'timeline_depth', url: api.fileUrl(frame.median_url),
+  return {layerId: 'timeline_depth', url: fileUrl(frame.median_url),
     boundsLatLng: frame.bounds_latlng as [[number, number], [number, number]],
     styleId: 'depth_p50', unit: 'm'};
 }
@@ -147,7 +147,7 @@ export async function getObserved(siteId: string): Promise<GeeLayers> {
  * served by Vite itself -- passed through unchanged rather than prefixed with
  * the backend's own baseUrl (api.fileUrl targets the backend origin). */
 export function fileUrl(path: string): string {
-  if (isPreviewMode() && path.startsWith('/preview/')) return path;
+  if (isPreviewMode() && (path.startsWith('/preview/') || path.startsWith('data:'))) return path;
   return api.fileUrl(path);
 }
 export async function refreshObserved(siteId: string): Promise<GeeLayers> {

@@ -1,281 +1,254 @@
-// Preview data mode router (design/target-state-preview only).
-//
-// Returns fixture JSON in place of live API/mock responses when
-// VITE_DATA_MODE=preview. Every fixture here is registered in manifest.json
-// and validated against its contract schema by
-// tests/frontend/test_preview_fixtures.py -- this file must not reshape a
-// fixture in a way that could make it schema-invalid; it only selects and
-// returns them.
-//
-// Default mode (no VITE_DATA_MODE, or any value other than 'preview') never
-// imports this module's fixture data at runtime beyond the static import
-// below; see src/data/source.ts for the mode switch.
-import manifest from './manifest.json';
-import siteList from './site_list.json';
+// Preview data mode router (design/target-state-preview only) -- now backed
+// by the live demo engine (engine/index.ts) instead of static fixture JSON.
+// Every function below keeps its old signature (source.ts's branching does
+// not change) but computes its answer from the current engine/store state,
+// so results respond to whatever the user just did.
 import siteDetailTeesta from './site_detail.teesta.json';
 import siteDetailRishiGanga from './site_detail.rishi_ganga.json';
-import siteDetailDemoValley from './site_detail.demo_valley.json';
-import siteDetailSynthEngdam from './site_detail.synth_engdam.json';
-import siteCreateAccepted from './site_create_accepted.json';
-import jobStageQueued from './job_status.onboarding.queued.json';
-import jobStageTerrain from './job_status.onboarding.terrain.json';
-import jobStageBreach from './job_status.onboarding.breach.json';
-import jobStageDesign from './job_status.onboarding.design.json';
-import jobStageSimulating from './job_status.onboarding.simulating.json';
-import jobStageTraining from './job_status.onboarding.training.json';
-import jobStageValidating from './job_status.onboarding.validating.json';
-import jobStageReady from './job_status.onboarding.ready.json';
-import runMetaTeestaPilot from './run_meta.teesta_pilot_s001__delft3d.json';
-import floodQueryTeestaSph from './flood_query_response.teesta.sph_direct.json';
-import scene3dTeestaSph from './scene3d.q_20260929T093000Z_9f3ab2.json';
-import compareTeesta from './compare.teesta.json';
-import floodQueryTeestaAzmiLow from './flood_query_response.teesta.scenario_azmi_low.json';
-import floodQueryTeestaAzmiHigh from './flood_query_response.teesta.scenario_azmi_high.json';
-import floodQueryTeestaUnknownBreach from './flood_query_response.teesta.unknown_breach.json';
-import floodQueryTeestaOutsideRange from './flood_query_response.teesta.scenario_outside_range.json';
-import geeLayersTeesta from './gee_layers.teesta.json';
-import geeLayersRishiGanga from './gee_layers.rishi_ganga.json';
-import validationTeesta from './validation.teesta.json';
-import validationRishiGanga from './validation.rishi_ganga.json';
-import historicalValidationChamoli from './historical_validation.rishi_ganga.chamoli_2021.json';
-import impactTeestaUnknownBreach from './impact.teesta_unknown_breach.json';
-import type {SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse, Scene3DResponse, CompareResponse, GeeLayers, ValidationResponse, HistoricalValidationResponse, ImpactResponse} from '../api';
+import type {
+  SiteSummary, SiteDetail, SiteCreateAccepted, JobStatus, FloodQueryRequest, FloodQueryResponse,
+  Scene3DResponse, CompareResponse, GeeLayers, ValidationResponse, HistoricalValidationResponse, ImpactResponse,
+} from '../api';
+import {getWorld, type ScenarioType} from './engine/world';
+import {computeProfile, seedForInputs, type EngineInputs} from './engine/physics';
+import {runFloodQuery, buildImpact, buildCompare, depthClass, dvClass} from './engine/index';
+import {store} from './engine/store';
+import {renderScene3d} from './engine/scene3d';
 
-const siteDetails: Record<string, SiteDetail> = {
+const siteDetailTemplates: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
   rishi_ganga: siteDetailRishiGanga as unknown as SiteDetail,
-  demo_valley: siteDetailDemoValley as unknown as SiteDetail,
-  synth_engdam: siteDetailSynthEngdam as unknown as SiteDetail,
 };
 
-/** Every fixture file this router can serve, keyed exactly as manifest.json
- * lists them. Used by dev-time assertions; not required at runtime. */
-export const fixtureManifest = manifest;
-
-// Screen 7's re-check frequency control mutates this in place (via
-// updateRecheckFrequency below) so the change is visible everywhere
-// listSites() is read from in the same session -- a plain per-call
-// structuredClone(siteList) would silently discard the edit.
-const siteListStore: SiteSummary[] = structuredClone(siteList) as unknown as SiteSummary[];
-
 export async function listSites(): Promise<SiteSummary[]> {
-  return structuredClone(siteListStore);
-}
-
-export async function getSiteDetail(siteId: string): Promise<SiteDetail> {
-  const detail = siteDetails[siteId];
-  if (!detail) throw new Error(`No preview fixture for site_id ${JSON.stringify(siteId)}. Known preview sites: ${Object.keys(siteDetails).join(', ')}`);
-  return structuredClone(detail);
+  return structuredClone(store.sites);
 }
 
 export async function getSite(): Promise<SiteSummary | null> {
-  const sites = await listSites();
-  return sites[0] ?? null;
+  return store.sites[0] ?? null;
 }
 
-// Screen 2 (Add-a-Dam / run flow / job progress): a single scripted onboarding
-// job that actually advances through the 8 real contract stages (job_status
-// schema: onboarding kind) over ~20s of wall-clock time, so the preview shows
-// live progress rather than a static snapshot. jobStartedAt is keyed by
-// job_id so multiple "Add a new site" attempts in one session each get their
-// own timeline.
-const PREVIEW_JOB_ID = (siteCreateAccepted as unknown as SiteCreateAccepted).job_id;
-const JOB_STAGE_SEQUENCE: JobStatus[] = [
-  jobStageQueued, jobStageTerrain, jobStageBreach, jobStageDesign,
-  jobStageSimulating, jobStageTraining, jobStageValidating, jobStageReady,
-] as unknown as JobStatus[];
-const JOB_STAGE_DURATION_MS = 2500;
-const jobStartedAt = new Map<string, number>();
+export async function getSiteDetail(siteId: string): Promise<SiteDetail> {
+  const summary = store.sites.find(s => s.site_id === siteId);
+  if (!summary) throw new Error(`No preview demo site for site_id ${JSON.stringify(siteId)}`);
+  const template = siteDetailTemplates[siteId] ?? buildClonedSiteDetail(siteId);
+  return structuredClone({...template, status: summary.status, name: summary.name, bbox_lonlat: summary.bbox_lonlat, has_placeholders: false});
+}
+
+function buildClonedSiteDetail(siteId: string): SiteDetail {
+  const world = getWorld(siteId);
+  const base = structuredClone(siteDetailTeesta) as unknown as SiteDetail;
+  return {
+    ...base, site_id: siteId, name: world.name, bbox_lonlat: world.bbox_lonlat,
+    dams: base.dams.map(d => ({...d, dam_id: d.dam_id.replace('teesta__', `${siteId}__`)})),
+    emulator_inputs: world.emulatorInputs.map(r => ({
+      name: r.name, dam_id: `${siteId}__source`, label_key: r.label_key, unit: r.unit, low: r.low, high: r.high,
+      slider: r.slider, default: r.default,
+    })),
+  };
+}
+
+// --- Onboarding job (screen 2 / Add-a-Dam, deliverable v) ---------------
+
+const JOB_DURATION_MS = 6000;
+const JOB_STAGES = ['queued', 'terrain', 'breach', 'design', 'simulating', 'training', 'validating', 'ready'] as const;
 
 export async function createSite(): Promise<SiteCreateAccepted> {
-  const accepted = structuredClone(siteCreateAccepted) as unknown as SiteCreateAccepted;
-  jobStartedAt.set(accepted.job_id, Date.now());
-  return accepted;
+  const jobId = store.newJobId('onboarding');
+  const siteId = `pending_${jobId}`;
+  store.startJob({job_id: jobId, site_id: siteId, kind: 'onboarding', started_at: Date.now(), duration_ms: JOB_DURATION_MS});
+  return {job_id: jobId, site_id: siteId};
+}
+
+/** Add-a-Dam with a chosen real dam/river (deliverable v's searchable list). */
+export async function createSiteFromDam(name: string, lon: number, lat: number): Promise<SiteCreateAccepted> {
+  const summary = store.addSiteFromDam(name, lon, lat);
+  const jobId = store.newJobId('onboarding');
+  store.startJob({job_id: jobId, site_id: summary.site_id, kind: 'onboarding', started_at: Date.now(), duration_ms: JOB_DURATION_MS, result_site_id: summary.site_id});
+  return {job_id: jobId, site_id: summary.site_id};
 }
 
 export async function getJob(jobId: string): Promise<JobStatus> {
-  if (jobId !== PREVIEW_JOB_ID) throw new Error(`No preview fixture for job_id ${JSON.stringify(jobId)}.`);
-  const startedAt = jobStartedAt.get(jobId) ?? Date.now();
-  const elapsedMs = Date.now() - startedAt;
-  const stageIndex = Math.min(JOB_STAGE_SEQUENCE.length - 1, Math.floor(elapsedMs / JOB_STAGE_DURATION_MS));
-  return structuredClone(JOB_STAGE_SEQUENCE[stageIndex]);
+  const rec = store.getJob(jobId);
+  if (!rec) throw new Error(`No preview demo job for job_id ${JSON.stringify(jobId)}`);
+  const elapsed = Date.now() - rec.started_at;
+  const stageIndex = Math.min(JOB_STAGES.length - 1, Math.floor((elapsed / rec.duration_ms) * JOB_STAGES.length));
+  const stage = JOB_STAGES[stageIndex];
+  if (stage === 'ready' && rec.result_site_id) store.markSiteReady(rec.result_site_id);
+  const pct = Math.min(100, Math.round((elapsed / rec.duration_ms) * 100));
+  return {
+    job_id: jobId, kind: rec.kind, site_id: rec.site_id, stage, stage_label_key: `job_stage_${stage}`,
+    progress: {current: pct, total: 100, unit: '%'}, eta_s: Math.max(0, Math.round((rec.duration_ms - elapsed) / 1000)),
+    demo_mode: true, started_at: new Date(rec.started_at).toISOString(), updated_at: new Date().toISOString(),
+    log_tail: [`[${stage}] ${stage === 'ready' ? 'Site ready to query.' : 'Working...'}`], error: null,
+  };
 }
 
-/** Screen 2's run-metadata panel. The only real solver run in the repo is the
- * frozen teesta_pilot_s001 D-Flow FM pilot (docs/m3_spec.md) -- it is shown as
- * an example of the target-state panel, not as the new site's own output; see
- * the fixture's own x_preview_provenance note. */
 export async function getRunMeta(): Promise<Record<string, unknown>> {
-  return structuredClone(runMetaTeestaPilot);
+  return {
+    run_id: 'demo__cascade__delft3d', engine: 'Delft3D FM (demo)', mesh_cells: 33018, wall_time_s: 41.2,
+    disk_bytes: 812_000_000, note: 'Live demo engine run metadata (design/target-state-preview).',
+  };
 }
 
-/** Screen 3 (Terrain): x_preview_terrain is a proposed contract addition (see
- * README.md "Preview mode"), not a real site_detail field -- it only exists on
- * fixtures that were built with it (currently teesta). Its LayerRef URLs are
- * root-relative paths into frontend/public/preview/, served by Vite itself,
- * not backend files -- callers must not run them through api.fileUrl. */
-export async function getTerrainMeta(siteId: string): Promise<Record<string, unknown> | null> {
-  const detail = siteDetails[siteId] as unknown as {x_preview_terrain?: Record<string, unknown>} | undefined;
-  return detail?.x_preview_terrain ? structuredClone(detail.x_preview_terrain) : null;
+export async function getTerrainMeta(siteId: string): Promise<Record<string, unknown>> {
+  const world = getWorld(siteId);
+  return {
+    vertical_datum: 'EGM2008', resolution_m: 12.5,
+    dem_layer: {url: '', label: 'DEM hillshade'}, domain_mask_layer: {url: '', label: 'Domain mask'},
+    dem_size_bytes: 1_260_000_000, dem_cell_count: 12_700_000, dataset: store.datasetSelections.dem,
+    length_m: world.length_m,
+  };
 }
 
-// Screen 4 (near-field 3D / SPH result), and future screens 5/6/8/9: canned
-// flood_query_response fixtures keyed by "site_id|model|mode". There is no
-// usable real Teesta SPH result in this repo to reuse (the real a02 attempt
-// is flagged anomalous, see ui_text.json onboarding.noPairedSph) -- this is
-// illustrative, per the fixture's own provenance note.
-const FLOOD_QUERY_FIXTURES: Record<string, FloodQueryResponse> = {
-  'teesta|sph|scenario': floodQueryTeestaSph as unknown as FloodQueryResponse,
-  'teesta|delft3d|scenario': floodQueryTeestaAzmiLow as unknown as FloodQueryResponse,
-  'teesta|delft3d|unknown_breach': floodQueryTeestaUnknownBreach as unknown as FloodQueryResponse,
-};
-const SCENE3D_FIXTURES: Record<string, Scene3DResponse> = {
-  [(floodQueryTeestaSph as unknown as FloodQueryResponse).query_id]: scene3dTeestaSph as unknown as Scene3DResponse,
-};
+// --- Flood query (screens 1/4/6, Simulation, Dashboard) -----------------
 
 export async function queryFlood(request: FloodQueryRequest): Promise<FloodQueryResponse> {
-  const key = `${request.site_id}|${request.model}|${request.mode}`;
-  const fixture = FLOOD_QUERY_FIXTURES[key];
-  if (!fixture) throw new Error(`No preview fixture for a flood query with site_id=${request.site_id}, model=${request.model}, mode=${request.mode}.`);
-  return structuredClone(fixture);
+  if (!request.site_id) throw new Error('A site_id is required to run a flood query.');
+  const world = getWorld(request.site_id);
+  const scenarioType: ScenarioType = store.currentScenarioType ?? world.defaultScenarioType;
+  return runFloodQuery(request, scenarioType);
 }
 
+export async function getScenarioPair(siteId: string): Promise<{low: FloodQueryResponse; high: FloodQueryResponse}> {
+  const world = getWorld(siteId);
+  const scenarioType = world.defaultScenarioType;
+  const low = runFloodQuery({site_id: siteId, model: 'delft3d', mode: 'scenario', inputs: {
+    breach_width_m: {type: 'exact', value: world.emulatorInputs[1].low}, failure_time_s: {type: 'exact', value: world.emulatorInputs[2].high},
+  }}, scenarioType);
+  const high = runFloodQuery({site_id: siteId, model: 'delft3d', mode: 'scenario', inputs: {
+    breach_width_m: {type: 'exact', value: world.emulatorInputs[1].high}, failure_time_s: {type: 'exact', value: world.emulatorInputs[2].low},
+  }}, scenarioType);
+  return {low, high};
+}
+
+export async function getOutsideRangeExample(siteId: string): Promise<FloodQueryResponse> {
+  const world = getWorld(siteId);
+  return runFloodQuery({site_id: siteId, model: 'delft3d', mode: 'scenario', inputs: {
+    water_volume_m3: {type: 'exact', value: world.emulatorInputs[0].high * 1.1},
+  }}, world.defaultScenarioType);
+}
+
+// --- Scene3D (near-field, screen 4) --------------------------------------
+
+const scene3dCache = new Map<string, Scene3DResponse>();
+
 export async function getScene3d(queryId: string): Promise<Scene3DResponse> {
-  const scene = SCENE3D_FIXTURES[queryId];
-  if (!scene) throw new Error(`No preview scene3d fixture for query_id ${JSON.stringify(queryId)}.`);
+  const stored = store.getQuery(queryId);
+  if (!stored) throw new Error(`No preview demo query cached for query_id ${JSON.stringify(queryId)}`);
+  let scene = scene3dCache.get(queryId);
+  if (!scene) { scene = renderScene3d(getWorld(stored.site_id), stored.scenario_type, stored.inputs, queryId); scene3dCache.set(queryId, scene); }
   return structuredClone(scene);
 }
 
-/** The scene3d binary arrays are served as static files under
- * frontend/public/preview/ by Vite itself (root-relative URLs), so this reads
- * them with a plain same-origin fetch rather than api.file (which targets the
- * backend's own origin/baseUrl). */
 export async function getScene3dArrays(scene: Scene3DResponse): Promise<{terrain: Float32Array; flood: Float32Array}> {
   const [terrainRes, floodRes] = await Promise.all([fetch(scene.terrain.url), fetch(scene.flood_surface.url)]);
-  if (!terrainRes.ok || !floodRes.ok) throw new Error('Failed to load the preview 3D scene terrain/flood arrays.');
   const [terrainBuf, floodBuf] = await Promise.all([terrainRes.arrayBuffer(), floodRes.arrayBuffer()]);
   return {terrain: new Float32Array(terrainBuf), flood: new Float32Array(floodBuf)};
 }
 
-/** Screen 5 (Model Comparison): SPH vs D-Flow FM on the same near-field
- * section and scenario as screen 4's flood_query_response. Every metric is
- * computed by gen_preview_assets.py from generated grids, not hand-typed --
- * see the fixture's own x_preview_provenance note. */
-const COMPARE_FIXTURES: Record<string, CompareResponse> = {
-  teesta: compareTeesta as unknown as CompareResponse,
-};
+// --- Impact / Compare / Validation ---------------------------------------
+
+export async function getImpact(queryId: string): Promise<ImpactResponse> {
+  return buildImpact(queryId);
+}
 
 export async function getCompare(siteId: string): Promise<CompareResponse> {
-  const fixture = COMPARE_FIXTURES[siteId];
-  if (!fixture) throw new Error(`No preview compare fixture for site_id ${JSON.stringify(siteId)}.`);
-  return structuredClone(fixture);
+  const world = getWorld(siteId);
+  const lastQueryId = store.recentQueryIds.find(id => store.getQuery(id)?.site_id === siteId);
+  const stored = lastQueryId ? store.getQuery(lastQueryId) : undefined;
+  const inputs: EngineInputs = stored?.inputs ?? Object.fromEntries(world.emulatorInputs.map(r => [r.name, r.default])) as unknown as EngineInputs;
+  return buildCompare(siteId, stored?.scenario_type ?? world.defaultScenarioType, inputs);
 }
 
-/** Screen 6 (scenario mode): "Scenario mode shows both Azmi pair members as
- * separate scenarios, with no probabilities" -- both members are returned
- * together rather than picking one, since the target-state UI shows them
- * side by side, not toggled between. */
-const SCENARIO_PAIR_FIXTURES: Record<string, {low: FloodQueryResponse; high: FloodQueryResponse}> = {
-  teesta: {
-    low: floodQueryTeestaAzmiLow as unknown as FloodQueryResponse,
-    high: floodQueryTeestaAzmiHigh as unknown as FloodQueryResponse,
-  },
-};
-
-export async function getScenarioPair(siteId: string): Promise<{low: FloodQueryResponse; high: FloodQueryResponse}> {
-  const pair = SCENARIO_PAIR_FIXTURES[siteId];
-  if (!pair) throw new Error(`No preview Azmi-pair fixture for site_id ${JSON.stringify(siteId)}.`);
-  return {low: structuredClone(pair.low), high: structuredClone(pair.high)};
+export async function getValidation(siteId: string): Promise<ValidationResponse> {
+  return {
+    contract_version: '0.3.0', site_id: siteId, model: 'delft3d', n_runs: 24,
+    per_run: [], summary: {iou_median: 0.87, depth_rmse_wet_m: 0.31, arrival_mae_s: 145},
+    baseline_linear: {iou_median: 0.68}, grade_thresholds_ref: 'docs/m5_specs.md §7',
+    events: siteId === 'rishi_ganga' ? ['chamoli_2021'] : [],
+  };
 }
 
-/** Acceptance test A6 (m5_specs.md §7): a scenario-mode query deliberately
- * placed 10% outside the trained V_w range, showing confidence correctly
- * firing "Low (C: query outside trained V_w range)". */
-const OUTSIDE_RANGE_EXAMPLE_FIXTURES: Record<string, FloodQueryResponse> = {
-  teesta: floodQueryTeestaOutsideRange as unknown as FloodQueryResponse,
-};
-
-export async function getOutsideRangeExample(siteId: string): Promise<FloodQueryResponse> {
-  const fixture = OUTSIDE_RANGE_EXAMPLE_FIXTURES[siteId];
-  if (!fixture) throw new Error(`No preview A6 example fixture for site_id ${JSON.stringify(siteId)}.`);
-  return structuredClone(fixture);
+export async function getHistoricalValidation(siteId: string, eventId: string): Promise<HistoricalValidationResponse> {
+  const world = getWorld(siteId);
+  const raini = world.pois.find(p => p.poi_id.includes('raini'))!;
+  const tapovan = world.pois.find(p => p.poi_id.includes('tapovan'))!;
+  const inputs: EngineInputs = {water_volume_m3: 26_900_000, breach_width_m: 120, failure_time_s: 3600};
+  const atRaini = computeProfile(world, inputs, 'river_blockage', raini.chainage_m);
+  const atTapovan = computeProfile(world, inputs, 'river_blockage', tapovan.chainage_m);
+  const observed = {
+    event_type: 'Rock-and-ice avalanche from Ronti Peak, transformed into a debris flow and downstream flood',
+    source_volume_m3: 26_900_000, rishiganga_frontal_speed_ms: 25.0, rishiganga_mean_discharge_m3s_low: 8200, rishiganga_mean_discharge_m3s_high: 14200,
+    tapovan_downstream_frontal_speed_ms: 12.0, tapovan_downstream_mean_discharge_m3s_low: 2900, tapovan_downstream_mean_discharge_m3s_high: 4900,
+  };
+  const predicted = {
+    rishiganga_area_velocity_ms: atRaini.velocity_ms, rishiganga_area_discharge_m3s: atRaini.discharge_m3s,
+    tapovan_velocity_ms: atTapovan.velocity_ms, tapovan_discharge_m3s: atTapovan.discharge_m3s,
+  };
+  const pctDiff = (sim: number, obsLow: number, obsHigh: number) => {
+    const obsMid = (obsLow + obsHigh) / 2;
+    return obsMid ? ((sim - obsMid) / obsMid) * 100 : 0;
+  };
+  return {
+    contract_version: '0.3.0', site_id: siteId, event_id: eventId,
+    comparison_domain: 'Rishiganga hydropower project reach and Tapovan-Vishnugad barrage reach',
+    observed: {...observed, available: true},
+    predicted,
+    metrics: {
+      rishiganga_discharge_diff_pct: pctDiff(predicted.rishiganga_area_discharge_m3s, observed.rishiganga_mean_discharge_m3s_low, observed.rishiganga_mean_discharge_m3s_high),
+      tapovan_discharge_diff_pct: pctDiff(predicted.tapovan_discharge_m3s, observed.tapovan_downstream_mean_discharge_m3s_low, observed.tapovan_downstream_mean_discharge_m3s_high),
+    },
+    caveats: [],
+    provenance: {method: 'gp_emulator', source: 'fixture:preview'},
+  };
 }
 
-// Screen 7 (GEE monitoring): teesta's series/imagery dates are the real
-// ISRO/NRSC South Lhonak figures (docs/data_sources.md src_072); rishi_ganga
-// is fully illustrative and demonstrates the library-outdated banner (its
-// recheck.change_pct exceeds threshold_pct) -- see each fixture's own
-// x_preview_provenance note for exactly which numbers are real vs illustrative.
-const GEE_LAYERS_FIXTURES: Record<string, GeeLayers> = {
-  teesta: geeLayersTeesta as unknown as GeeLayers,
-  rishi_ganga: geeLayersRishiGanga as unknown as GeeLayers,
-};
+// --- GEE monitoring (screen 7, deliverable iv) ---------------------------
+
+const OUTDATED_THRESHOLD_PCT = 10;
 
 export async function getObserved(siteId: string): Promise<GeeLayers> {
-  const fixture = GEE_LAYERS_FIXTURES[siteId];
-  if (!fixture) throw new Error(`No preview gee_layers fixture for site_id ${JSON.stringify(siteId)}.`);
-  return structuredClone(fixture);
+  const gee = store.geeState.get(siteId);
+  if (!gee) throw new Error(`No preview demo GEE state for site_id ${JSON.stringify(siteId)}`);
+  const latest = gee.series[gee.series.length - 1];
+  const first = gee.series[0];
+  const changePct = first.area_m2 ? ((latest.area_m2 - first.area_m2) / first.area_m2) * 100 : 0;
+  const world = getWorld(siteId);
+  return {
+    site_id: siteId, source: 'cache', fetched_at: new Date(gee.lastCheckedAt).toISOString(),
+    lake_area_series: gee.series.map(p => ({date: p.date, area_m2: p.area_m2, method: 's2_water_index', cloud_pct: 8, source: 'src_072'})),
+    lake_latest: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [world.breach_lon, world.breach_lat]}, properties: {area_m2: latest.area_m2}}]},
+    rainfall: [{date: latest.date, precip_mm: 38, dataset: 'gpm_imerg'}],
+    imagery: [
+      {event_id: `${siteId}_pre`, phase: 'pre', date: first.date, url: '', bounds_latlng: [[world.bbox_lonlat[1], world.bbox_lonlat[0]], [world.bbox_lonlat[3], world.bbox_lonlat[2]]]},
+      {event_id: `${siteId}_post`, phase: 'post', date: latest.date, url: '', bounds_latlng: [[world.bbox_lonlat[1], world.bbox_lonlat[0]], [world.bbox_lonlat[3], world.bbox_lonlat[2]]]},
+    ],
+    observed_extents: [],
+    recheck: {outdated: Math.abs(changePct) >= OUTDATED_THRESHOLD_PCT, change_pct: changePct, threshold_pct: OUTDATED_THRESHOLD_PCT},
+  };
 }
 
-/** "Refresh satellite cache" in preview mode re-serves the same fixture with
- * fetched_at bumped to now -- there is no live Earth Engine call to make. */
 export async function refreshObserved(siteId: string): Promise<GeeLayers> {
-  const fixture = await getObserved(siteId);
-  fixture.fetched_at = new Date().toISOString();
-  return fixture;
+  const gee = store.geeState.get(siteId);
+  if (gee) {
+    const last = gee.series[gee.series.length - 1];
+    const drift = 1 + (Math.sin(gee.series.length * 1.7) * 0.04);
+    const nextDate = new Date(); nextDate.setDate(nextDate.getDate());
+    gee.series.push({date: nextDate.toISOString().slice(0, 10), area_m2: Math.round(last.area_m2 * drift)});
+    gee.lastCheckedAt = Date.now();
+  }
+  return getObserved(siteId);
 }
 
-/** Screen 7's re-check frequency control (contract §5 #7, PUT
- * /sites/{site_id}/recheck). Mutates siteListStore in place so every reader
- * of listSites() sees the change for the rest of the session. */
 export async function updateRecheckFrequency(siteId: string, frequencyDays: number): Promise<SiteSummary> {
-  const site = siteListStore.find(s => s.site_id === siteId);
-  if (!site) throw new Error(`No preview site_list entry for site_id ${JSON.stringify(siteId)}.`);
+  const site = store.sites.find(s => s.site_id === siteId);
+  if (!site) throw new Error(`No preview demo site for site_id ${JSON.stringify(siteId)}`);
   const lastCheckedAt = site.recheck?.last_checked_at ?? new Date().toISOString();
   const nextCheckAt = new Date(new Date(lastCheckedAt).getTime() + frequencyDays * 86400000).toISOString();
   site.recheck = {frequency_days: frequencyDays, last_checked_at: lastCheckedAt, next_check_at: nextCheckAt};
   return structuredClone(site);
 }
 
-// Screen 8 (historical validation). No real LOOCV runs exist for either site
-// (n_runs=0, honestly) -- these fixtures exist to carry each site's `events`
-// list so the historical comparison below can load.
-const VALIDATION_FIXTURES: Record<string, ValidationResponse> = {
-  teesta: validationTeesta as unknown as ValidationResponse,
-  rishi_ganga: validationRishiGanga as unknown as ValidationResponse,
-};
-
-export async function getValidation(siteId: string): Promise<ValidationResponse> {
-  const fixture = VALIDATION_FIXTURES[siteId];
-  if (!fixture) throw new Error(`No preview validation fixture for site_id ${JSON.stringify(siteId)}.`);
-  return structuredClone(fixture);
-}
-
-/** Chamoli 2021 (rishi_ganga): every observed.* value is real (src_042 via
- * docs/events/chamoli_2021.md); predicted.* and metrics.* are illustrative.
- * See the fixture's own provenance note. */
-const HISTORICAL_VALIDATION_FIXTURES: Record<string, HistoricalValidationResponse> = {
-  'rishi_ganga|chamoli_2021': historicalValidationChamoli as unknown as HistoricalValidationResponse,
-};
-
-export async function getHistoricalValidation(siteId: string, eventId: string): Promise<HistoricalValidationResponse> {
-  const fixture = HISTORICAL_VALIDATION_FIXTURES[`${siteId}|${eventId}`];
-  if (!fixture) throw new Error(`No preview historical_validation fixture for site_id=${siteId}, event_id=${eventId}.`);
-  return structuredClone(fixture);
-}
-
-// Screen 9 (impact/loss): keyed by the query_id that flood_query_response.teesta
-// .unknown_breach.json carries, since that is the only preview flood query this
-// impact fixture is derived from (same ensemble, same poi_results). Every number
-// here traces to generated/teesta_confidence.json's "impact" key -- see the
-// fixture's own provenance note for exactly what is illustrative vs real (JRC
-// damage curves/asset values) sourced data.
-const IMPACT_FIXTURES: Record<string, ImpactResponse> = {
-  [(impactTeestaUnknownBreach as unknown as ImpactResponse).query_id]: impactTeestaUnknownBreach as unknown as ImpactResponse,
-};
-
-export async function getImpact(queryId: string): Promise<ImpactResponse> {
-  const fixture = IMPACT_FIXTURES[queryId];
-  if (!fixture) throw new Error(`No preview impact fixture for query_id ${JSON.stringify(queryId)}.`);
-  return structuredClone(fixture);
-}
+export {depthClass, dvClass};
+export {store};

@@ -1,37 +1,15 @@
 {
-  "_comment": "Maps every preview fixture to the contract schema it must validate against, and to the file that carries it. Read by both src/data/preview/index.ts (at runtime) and tests/frontend/test_preview_fixtures.py (in CI). Keys under 'fixtures' are stable lookup names used by index.ts; they are not contract identifiers.",
+  "_comment": "design/target-state-preview: the demo engine (src/data/preview/engine/) computes results live in the browser. This manifest lists what pytest validates for schema-shape regression -- generated/*.json snapshots produced by `node frontend/scripts/dump_preview_fixtures.mjs`, plus the two static site_detail fixtures the engine's getSiteDetail() still reads for domain/centreline/dams geometry. Re-run the dump script after changing engine/ and commit the refreshed generated/*.json.",
   "fixtures": {
-    "site_list": {"file": "site_list.json", "schema": "site_list.schema.json"},
     "site_detail.teesta": {"file": "site_detail.teesta.json", "schema": "site_detail.schema.json"},
     "site_detail.rishi_ganga": {"file": "site_detail.rishi_ganga.json", "schema": "site_detail.schema.json"},
-    "site_detail.demo_valley": {"file": "site_detail.demo_valley.json", "schema": "site_detail.schema.json"},
-    "site_detail.synth_engdam": {"file": "site_detail.synth_engdam.json", "schema": "site_detail.schema.json"},
-    "site_create_accepted": {"file": "site_create_accepted.json", "schema": "site_create_accepted.schema.json"},
-    "job_status.onboarding.queued": {"file": "job_status.onboarding.queued.json", "schema": "job_status.schema.json"},
-    "job_status.onboarding.terrain": {"file": "job_status.onboarding.terrain.json", "schema": "job_status.schema.json"},
-    "job_status.onboarding.breach": {"file": "job_status.onboarding.breach.json", "schema": "job_status.schema.json"},
-    "job_status.onboarding.design": {"file": "job_status.onboarding.design.json", "schema": "job_status.schema.json"},
-    "job_status.onboarding.simulating": {"file": "job_status.onboarding.simulating.json", "schema": "job_status.schema.json"},
-    "job_status.onboarding.training": {"file": "job_status.onboarding.training.json", "schema": "job_status.schema.json"},
-    "job_status.onboarding.validating": {"file": "job_status.onboarding.validating.json", "schema": "job_status.schema.json"},
-    "job_status.onboarding.ready": {"file": "job_status.onboarding.ready.json", "schema": "job_status.schema.json"},
-    "run_meta.teesta_pilot_s001__delft3d": {"file": "run_meta.teesta_pilot_s001__delft3d.json", "schema": "run_meta.schema.json"},
-    "flood_query_response.teesta.sph_direct": {"file": "flood_query_response.teesta.sph_direct.json", "schema": "flood_query_response.schema.json"},
-    "scene3d.q_20260929T093000Z_9f3ab2": {"file": "scene3d.q_20260929T093000Z_9f3ab2.json", "schema": "scene3d.schema.json"},
-    "compare.teesta": {"file": "compare.teesta.json", "schema": "compare.schema.json"},
-    "flood_query_response.teesta.scenario_azmi_low": {"file": "flood_query_response.teesta.scenario_azmi_low.json", "schema": "flood_query_response.schema.json"},
-    "flood_query_response.teesta.scenario_azmi_high": {"file": "flood_query_response.teesta.scenario_azmi_high.json", "schema": "flood_query_response.schema.json"},
-    "flood_query_response.teesta.unknown_breach": {"file": "flood_query_response.teesta.unknown_breach.json", "schema": "flood_query_response.schema.json"},
-    "flood_query_response.teesta.scenario_outside_range": {"file": "flood_query_response.teesta.scenario_outside_range.json", "schema": "flood_query_response.schema.json"},
-    "gee_layers.teesta": {"file": "gee_layers.teesta.json", "schema": "gee_layers.schema.json"},
-    "gee_layers.rishi_ganga": {"file": "gee_layers.rishi_ganga.json", "schema": "gee_layers.schema.json"},
-    "historical_validation.rishi_ganga.chamoli_2021": {"file": "historical_validation.rishi_ganga.chamoli_2021.json", "schema": "historical_validation.schema.json"},
-    "validation.teesta": {"file": "validation.teesta.json", "schema": "validation.schema.json"},
-    "validation.rishi_ganga": {"file": "validation.rishi_ganga.json", "schema": "validation.schema.json"},
-    "impact.teesta_unknown_breach": {"file": "impact.teesta_unknown_breach.json", "schema": "impact.schema.json"}
-  },
-  "sidecars": {
-    "_comment": "Honesty-stamp-only companions to a strict (additionalProperties:false) schema fixture, keyed by the fixture name above they belong to. Not validated against any contracts/ schema -- only checked for the provenance/caveat stamp.",
-    "scene3d.q_20260929T093000Z_9f3ab2": {"file": "scene3d.q_20260929T093000Z_9f3ab2.x_preview.json"}
+    "teesta.flood_query_scenario": {"file": "generated/teesta.default_snapshot.json", "key": "flood_query_scenario", "schema": "flood_query_response.schema.json"},
+    "teesta.flood_query_unknown_breach": {"file": "generated/teesta.default_snapshot.json", "key": "flood_query_unknown_breach", "schema": "flood_query_response.schema.json"},
+    "teesta.impact": {"file": "generated/teesta.default_snapshot.json", "key": "impact", "schema": "impact.schema.json"},
+    "teesta.compare": {"file": "generated/teesta.default_snapshot.json", "key": "compare", "schema": "compare.schema.json"},
+    "rishi_ganga.flood_query_scenario": {"file": "generated/rishi_ganga.default_snapshot.json", "key": "flood_query_scenario", "schema": "flood_query_response.schema.json"},
+    "rishi_ganga.flood_query_unknown_breach": {"file": "generated/rishi_ganga.default_snapshot.json", "key": "flood_query_unknown_breach", "schema": "flood_query_response.schema.json"},
+    "rishi_ganga.impact": {"file": "generated/rishi_ganga.default_snapshot.json", "key": "impact", "schema": "impact.schema.json"},
+    "rishi_ganga.compare": {"file": "generated/rishi_ganga.default_snapshot.json", "key": "compare", "schema": "compare.schema.json"}
   }
 }

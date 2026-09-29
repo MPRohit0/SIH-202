@@ -1,0 +1,135 @@
+// Live client-side raster rendering for the demo engine
+// (design/target-state-preview). Every map layer is painted on an in-memory
+// <canvas> from the current profile function and exported as a data: URL, so
+// depth/probability/zone/diff maps actually change when the user changes an
+// input -- there are no pre-baked PNGs left to serve.
+import styles from '../../../../../contracts/styles.json';
+import {computeProfile, type EngineInputs} from './physics';
+import {getWorld, widthAt, chainageToLonLat, type World} from './world';
+
+const W = 90, H = 220;
+
+function lerpColor(a: string, b: string, t: number): string {
+  const pa = hexToRgb(a), pb = hexToRgb(b);
+  const r = Math.round(pa[0] + (pb[0] - pa[0]) * t);
+  const g = Math.round(pa[1] + (pb[1] - pa[1]) * t);
+  const bl = Math.round(pa[2] + (pb[2] - pa[2]) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function depthColor(depthM: number): string {
+  const breaks = styles.depth_p50.breaks_m as number[];
+  const colors = styles.depth_p50.colors as string[];
+  if (depthM < 0.1) return 'rgba(0,0,0,0)';
+  for (let i = 0; i < breaks.length; i++) {
+    if (depthM < breaks[i]) {
+      const lo = i === 0 ? 0.1 : breaks[i - 1];
+      const t = (depthM - lo) / (breaks[i] - lo);
+      return lerpColor(colors[i], colors[i + 1], Math.max(0, Math.min(1, t)));
+    }
+  }
+  return colors[colors.length - 1];
+}
+
+function probColor(p: number): string {
+  const stops = styles.p_inundation.stops as [number, string][];
+  if (p < stops[0][0]) return 'rgba(0,0,0,0)';
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (p <= stops[i + 1][0]) {
+      const t = (p - stops[i][0]) / (stops[i + 1][0] - stops[i][0]);
+      return lerpColor(stops[i][1], stops[i + 1][1], Math.max(0, Math.min(1, t)));
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
+function makeCanvas(): {canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D} {
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  return {canvas, ctx};
+}
+
+/** dist-from-centre shape factor in [0,1]: full depth in the channel,
+ * tapering to 0 at the bank -- same taper used by the pre-engine generator. */
+function bankTaper(distFromCentre: number): number {
+  if (distFromCentre < 0.42) return 1;
+  if (distFromCentre < 0.5) return Math.max(0, 1 - (distFromCentre - 0.42) / 0.08);
+  return 0;
+}
+
+export type RasterKind = 'depth' | 'p_inundation' | 'zone' | 'diff';
+
+function boundsFor(world: World): [[number, number], [number, number]] {
+  const [lonA, latA] = chainageToLonLat(world, 0);
+  const [lonB, latB] = chainageToLonLat(world, world.length_m);
+  const maxW = Math.max(...world.reaches.map(r => r.width_m));
+  const padDeg = maxW / 2 / 111320;
+  return [
+    [Math.min(latA, latB) - padDeg, Math.min(lonA, lonB) - padDeg],
+    [Math.max(latA, latB) + padDeg, Math.max(lonA, lonB) + padDeg],
+  ];
+}
+
+/** Paints one raster layer for `world` at the given inputs/scenario type and
+ * returns its data: URL plus the lat/lon bounds it covers (for a Leaflet-style
+ * image overlay). `sample(chainageM)` lets callers substitute the ensemble's
+ * p_floods or a diff value in place of a plain single-run depth. */
+export function renderRaster(
+  world: World, kind: RasterKind, sample: (chainageM: number, distFrac: number) => number,
+): {dataUrl: string; bounds_latlng: [[number, number], [number, number]]} {
+  const bounds = boundsFor(world);
+  // No DOM (e.g. the Node-side fixture dump script, frontend/scripts/
+  // dump_preview_fixtures.mjs): skip the canvas paint and return an empty
+  // layer URL -- schema-valid (url is just a string), just not a real image.
+  // The browser always has document, so this never short-circuits at runtime.
+  if (typeof document === 'undefined') return {dataUrl: '', bounds_latlng: bounds};
+  const {canvas, ctx} = makeCanvas();
+  const img = ctx.createImageData(W, H);
+  for (let row = 0; row < H; row++) {
+    const chainageM = (row / (H - 1)) * world.length_m;
+    for (let col = 0; col < W; col++) {
+      const across = col / (W - 1) - 0.5;
+      const dist = Math.abs(across);
+      const taper = bankTaper(dist);
+      const raw = sample(chainageM, dist) * taper;
+      let color: string;
+      if (kind === 'p_inundation') color = probColor(raw);
+      else if (kind === 'zone') color = raw >= 0.5 ? 'rgba(215,38,61,0.7)' : raw >= 0.1 ? 'rgba(244,162,89,0.55)' : 'rgba(0,0,0,0)';
+      else if (kind === 'diff') color = raw <= 0 ? 'rgba(0,0,0,0)' : lerpColor('#fff3b0', '#d7263d', Math.min(1, raw / 0.5));
+      else color = depthColor(raw);
+      const idxPx = (row * W + col) * 4;
+      const [r, g, b, a] = parseColor(color);
+      img.data[idxPx] = r; img.data[idxPx + 1] = g; img.data[idxPx + 2] = b; img.data[idxPx + 3] = a;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const dataUrl = canvas.toDataURL('image/png');
+  return {dataUrl, bounds_latlng: bounds};
+}
+
+function parseColor(color: string): [number, number, number, number] {
+  if (color.startsWith('rgba')) {
+    const [r, g, b, a] = color.replace(/[rgba() ]/g, '').split(',').map(Number);
+    return [r, g, b, Math.round((a ?? 1) * 255)];
+  }
+  if (color.startsWith('rgb')) {
+    const [r, g, b] = color.replace(/[rgb() ]/g, '').split(',').map(Number);
+    return [r, g, b, 255];
+  }
+  const [r, g, b] = hexToRgb(color);
+  return [r, g, b, 255];
+}
+
+/** Depth raster for a single deterministic profile run (scenario mode). */
+export function renderDepthRaster(world: World, scenarioType: string, inputs: EngineInputs) {
+  return renderRaster(world, 'depth', chainageM => computeProfile(world, inputs, scenarioType, chainageM).depth_m);
+}
+
+export function renderRasterForSite(siteId: string, kind: RasterKind, sample: (chainageM: number, distFrac: number) => number) {
+  return renderRaster(getWorld(siteId), kind, sample);
+}

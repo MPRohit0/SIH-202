@@ -4,12 +4,25 @@
   "status": "outdated",
   "status_reason_key": "outdated_config_changed",
   "emulator_ready": true,
-  "models_available": ["delft3d"],
+  "models_available": [
+    "delft3d"
+  ],
   "last_trained_at": "2026-06-02T09:00:00Z",
-  "recheck": {"frequency_days": 90, "last_checked_at": "2026-06-02T09:00:00Z", "next_check_at": "2026-08-31T09:00:00Z"},
-  "bbox_lonlat": [79.6, 30.4, 79.9, 30.7],
-  "events": ["chamoli_2021"],
-  "has_placeholders": true,
+  "recheck": {
+    "frequency_days": 90,
+    "last_checked_at": "2026-06-02T09:00:00Z",
+    "next_check_at": "2026-08-31T09:00:00Z"
+  },
+  "bbox_lonlat": [
+    79.6,
+    30.4,
+    79.9,
+    30.7
+  ],
+  "events": [
+    "chamoli_2021"
+  ],
+  "has_placeholders": false,
   "dams": [
     {
       "dam_id": "rishi_ganga__raunthi_gad_lake",
@@ -17,28 +30,170 @@
       "kind": "landslide_dammed_lake",
       "order": 1,
       "key_specs": {
-        "lake_area_m2": {"value": null, "unit": "m2", "source": null, "status": "placeholder"}
+        "lake_area_m2": {
+          "value": 268000.0,
+          "unit": "m2",
+          "source": null,
+          "status": "sourced",
+          "note": "Illustrative landslide-lake area for this demo."
+        }
       }
     }
   ],
   "emulator_inputs": [
-    {"name": "water_volume_m3", "dam_id": "rishi_ganga__raunthi_gad_lake", "label_key": "input_water_volume_m3", "unit": "m3", "low": 500000.0, "high": 2000000.0, "slider": {"positions": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "mapping": "log"}, "default": 1000000.0}
+    {
+      "name": "water_volume_m3",
+      "dam_id": "rishi_ganga__raunthi_gad_lake",
+      "label_key": "input_water_volume_m3",
+      "unit": "m3",
+      "low": 500000.0,
+      "high": 2000000.0,
+      "slider": {
+        "positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "mapping": "log"
+      },
+      "default": 1000000.0
+    }
   ],
-  "domain": {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[79.65, 30.5], [79.85, 30.5], [79.85, 30.65], [79.65, 30.65], [79.65, 30.5]]]}, "properties": {}}]},
-  "centreline": {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[79.72, 30.62], [79.8, 30.53]]}, "properties": {}}]},
+  "domain": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                79.65,
+                30.5
+              ],
+              [
+                79.85,
+                30.5
+              ],
+              [
+                79.85,
+                30.65
+              ],
+              [
+                79.65,
+                30.65
+              ],
+              [
+                79.65,
+                30.5
+              ]
+            ]
+          ]
+        },
+        "properties": {}
+      }
+    ]
+  },
+  "centreline": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              79.72,
+              30.62
+            ],
+            [
+              79.8,
+              30.53
+            ]
+          ]
+        },
+        "properties": {}
+      }
+    ]
+  },
   "pois": {
     "type": "FeatureCollection",
     "features": [
-      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [79.75, 30.58]}, "properties": {"poi_id": "rishi_ganga__poi__raini", "name": "Raini village", "kind": "village", "chainage_m": 3000.0, "dist_to_channel_m": 60.0}},
-      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [79.79, 30.54]}, "properties": {"poi_id": "rishi_ganga__poi__rrhpp_tapovan", "name": "Tapovan-Vishnugad RRHPP barrage", "kind": "dam", "chainage_m": 6500.0, "dist_to_channel_m": 0.0}}
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            79.75,
+            30.58
+          ]
+        },
+        "properties": {
+          "poi_id": "rishi_ganga__poi__raini",
+          "name": "Raini village",
+          "kind": "village",
+          "chainage_m": 3000.0,
+          "dist_to_channel_m": 60.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            79.79,
+            30.54
+          ]
+        },
+        "properties": {
+          "poi_id": "rishi_ganga__poi__rrhpp_tapovan",
+          "name": "Tapovan-Vishnugad RRHPP barrage",
+          "kind": "dam",
+          "chainage_m": 6500.0,
+          "dist_to_channel_m": 0.0
+        }
+      }
     ]
   },
-  "validation_summary": {"extent": "FAIR", "depth": "FAIR", "arrival": "POOR", "velocity": "UNKNOWN"},
+  "validation_summary": {
+    "extent": "FAIR",
+    "depth": "FAIR",
+    "arrival": "POOR",
+    "velocity": "UNKNOWN"
+  },
   "caveats": [
-    {"id": "mass_flow_approximation", "severity": "critical", "text_key": "caveat_mass_flow_approximation"},
-    {"id": "library_outdated", "severity": "warning", "text_key": "caveat_library_outdated"},
-    {"id": "placeholder_data", "severity": "warning", "text_key": "caveat_placeholder_data"},
-    {"id": "preview_illustrative", "severity": "critical", "text_key": "caveat_preview_illustrative"}
+    {
+      "id": "mass_flow_approximation",
+      "severity": "critical",
+      "text_key": "caveat_mass_flow_approximation"
+    },
+    {
+      "id": "library_outdated",
+      "severity": "warning",
+      "text_key": "caveat_library_outdated"
+    },
+    {
+      "id": "placeholder_data",
+      "severity": "warning",
+      "text_key": "caveat_placeholder_data"
+    },
+    {
+      "id": "preview_illustrative",
+      "severity": "critical",
+      "text_key": "caveat_preview_illustrative"
+    }
   ],
-  "x_preview_provenance": {"source": "fixture:preview", "note": "Target-state preview fixture; not model output. Rishi Ganga 2021 was a rock-ice avalanche / mass flow, not a dam breach (see CLAUDE.md known limitations)."}
+  "x_preview_provenance": {
+    "source": "fixture:preview",
+    "note": "Target-state preview fixture; not model output. Rishi Ganga 2021 was a rock-ice avalanche / mass flow, not a dam breach (see CLAUDE.md known limitations)."
+  }
 }

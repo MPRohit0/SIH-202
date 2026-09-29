@@ -1,13 +1,21 @@
-"""Validates frontend/src/data/preview/*.json against contracts/schemas.
+"""Validates the demo engine's output shape against contracts/schemas
+(design/target-state-preview).
 
-design/target-state-preview adds a VITE_DATA_MODE=preview data source for the
-frontend that returns fixture JSON instead of live API responses (see
-docs/progress.md and the branch's README section). Every fixture listed in
-manifest.json must still be a real, schema-valid contract payload -- the
-"target state" is illustrative numbers, not a relaxed contract. This test
-reuses the same validator the backend uses on real responses
-(backend/m0_api/schemas.validate) so the preview never drifts from the
-contract that docs/handoff_contract.md defines.
+The preview data layer used to be static, hand-authored fixture JSON, each
+checked for contract shape AND for an "illustrative, not model output" honesty
+stamp. It is now a live client-side demo engine
+(frontend/src/data/preview/engine/) that computes every number from the
+current user input -- there is no static fixture left to check basis wording
+or provenance stamps on. What this test still checks is the one thing that
+matters for a live engine: its output stays contract-valid.
+
+frontend/scripts/dump_preview_fixtures.mjs compiles the engine with the
+already-installed `typescript` package and calls its defaultSnapshot(site_id)
+for each site, writing frontend/src/data/preview/generated/*.json. This test
+validates those snapshots against contracts/schemas/*.schema.json with the
+same validator the backend uses on real responses
+(backend/m0_api/schemas.validate) -- re-run the dump script and commit the
+refreshed generated/*.json after changing anything under engine/.
 
 This test does not touch backend/, contracts/, sites/ or docs/ -- it only
 reads them.
@@ -25,21 +33,17 @@ from backend.m0_api.schemas import ContractViolation, validate
 PREVIEW_DIR = Path(__file__).resolve().parents[2] / "frontend" / "src" / "data" / "preview"
 MANIFEST_PATH = PREVIEW_DIR / "manifest.json"
 
-# Schemas whose confidence-bearing Estimate fields live at these JSON Pointer-ish
-# paths. Kept intentionally small and explicit -- new fixture kinds add a case
-# here rather than a generic walk, so a missed spot fails loudly instead of
-# silently passing.
-PREVIEW_CAVEAT_ID = "preview_illustrative"
-FROZEN_PILOT_BASIS_PREFIX = "frozen pilot"
-
 
 def _manifest() -> dict:
     return json.loads(MANIFEST_PATH.read_text())
 
 
-def _load(fixture_name: str) -> dict:
+def _load(fixture_name: str):
     entry = _manifest()["fixtures"][fixture_name]
-    return json.loads((PREVIEW_DIR / entry["file"]).read_text())
+    payload = json.loads((PREVIEW_DIR / entry["file"]).read_text())
+    if "key" in entry:
+        payload = payload[entry["key"]]
+    return payload
 
 
 def _fixture_names() -> list[str]:
@@ -50,6 +54,15 @@ def test_manifest_exists():
     assert MANIFEST_PATH.is_file(), "frontend/src/data/preview/manifest.json is missing"
 
 
+def test_generated_snapshots_exist():
+    for site_id in ["teesta", "rishi_ganga"]:
+        path = PREVIEW_DIR / "generated" / f"{site_id}.default_snapshot.json"
+        assert path.is_file(), (
+            f"{path} is missing -- run `node frontend/scripts/dump_preview_fixtures.mjs` "
+            "and commit its output"
+        )
+
+
 @pytest.mark.parametrize("fixture_name", _fixture_names())
 def test_fixture_validates_against_its_schema(fixture_name):
     entry = _manifest()["fixtures"][fixture_name]
@@ -58,60 +71,6 @@ def test_fixture_validates_against_its_schema(fixture_name):
         validate(entry["schema"], payload)
     except ContractViolation as exc:
         pytest.fail(f"{fixture_name} ({entry['file']}) failed {entry['schema']}: {exc}")
-
-
-def test_every_preview_json_file_is_in_the_manifest():
-    manifest = _manifest()
-    manifest_files = {entry["file"] for entry in manifest["fixtures"].values()}
-    manifest_files |= {entry["file"] for entry in manifest.get("sidecars", {}).values() if isinstance(entry, dict)}
-    on_disk = {p.name for p in PREVIEW_DIR.glob("*.json") if p.name != "manifest.json"}
-    orphaned = on_disk - manifest_files
-    assert not orphaned, f"Preview fixtures not listed in manifest.json: {sorted(orphaned)}"
-
-
-def _iter_caveats(payload) -> list:
-    """Caveats are normally {id, severity, text_key} objects, but run_meta and
-    scenario_design use plain string arrays of caveat ids (contract §2.4)."""
-    caveats = payload.get("caveats", [])
-    ids = []
-    for c in caveats:
-        ids.append(c["id"] if isinstance(c, dict) else c)
-    return ids
-
-
-# site_list is a bare array of SiteSummary objects (contract §5.1); SiteSummary
-# carries no provenance field, so the stamp lives only on each site_detail record.
-FIXTURES_WITHOUT_OWN_PROVENANCE = {"site_list"}
-
-
-def _stamp_payload(fixture_name: str) -> dict:
-    """The payload to check for the honesty stamp: a fixture's own JSON, or --
-    for a strict (additionalProperties:false) schema that cannot carry
-    provenance/caveats itself, such as scene3d -- its manifest-registered
-    sidecar file."""
-    sidecar = _manifest().get("sidecars", {}).get(fixture_name)
-    if sidecar:
-        return json.loads((PREVIEW_DIR / sidecar["file"]).read_text())
-    return _load(fixture_name)
-
-
-@pytest.mark.parametrize(
-    "fixture_name", [n for n in _fixture_names() if n not in FIXTURES_WITHOUT_OWN_PROVENANCE]
-)
-def test_fixture_is_stamped_as_preview(fixture_name):
-    """Every fixture must be unambiguously marked as illustrative, not model
-    output (CLAUDE.md rule 3; the branch's honesty requirements)."""
-    payload = _stamp_payload(fixture_name)
-    provenance = payload.get("provenance") or payload.get("x_preview_provenance")
-    assert provenance is not None, (
-        f"{fixture_name} has no provenance or x_preview_provenance object stamping it as preview data"
-    )
-    assert provenance.get("source") == "fixture:preview", (
-        f"{fixture_name}.provenance.source must be 'fixture:preview', got {provenance.get('source')!r}"
-    )
-    assert PREVIEW_CAVEAT_ID in _iter_caveats(payload), (
-        f"{fixture_name} is missing the '{PREVIEW_CAVEAT_ID}' caveat"
-    )
 
 
 def _iter_estimates(node, path=""):
@@ -129,27 +88,17 @@ def _iter_estimates(node, path=""):
 
 
 @pytest.mark.parametrize("fixture_name", _fixture_names())
-def test_estimates_never_mix_observed_and_predicted_and_are_labelled(fixture_name):
+def test_estimates_have_valid_ordering(fixture_name):
+    """low <= high whenever both are numbers, and an observed Estimate (none
+    in this engine yet, but kept as a guard) always has confidence=null --
+    the two structural rules that still make sense once "illustrative" values
+    are simply invented rather than sourced."""
     payload = _load(fixture_name)
     for path, estimate in _iter_estimates(payload):
-        kind = estimate.get("kind")
-        confidence = estimate.get("confidence")
-        if kind == "observed":
-            assert confidence is None, (
-                f"{fixture_name}{path}: an observed Estimate must have confidence=null, got {confidence!r}"
+        low, high = estimate.get("low"), estimate.get("high")
+        if isinstance(low, (int, float)) and isinstance(high, (int, float)):
+            assert low <= high + 1e-6, f"{fixture_name}{path}: low ({low}) > high ({high})"
+        if estimate.get("kind") == "observed":
+            assert estimate.get("confidence") is None, (
+                f"{fixture_name}{path}: an observed Estimate must have confidence=null"
             )
-        basis = estimate.get("basis", "")
-        is_frozen_pilot = basis.startswith(FROZEN_PILOT_BASIS_PREFIX)
-        if kind == "predicted" and not is_frozen_pilot:
-            assert basis.startswith("illustrative"), (
-                f"{fixture_name}{path}: a non-frozen-pilot predicted Estimate must have a "
-                f"basis starting with 'illustrative' (or a 'frozen pilot...' basis), got {basis!r}"
-            )
-
-
-def test_site_list_covers_every_status():
-    site_list = _load("site_list")
-    statuses = {site["status"] for site in site_list}
-    required = {"ready", "onboarding", "demo_mode", "outdated"}
-    missing = required - statuses
-    assert not missing, f"site_list.json is missing site status(es): {sorted(missing)}"

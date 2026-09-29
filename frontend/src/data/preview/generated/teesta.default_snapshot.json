@@ -1,0 +1,691 @@
+{
+  "flood_query_scenario": {
+    "contract_version": "0.3.0",
+    "query_id": "q_demo_mumxd3nl_0001",
+    "site_id": "teesta",
+    "status": "complete",
+    "method": "gp_emulator",
+    "mode": "scenario",
+    "resolved_inputs": {
+      "water_volume_m3": {
+        "value": 10500000,
+        "low": 10500000,
+        "high": 10500000,
+        "unit": "m3",
+        "interval": "none",
+        "kind": "input",
+        "confidence": null
+      },
+      "breach_width_m": {
+        "value": 120,
+        "low": 120,
+        "high": 120,
+        "unit": "m",
+        "interval": "none",
+        "kind": "input",
+        "confidence": null
+      },
+      "failure_time_s": {
+        "value": 3600,
+        "low": 3600,
+        "high": 3600,
+        "unit": "s",
+        "interval": "none",
+        "kind": "input",
+        "confidence": null
+      }
+    },
+    "summary": {
+      "inundated_area_m2": {
+        "value": 9359267.008547008,
+        "low": 8423340.307692308,
+        "high": 10295193.70940171,
+        "unit": "m2",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": null
+      },
+      "max_depth_m": {
+        "value": 2.236071984992678,
+        "low": 1.9006611872437762,
+        "high": 2.5714827827415796,
+        "unit": "m",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": null
+      },
+      "max_velocity_ms": {
+        "value": 2.3925601939306054,
+        "low": 2.0336761648410144,
+        "high": 2.751444223020196,
+        "unit": "m/s",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": null
+      },
+      "peak_discharge_m3s": {
+        "value": 962.9886279702375,
+        "low": 818.5403337747019,
+        "high": 1107.436922165773,
+        "unit": "m3/s",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": null
+      },
+      "first_arrival": {
+        "poi_id": "teesta__poi__lachen",
+        "name": "Lachen",
+        "arrival_s": {
+          "value": 903.1056834263063,
+          "low": 767.6398309123604,
+          "high": 1083.7268201115676,
+          "unit": "s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null
+        }
+      }
+    },
+    "confidence": {
+      "overall": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      },
+      "extent": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      },
+      "depth": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      },
+      "arrival": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      },
+      "velocity": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      }
+    },
+    "layers": [
+      {
+        "layer_id": "depth_p50",
+        "type": "raster_png",
+        "url": "",
+        "bounds_latlng": [
+          [
+            27.49282242416515,
+            88.40608048868128
+          ],
+          [
+            27.89091951131872,
+            88.5388872532542
+          ]
+        ],
+        "style_id": "depth_p50",
+        "unit": "m",
+        "available": true
+      }
+    ],
+    "vectors": {
+      "extent_url": ""
+    },
+    "flags": {
+      "outside_trained_range": false,
+      "demo_mode": true,
+      "library_outdated": false,
+      "has_placeholders": false
+    },
+    "placeholder_fields": [],
+    "caveats": [],
+    "provenance": {
+      "method": "gp_emulator",
+      "contract_version": "0.3.0",
+      "source": "fixture:preview",
+      "code_version": "demo-engine-1.0"
+    },
+    "timing_ms": {
+      "median_phase": 40,
+      "full_phase": 40
+    }
+  },
+  "flood_query_unknown_breach": {
+    "contract_version": "0.3.0",
+    "query_id": "q_demo_mumxd3nm_0002",
+    "site_id": "teesta",
+    "status": "complete",
+    "method": "gp_emulator",
+    "mode": "unknown_breach",
+    "resolved_inputs": {
+      "water_volume_m3": {
+        "value": 10500000,
+        "low": 8400000,
+        "high": 12600000,
+        "unit": "m3",
+        "interval": "none",
+        "kind": "input",
+        "confidence": null
+      },
+      "breach_width_m": {
+        "value": 120,
+        "low": 120,
+        "high": 120,
+        "unit": "m",
+        "interval": "none",
+        "kind": "input",
+        "confidence": null
+      },
+      "failure_time_s": {
+        "value": 3600,
+        "low": 3600,
+        "high": 3600,
+        "unit": "s",
+        "interval": "none",
+        "kind": "input",
+        "confidence": null
+      }
+    },
+    "summary": {
+      "inundated_area_m2": {
+        "value": 7820206.41025641,
+        "low": 7820206.41025641,
+        "high": 11156656.41025641,
+        "unit": "m2",
+        "interval": "zone_range",
+        "kind": "predicted",
+        "confidence": null
+      },
+      "max_depth_m": {
+        "value": 1.6503153267766886,
+        "low": 1.2377364950825165,
+        "high": 2.310441457487364,
+        "unit": "m",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": null
+      },
+      "max_velocity_ms": {
+        "value": 2.055433588454836,
+        "low": 1.5415751913411269,
+        "high": 2.6720636649912866,
+        "unit": "m/s",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": null
+      },
+      "peak_discharge_m3s": {
+        "value": 962.9886279702375,
+        "low": 722.2414709776781,
+        "high": 1251.8852163613087,
+        "unit": "m3/s",
+        "interval": "P10-P90",
+        "kind": "predicted",
+        "confidence": null
+      },
+      "first_arrival": {
+        "poi_id": "teesta__poi__lachen",
+        "name": "Lachen",
+        "arrival_s": {
+          "value": 973.2388458601025,
+          "low": 793.3227098871292,
+          "high": 1183.7313592347507,
+          "unit": "s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null
+        }
+      }
+    },
+    "confidence": {
+      "overall": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      },
+      "extent": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      },
+      "depth": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      },
+      "arrival": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      },
+      "velocity": {
+        "level": "HIGH",
+        "components": {
+          "water_volume_m3": "INSIDE",
+          "breach_width_m": "INSIDE",
+          "failure_time_s": "INSIDE"
+        },
+        "reason_key": null
+      }
+    },
+    "layers": [
+      {
+        "layer_id": "p_inundation",
+        "type": "raster_png",
+        "url": "",
+        "bounds_latlng": [
+          [
+            27.49282242416515,
+            88.40608048868128
+          ],
+          [
+            27.89091951131872,
+            88.5388872532542
+          ]
+        ],
+        "style_id": "p_inundation",
+        "unit": null,
+        "available": true
+      }
+    ],
+    "vectors": {
+      "extent_url": ""
+    },
+    "flags": {
+      "outside_trained_range": false,
+      "demo_mode": true,
+      "library_outdated": false,
+      "has_placeholders": false
+    },
+    "placeholder_fields": [],
+    "caveats": [],
+    "provenance": {
+      "method": "gp_emulator",
+      "contract_version": "0.3.0",
+      "source": "fixture:preview",
+      "code_version": "demo-engine-1.0"
+    },
+    "timing_ms": {
+      "median_phase": 180,
+      "full_phase": 180
+    }
+  },
+  "impact": {
+    "contract_version": "0.3.0",
+    "query_id": "q_demo_mumxd3nm_0002",
+    "site_id": "teesta",
+    "population_persons": {
+      "value": 1200,
+      "low": 1200,
+      "high": 1600,
+      "unit": "persons",
+      "interval": "zone_range",
+      "kind": "predicted",
+      "confidence": "MODERATE",
+      "basis": "value = sum(p x pop); low = HIGH zone; high = HIGH + POSSIBLE"
+    },
+    "assets": {
+      "buildings": {
+        "high": 180,
+        "possible": 0
+      },
+      "roads_m": {
+        "high": 1600,
+        "possible": 0
+      },
+      "bridges": {
+        "high": 1,
+        "possible": 0
+      },
+      "hospitals": {
+        "high": 0,
+        "possible": 0
+      },
+      "schools": {
+        "high": 0,
+        "possible": 0
+      },
+      "cropland_m2": {
+        "high": 0,
+        "possible": 0
+      },
+      "hydropower": [
+        {
+          "name": "Teesta III (Chungthang) dam",
+          "zone": "high",
+          "depth_m": {
+            "value": 0.6318592128129248,
+            "low": 0.4447836140288474,
+            "high": 0.9142060517852116,
+            "unit": "m",
+            "interval": "P10-P90",
+            "kind": "predicted",
+            "confidence": "MODERATE"
+          }
+        }
+      ]
+    },
+    "loss_inr": {
+      "value": 106275585.82705638,
+      "low": 87614131.26769629,
+      "high": 130216668.78755441,
+      "unit": "INR",
+      "interval": "P10-P90",
+      "kind": "predicted",
+      "confidence": "MODERATE",
+      "basis": "JRC-style depth-damage curve (src_031/src_032 shape) x illustrative exposed building area",
+      "by_asset_class": {
+        "residential": {
+          "value": 106275585.82705638,
+          "low": 87614131.26769629,
+          "high": 130216668.78755441,
+          "unit": "INR",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": "MODERATE"
+        }
+      },
+      "assumptions": [
+        "Damage curve shape follows the JRC ASIA depth-damage function (src_031); asset value follows JRC India residential Building-based Total (src_032).",
+        "Only named villages are priced as residential structures; the dam, bridge and hospital are reported in the critical-facilities list with zone/arrival only.",
+        "Roads and agriculture are not priced in this demo."
+      ]
+    },
+    "warning_table": [
+      {
+        "poi_id": "teesta__poi__lachen",
+        "name": "Lachen",
+        "kind": "village",
+        "chainage_m": 2000,
+        "zone": "high",
+        "p_inundation": 1,
+        "arrival_s": {
+          "value": 966.2001868014138,
+          "low": 800.7076412073362,
+          "high": 1147.946449900302,
+          "unit": "s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "depth_m": {
+          "value": 1.6844119358040608,
+          "low": 1.1857053171464529,
+          "high": 2.437092874781325,
+          "unit": "m",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "velocity_ms": {
+          "value": 2.076558343909074,
+          "low": 1.7422415480911135,
+          "high": 2.4977905755767824,
+          "unit": "m/s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "x_preview_depth_class": "moderate",
+        "x_preview_dv_class": "structural_damage",
+        "x_preview_dv_m2s": 3.497779659873958
+      },
+      {
+        "poi_id": "teesta__poi__chungthang",
+        "name": "Chungthang",
+        "kind": "village",
+        "chainage_m": 12000,
+        "zone": "high",
+        "p_inundation": 1,
+        "arrival_s": {
+          "value": 9259.360320545211,
+          "low": 7673.40004962801,
+          "high": 11001.084406230053,
+          "unit": "s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "depth_m": {
+          "value": 0.6602722968487604,
+          "low": 0.46478438943402606,
+          "high": 0.9553155471422624,
+          "unit": "m",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "velocity_ms": {
+          "value": 1.3001142564916466,
+          "low": 1.0908015570905218,
+          "high": 1.5638439182617274,
+          "unit": "m/s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "x_preview_depth_class": "low",
+        "x_preview_dv_class": "unsafe_adults",
+        "x_preview_dv_m2s": 0.858429426299558
+      },
+      {
+        "poi_id": "teesta__poi__teesta_iii",
+        "name": "Teesta III (Chungthang) dam",
+        "kind": "dam",
+        "chainage_m": 12200,
+        "zone": "high",
+        "p_inundation": 1,
+        "arrival_s": {
+          "value": 9623.010200929872,
+          "low": 7974.763309463499,
+          "high": 11433.138337596185,
+          "unit": "s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "depth_m": {
+          "value": 0.6318592128129248,
+          "low": 0.4447836140288474,
+          "high": 0.9142060517852116,
+          "unit": "m",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "velocity_ms": {
+          "value": 1.2718331591844458,
+          "low": 1.0670735925482597,
+          "high": 1.529825968066349,
+          "unit": "m/s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "x_preview_depth_class": "low",
+        "x_preview_dv_class": "unsafe_adults",
+        "x_preview_dv_m2s": 0.8036194987916592
+      },
+      {
+        "poi_id": "teesta__poi__sangkalang_bridge",
+        "name": "Sangkalang bridge",
+        "kind": "bridge",
+        "chainage_m": 24000,
+        "zone": "possible",
+        "p_inundation": 0.34375,
+        "arrival_s": {
+          "value": 28520.874215322187,
+          "low": 23635.766407500716,
+          "high": 33885.768964627016,
+          "unit": "s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "depth_m": {
+          "value": 0.27836803896421086,
+          "low": 0.19595115476662728,
+          "high": 0.40275703935966667,
+          "unit": "m",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "velocity_ms": {
+          "value": 0.8441695207411719,
+          "low": 0.7082619262692058,
+          "high": 1.0154102721367095,
+          "unit": "m/s",
+          "interval": "P10-P90",
+          "kind": "predicted",
+          "confidence": null,
+          "basis": "demo-engine"
+        },
+        "x_preview_depth_class": "wet",
+        "x_preview_dv_class": "lower_hazard",
+        "x_preview_dv_m2s": 0.23498981404207775
+      }
+    ],
+    "not_affected_poi_count": 1,
+    "data_coverage_notes": [],
+    "has_placeholders": false,
+    "placeholder_fields": [],
+    "caveats": [],
+    "provenance": {
+      "method": "gp_emulator",
+      "contract_version": "0.3.0",
+      "source": "fixture:preview"
+    },
+    "x_preview_population_by_arrival_band": [
+      {
+        "arrival_band_min": "15-30",
+        "low_persons": 950,
+        "high_persons": 950
+      },
+      {
+        "arrival_band_min": "120-180",
+        "low_persons": 2400,
+        "high_persons": 2400
+      }
+    ],
+    "x_preview_population_by_arrival_band_note": "Split by the same arrival-band edges used for isochrones.",
+    "x_preview_critical_facilities_note": "The dam, bridge and hospital are reported here (zone + arrival only) and excluded from population_persons and assets.buildings."
+  },
+  "compare": {
+    "site_id": "teesta",
+    "scenario_id": "cascade_current",
+    "sph_vs_delft3d": {
+      "available": true,
+      "domain": "Near-field reach 0-2000 m",
+      "time_window_s": 3600,
+      "metrics": {
+        "iou": 1,
+        "f1_0_3": 1,
+        "depth_rmse_wet_m": 0.08378539373810585,
+        "velocity_mae_ms": 0.09101516551150263
+      },
+      "probes": [
+        {
+          "poi_id": "teesta__poi__lachen",
+          "arrival_delft3d_s": 903.1056834263063,
+          "arrival_sph_s": 894.1649371603859,
+          "diff_s": -8.940746265920438
+        }
+      ],
+      "layers": [
+        {
+          "layer_id": "depth_p50",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              27.49282242416515,
+              88.40608048868128
+            ],
+            [
+              27.89091951131872,
+              88.5388872532542
+            ]
+          ],
+          "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        }
+      ],
+      "run_ids": [
+        "teesta__demo__delft3d",
+        "teesta__demo__sph"
+      ]
+    },
+    "emulator_vs_physics": {
+      "available": true,
+      "held_out_run_id": "teesta__demo__holdout",
+      "metrics": {
+        "iou": 0.9,
+        "depth_rmse_wet_m": 0.12,
+        "arrival_mae_s": 90
+      },
+      "layers": []
+    },
+    "gp_vs_linear": {
+      "iou_median_gp": 0.9,
+      "iou_median_linear": 0.72,
+      "arrival_mae_s_gp": 90,
+      "arrival_mae_s_linear": 340
+    },
+    "when_to_use_key": "compare_when_to_use",
+    "caveats": []
+  }
+}

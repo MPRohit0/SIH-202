@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "outDir": "../../.dump_build",
+    "rootDir": "..",
+    "lib": ["es2020", "dom"]
+  },
+  "include": ["../src/data/preview/engine/**/*.ts"]
+}

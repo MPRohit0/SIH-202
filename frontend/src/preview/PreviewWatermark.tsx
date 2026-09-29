@@ -1,17 +1,12 @@
 'use client';
-// design/target-state-preview only. Wraps any map, chart or 3D view so every
-// visual carries a diagonal "PREVIEW" mark, in addition to the persistent
-// PreviewBanner. Only ever rendered when source.isPreviewMode() is true --
-// callers gate on that, this component does not check it itself, so it stays
-// a plain, reusable wrapper.
+// design/target-state-preview only. Used to wrap maps/charts/3D views. It no
+// longer draws a diagonal "PREVIEW" watermark -- the demo brief asks every
+// screen to look like a finished product, with only the single top
+// PreviewBanner saying the data is simulated -- so this is now a plain
+// pass-through. Kept (not deleted) so its ~8 call sites in app.tsx don't all
+// need editing; if a call site is removed later this component can go too.
 import type {ReactNode} from 'react';
-import './preview.css';
 
-export default function PreviewWatermark({children, small = false}: {children: ReactNode; small?: boolean}) {
-  return (
-    <div className={'preview-watermark-host' + (small ? ' small' : '')}>
-      {children}
-      <div className="preview-watermark" aria-hidden="true"><span>PREVIEW</span></div>
-    </div>
-  );
+export default function PreviewWatermark({children}: {children: ReactNode; small?: boolean}) {
+  return <>{children}</>;
 }
