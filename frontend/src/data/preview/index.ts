@@ -89,3 +89,13 @@ export async function getJob(jobId: string): Promise<JobStatus> {
 export async function getRunMeta(): Promise<Record<string, unknown>> {
   return structuredClone(runMetaTeestaPilot);
 }
+
+/** Screen 3 (Terrain): x_preview_terrain is a proposed contract addition (see
+ * README.md "Preview mode"), not a real site_detail field -- it only exists on
+ * fixtures that were built with it (currently teesta). Its LayerRef URLs are
+ * root-relative paths into frontend/public/preview/, served by Vite itself,
+ * not backend files -- callers must not run them through api.fileUrl. */
+export async function getTerrainMeta(siteId: string): Promise<Record<string, unknown> | null> {
+  const detail = siteDetails[siteId] as unknown as {x_preview_terrain?: Record<string, unknown>} | undefined;
+  return detail?.x_preview_terrain ? structuredClone(detail.x_preview_terrain) : null;
+}

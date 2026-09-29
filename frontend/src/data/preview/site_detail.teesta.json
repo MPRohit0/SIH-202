@@ -64,8 +64,8 @@
   "x_preview_terrain": {
     "vertical_datum": "EGM96 geoid (SRTM GL1 native)",
     "resolution_m": 30.0,
-    "dem_layer": {"layer_id": "dem_hillshade", "type": "raster_png", "url": "preview/dem_hillshade_teesta.png", "bounds_latlng": [[27.5, 88.0], [28.2, 89.0]], "available": true, "unit": null},
-    "domain_mask_layer": {"layer_id": "domain_mask", "type": "raster_png", "url": "preview/domain_mask_teesta.png", "bounds_latlng": [[27.5, 88.0], [28.2, 89.0]], "available": true, "unit": null},
+    "dem_layer": {"layer_id": "dem_hillshade", "type": "raster_png", "url": "/preview/dem_hillshade_teesta.png", "bounds_latlng": [[27.5, 88.0], [28.2, 89.0]], "available": true, "unit": null},
+    "domain_mask_layer": {"layer_id": "domain_mask", "type": "raster_png", "url": "/preview/domain_mask_teesta.png", "bounds_latlng": [[27.5, 88.0], [28.2, 89.0]], "available": true, "unit": null},
     "note": "x_preview_terrain is a proposed contract addition, not part of docs/handoff_contract.md. DEM source: src_033 (SRTM GL1, 30 m)."
   }
 }

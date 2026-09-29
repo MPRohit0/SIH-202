@@ -314,7 +314,12 @@
     "available": "REAL",
     "mvp": "MVP",
     "cached": "CACHED",
-    "unavailable": "UNAVAILABLE"
+    "unavailable": "UNAVAILABLE",
+    "terrainHeading": "Terrain (target-state preview)",
+    "terrainDatum": "Vertical datum",
+    "terrainResolution": "Resolution",
+    "demLabel": "DEM hillshade",
+    "maskLabel": "Domain mask"
   },
   "landing": {
     "teestaSite": "Teesta III · South Lhonak 2023",

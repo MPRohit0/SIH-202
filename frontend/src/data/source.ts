@@ -234,6 +234,15 @@ export async function getPreviewRunMeta(): Promise<Record<string, unknown>> {
   return preview.getRunMeta();
 }
 
+/** design/target-state-preview screen 3 (Terrain): vertical datum, resolution,
+ * DEM and domain-mask layers. This is a proposed contract addition
+ * (README.md "Preview mode"), not a real site_detail field, so default mode
+ * returns null rather than guessing at a shape. */
+export async function getTerrainMeta(siteId: string): Promise<Record<string, unknown> | null> {
+  if (!siteId || !isPreviewMode()) return null;
+  return preview.getTerrainMeta(siteId);
+}
+
 /** Saved runs / sites. No endpoint exists for this in the contract yet (the
  * prototype used Cloudflare D1/R2 + ChatGPT auth, which rule 11 disallows).
  * Ask before wiring this to a real route. */
