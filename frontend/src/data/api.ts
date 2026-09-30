@@ -69,27 +69,37 @@ export type ImpactResponse = {
     hydropower: Array<{name: string; zone: 'high' | 'possible'; depth_m: Estimate}>;
   };
   loss_inr: Estimate & {by_asset_class?: Record<string, Estimate>; assumptions?: string[]};
-  warning_table: Array<{poi_id: string; name: string; kind: string; chainage_m: number; zone: 'high' | 'possible'; p_inundation: number; arrival_s: Estimate; depth_m: Estimate; velocity_ms: Estimate}>;
+  warning_table: Array<{poi_id: string; name: string; kind: string; chainage_m: number; zone: 'high' | 'possible'; p_inundation: number; arrival_s: Estimate; depth_m: Estimate; velocity_ms: Estimate; x_preview_depth_class?: string; x_preview_dv_class?: string; x_preview_dv_m2s?: number}>;
   not_affected_poi_count: number; data_coverage_notes: string[];
   has_placeholders: boolean; placeholder_fields: string[];
   caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
   provenance: Record<string, unknown>;
+  /** design/target-state-preview only: proposed contract addition, not contract. */
+  x_preview_population_by_arrival_band?: Array<{arrival_band_min: string; low_persons: number; high_persons: number}>;
+  x_preview_population_by_arrival_band_note?: string;
+  x_preview_critical_facilities_note?: string;
 };
+// Both metrics objects are free-form in the contract (compare.schema.json:
+// `{"type":"object"}`, no additionalProperties restriction) -- design/
+// target-state-preview's compare engine (src/data/preview/engine/compare.ts)
+// adds several keys beyond the original fixture-era ones (tpr, fpr,
+// coverage_90, confidence, threshold_m, ...).
 export type CompareResponse = {
   site_id: string; scenario_id: string;
-  sph_vs_delft3d: {available: boolean; domain: string; time_window_s: number; metrics: {iou?: number; f1_0_3?: number; depth_rmse_wet_m?: number; velocity_mae_ms?: number}; probes: Array<{poi_id: string; arrival_delft3d_s: number; arrival_sph_s: number; diff_s: number}>; layers: FloodQueryResponse['layers']; run_ids: string[]};
-  emulator_vs_physics: {available: boolean; held_out_run_id: string | null; metrics: {iou?: number; depth_rmse_wet_m?: number; arrival_mae_s?: number}; layers: FloodQueryResponse['layers']};
+  sph_vs_delft3d: {available: boolean; domain: string; time_window_s: number; metrics: Record<string, unknown>; probes: Array<{poi_id: string; arrival_delft3d_s: number; arrival_sph_s: number; diff_s: number}>; layers: FloodQueryResponse['layers']; run_ids: string[]};
+  emulator_vs_physics: {available: boolean; held_out_run_id: string | null; metrics: Record<string, unknown>; layers: FloodQueryResponse['layers']};
   gp_vs_linear: {iou_median_gp?: number; iou_median_linear?: number; arrival_mae_s_gp?: number; arrival_mae_s_linear?: number}; when_to_use_key: string;
   caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
 };
 export type GeeLayers = {
   site_id: string; source: 'live' | 'cache' | 'screenshot_fallback'; fetched_at: string;
-  lake_area_series: Array<{date: string; area_m2: number; method: 's2_water_index' | 's1_threshold'; cloud_pct: number | null}>;
+  lake_area_series: Array<{date: string; area_m2: number; method: 's2_water_index' | 's1_threshold'; cloud_pct: number | null; source?: string | null}>;
   lake_latest: {type: 'FeatureCollection'; features: Array<{type: 'Feature'; geometry: {type: string; coordinates: unknown}; properties: Record<string, unknown>}>};
   rainfall: Array<{date: string; precip_mm: number; dataset: 'chirps' | 'gpm_imerg'}>;
   imagery: Array<{event_id: string; phase: 'pre' | 'post'; date: string; url: string; bounds_latlng: number[][]}>;
   observed_extents: Array<{event_id: string; url: string; method: 'manual_digitized' | 'change_detection'}>;
   recheck: {outdated: boolean; change_pct: number | null; threshold_pct: number};
+  caveats?: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
 };
 export type Timeline = {
   query_id: string; interval_s: number; t_end_s: number;
@@ -125,12 +135,18 @@ export type HistoricalValidationResponse = {
     literature: Array<{source_id: string; citation: string; quantity: string; value: unknown; note: string}>;
     caveats: string[];
   };
+  /** design/target-state-preview only, proposed contract addition: marks an
+   * event (e.g. Chamoli 2021) as a mass-flow/avalanche comparison rather than
+   * a dam-breach validation, so the UI frames it correctly. */
+  x_preview_event_kind?: 'mass_flow';
+  x_preview_framing?: string;
 };
 export type SiteSummary = {
   site_id: string; name: string;
   status: 'onboarding' | 'demo_mode' | 'ready' | 'outdated' | 'failed';
   status_reason_key?: string | null; bbox_lonlat?: [number, number, number, number];
   has_placeholders?: boolean;
+  recheck?: {frequency_days: number; last_checked_at: string | null; next_check_at: string | null};
 };
 export type JobStatus = {
   job_id: string; kind: 'onboarding' | 'campaign' | 'recheck' | 'rerun';
@@ -142,8 +158,15 @@ export type JobStatus = {
 /** A dam entry's key_specs is an open dict of SourcedValues by contract (§5.1) --
  * this doesn't add a schema field, just types what real sites already put there. */
 export type SourcedValue = {value: unknown; unit: string | null; source: string | null; status: string};
+/** Contract §5.1's emulator_inputs entry -- the Exact/Slider control ranges. */
+export type EmulatorInput = {
+  name: 'water_volume_m3' | 'initial_water_level_m' | 'breach_width_m' | 'failure_time_s' | 'manning_multiplier';
+  dam_id: string; label_key: string; unit: string | null; low: number | null; high: number | null;
+  slider: {positions: number[]; mapping: 'linear' | 'log'}; default?: number | null;
+};
 export type SiteDetail = SiteSummary & {
   dams: Array<{dam_id: string; name: string; kind: string | null; order: number; key_specs: Record<string, SourcedValue>}>;
+  emulator_inputs?: EmulatorInput[];
 };
 export type SiteCreateRequest = {site_config: Record<string, unknown>; demo_mode?: boolean};
 export type SiteCreateAccepted = {job_id: string; site_id: string};
@@ -248,8 +271,10 @@ export const api = {
     const relativePath = path.replace(/^\/api\/v1\/?/, '').replace(/^\/+/, '');
     return `${baseUrl}/${relativePath}`;
   },
-  // Contract example fixture access for contract data with no GET route.
-  examples: {scenarioDesign, siteRequest, breachParams, geojson, floodRequest},
+  // Contract example fixture access for contract data with no GET route, and
+  // (styles) for design/target-state-preview to read the real contract style
+  // definitions without a network round trip.
+  examples: {scenarioDesign, siteRequest, breachParams, geojson, floodRequest, styles},
 };
 
 export type Api = typeof api;

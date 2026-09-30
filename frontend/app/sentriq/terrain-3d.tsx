@@ -6,8 +6,13 @@ import {CSS2DRenderer,CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js
 import type {Grid,Result} from '@/lib/model';
 import type {Scene3DResponse} from '@/src/data/api';
 import type {Scene3DArrays} from '@/src/data/source';
+import {scenarioTimeFactor} from '@/src/data/source';
 import {RotateCcw,Move3D,Mountain} from 'lucide-react';
 import TerrainCanvas from './terrain-canvas';
+// Same colour ramp as the 2D map legend (app/terrain-map.tsx's ContractRasterMap,
+// contracts/styles.json depth_p50) -- so the 3D flood surface and the 2D depth
+// raster/legend agree on what a given depth looks like.
+import depthStyles from '../../../contracts/styles.json';
 
 // Real scenes are cropped to the wet flood_surface bounding box (the actual reach
 // with water, e.g. South Lhonak -> Chungthang) plus a cell margin, then subsampled
@@ -49,8 +54,16 @@ export type BreachMarker = {
   title: string; lines: string[]; caveat: string;
 };
 
-export default function Terrain3D({grid,result,frame=24,mode='terrain',className='',wire=false,scene=null,arrays=null,label,breachMarker=null}:{grid:Grid|null;result:Result|null;frame?:number;mode?:string;className?:string;wire?:boolean;scene?:Scene3DResponse|null;arrays?:Scene3DArrays|null;label?:string;breachMarker?:BreachMarker|null}){
- const [reset,setReset]=useState(0);const host=useRef<HTMLDivElement>(null),engine=useRef<any>(null),[failed,setFailed]=useState(false);const latest=useRef({result,frame});latest.current={result,frame};
+export default function Terrain3D({grid,result,frame=24,mode='terrain',className='',wire=false,scene=null,arrays=null,label,breachMarker=null,sourceLabel,floodTMin=0,floodDurationMin=60,floodDomainTraversalMin=90,floodSeverityMultiplier=1}:{grid:Grid|null;result:Result|null;frame?:number;mode?:string;className?:string;wire?:boolean;scene?:Scene3DResponse|null;arrays?:Scene3DArrays|null;label?:string;breachMarker?:BreachMarker|null;sourceLabel?:string;floodTMin?:number;floodDurationMin?:number;floodDomainTraversalMin?:number;floodSeverityMultiplier?:number}){
+ const [reset,setReset]=useState(0);const host=useRef<HTMLDivElement>(null),engine=useRef<any>(null),[failed,setFailed]=useState(false);
+ // The real scene's flood animation (floodTMin etc.) is deliberately NOT in the
+ // effect's dependency array below (same reasoning as legacy `result`/`frame`):
+ // the terrain mesh and the water mesh's fixed-size buffers are built once per
+ // scene, and updateWater() (called every animation frame) reads the latest
+ // values through this ref instead, so scrubbing the slider or pressing play
+ // never rebuilds/disposes the scene.
+ const latest=useRef({result,frame,floodTMin,floodDurationMin,floodDomainTraversalMin,floodSeverityMultiplier});
+ latest.current={result,frame,floodTMin,floodDurationMin,floodDomainTraversalMin,floodSeverityMultiplier};
  const real=!!(scene&&arrays);
  useEffect(()=>{const el=host.current;if(!el)return;if(!real&&!grid)return;let renderer:THREE.WebGLRenderer;try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});}catch{setFailed(true);return;}renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.6));renderer.setClearColor(0x07131e,0);renderer.outputColorSpace=THREE.SRGBColorSpace;el.appendChild(renderer.domElement);
  const labelRenderer=new CSS2DRenderer();labelRenderer.domElement.style.position='absolute';labelRenderer.domElement.style.top='0';labelRenderer.domElement.style.left='0';labelRenderer.domElement.style.pointerEvents='none';el.appendChild(labelRenderer.domElement);
@@ -89,25 +102,80 @@ export default function Terrain3D({grid,result,frame=24,mode='terrain',className
   for(let i=0;i<ring.length;i++){const [ar,ac]=ring[i],[br,bc]=ring[(i+1)%ring.length];const a=worldPoint(ar,ac,bed(sampleRows[ar],sampleCols[ac])),b=worldPoint(br,bc,bed(sampleRows[br],sampleCols[bc]));edge.push(a.x,a.y,a.z,a.x,-.35,a.z,b.x,b.y,b.z,b.x,b.y,b.z,a.x,-.35,a.z,b.x,-.35,b.z);}
   const eg=new THREE.BufferGeometry();eg.setAttribute('position',new THREE.Float32BufferAttribute(edge,3));eg.computeVertexNormals();scn.add(new THREE.Mesh(eg,new THREE.MeshStandardMaterial({color:0x183242,roughness:1,side:THREE.DoubleSide})));
 
-  // Single median flood surface (no time dimension in the contract) -- built once.
-  // Each output quad covers a whole source block (between this sample index and the
-  // next), not just the single pixel at the sample point: a nearest-index read here
-  // missed ~94% of a one-cell-wide channel (docs/progress.md 2026-09-28 diagnosis), so
-  // every source cell in the block is scanned for the max water-surface elevation.
+  // Time-varying flood surface (design/target-state-preview): the real
+  // median flood_surface has no time dimension, but it DOES give the real
+  // spatial footprint of every cell that is ever wet -- gorges stay narrow/
+  // deep, flat reaches widen, for real, honest reasons. On top of that real
+  // shape, each quad's CURRENT depth is this cell's real peak depth scaled by
+  // floodSeverityMultiplier (bigger head/width/severity/volume -> deeper,
+  // same direction as the KPI tiles) and by timeFactor() at this cell's own
+  // distance-from-breach arrival time (scenario_state.ts's
+  // domainTraversalMinutes model, exactly what the KPI tiles' POI arrivals
+  // use) -- so the front visibly starts at the breach marker and spreads
+  // downstream as the slider moves or playback runs, instead of a single
+  // static median snapshot.
   const wgroup=new THREE.Group();wgroup.renderOrder=1;scn.add(wgroup);water=wgroup;
   const Z_EPS=.01; // local-frame lift only, to keep shallow edge cells off the terrain (no z-fight)
-  const wverts:number[]=[],wcolors:number[]=[];
+  const breachRow=breachMarker?(scene.terrain.origin_y_utm_m-breachMarker.utmY)/scene.terrain.cell_size_y_m:bounds.r0;
+  const breachCol=breachMarker?(breachMarker.utmX-scene.terrain.origin_x_utm_m)/scene.terrain.cell_size_x_m:bounds.c0;
+  type WaterQuad={ri:number;ci:number;groundZ:number;peakDepthM:number;distM:number};
+  const quads:WaterQuad[]=[];
   for(let ri=0;ri<rows-1;ri++)for(let ci=0;ci<cols-1;ci++){
    const r0=sampleRows[ri],r1n=sampleRows[ri+1]-1,c0=sampleCols[ci],c1n=sampleCols[ci+1]-1;
    let maxWse=-Infinity;
    for(let r=r0;r<=r1n;r++){const base=r*width;for(let c=c0;c<=c1n;c++){const v=arrays.flood[base+c];if(v!==floodNodata&&v>maxWse)maxWse=v;}}
    if(!Number.isFinite(maxWse))continue;
-   const groundZ=bed(sampleRows[ri],sampleCols[ci]),depth=maxWse-groundZ;const {x:x0,y:y0}=worldXY(ri,ci),{x:x1,y:y1}=worldXY(ri+1,ci+1);const zw=(maxWse-minZ)*scaleY+Z_EPS;
-   const corners=[[x0,y0],[x0,y1],[x1,y0],[x1,y0],[x0,y1],[x1,y1]];
-   const cc=new THREE.Color(depth>20?'#279ce4':depth>3?'#3dd7e7':'#72f2d7');
-   for(const [x,y] of corners){wverts.push(x,zw,y);wcolors.push(cc.r,cc.g,cc.b);}
+   const groundZ=bed(sampleRows[ri],sampleCols[ci]),peakDepthM=maxWse-groundZ;
+   // Real median-peak footprint: same 0.3 m "wet" convention used everywhere
+   // else in the app -- a cell that never gets wet even at peak never gets a
+   // quad at all (fixed-size buffer below), same restriction as before.
+   if(peakDepthM<0.3)continue;
+   const dr=(sampleRows[ri]-breachRow)*scene.terrain.cell_size_y_m,dc=(sampleCols[ci]-breachCol)*scene.terrain.cell_size_x_m;
+   quads.push({ri,ci,groundZ,peakDepthM,distM:Math.sqrt(dr*dr+dc*dc)});
   }
-  if(wverts.length){const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(wverts,3));wg.setAttribute('color',new THREE.Float32BufferAttribute(wcolors,3));wg.computeVertexNormals();wgroup.add(new THREE.Mesh(wg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.87,side:THREE.DoubleSide,depthWrite:false})));}
+  const maxDistM=Math.max(1,...quads.map(q=>q.distM));
+  const DEPTH_BREAKS:number[]=(depthStyles as any)?.depth_p50?.breaks_m??[0.3,0.5,2,5];
+  const DEPTH_COLORS:string[]=(depthStyles as any)?.depth_p50?.colors??['#eaf4fc','#a9d6e5','#61a5c2','#2c7da0','#01497c'];
+  const depthColor=(d:number):THREE.Color=>{
+   for(let i=0;i<DEPTH_BREAKS.length;i++)if(d<DEPTH_BREAKS[i]){
+    const lo=i===0?0.1:DEPTH_BREAKS[i-1],t=Math.max(0,Math.min(1,(d-lo)/(DEPTH_BREAKS[i]-lo)));
+    return new THREE.Color(DEPTH_COLORS[i]).lerp(new THREE.Color(DEPTH_COLORS[i+1]),t);
+   }
+   return new THREE.Color(DEPTH_COLORS[DEPTH_COLORS.length-1]);
+  };
+  const wpos=new Float32Array(quads.length*18),wcol=new Float32Array(quads.length*18);
+  const wg=new THREE.BufferGeometry();
+  const posAttr=new THREE.BufferAttribute(wpos,3),colAttr=new THREE.BufferAttribute(wcol,3);
+  wg.setAttribute('position',posAttr);wg.setAttribute('color',colAttr);
+  if(quads.length)wgroup.add(new THREE.Mesh(wg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.87,side:THREE.DoubleSide,depthWrite:false})));
+  let lastKey='';
+  updateWater=function(){
+   if(!quads.length)return;
+   const {floodTMin:tMin,floodDurationMin:durationMin,floodDomainTraversalMin:domainTraversalMin,floodSeverityMultiplier:severityMultiplier}=latest.current;
+   const key=`${tMin}:${durationMin}:${domainTraversalMin}:${severityMultiplier}`;
+   if(key===lastKey)return;
+   lastKey=key;
+   for(let qi=0;qi<quads.length;qi++){
+    const q=quads[qi];
+    const arrivalMin=(q.distM/maxDistM)*domainTraversalMin;
+    const f=scenarioTimeFactor(tMin,arrivalMin,durationMin);
+    const depthNow=q.peakDepthM*severityMultiplier*f;
+    const hidden=depthNow<0.3;
+    const {x:x0,y:y0}=worldXY(q.ri,q.ci),{x:x1,y:y1}=worldXY(q.ri+1,q.ci+1);
+    // Collapse to a degenerate (zero-area) quad when hidden -- same fixed-size
+    // buffer every frame, just moved: no geometry rebuild, no dispose.
+    const corners=hidden?[[x0,y0],[x0,y0],[x0,y0],[x0,y0],[x0,y0],[x0,y0]]:[[x0,y0],[x0,y1],[x1,y0],[x1,y0],[x0,y1],[x1,y1]];
+    const zw=hidden?(q.groundZ-minZ)*scaleY:(q.groundZ+depthNow-minZ)*scaleY+Z_EPS;
+    const col=depthColor(depthNow);
+    for(let k=0;k<6;k++){
+     const v=(qi*6+k)*3;
+     wpos[v]=corners[k][0];wpos[v+1]=zw;wpos[v+2]=corners[k][1];
+     wcol[v]=col.r;wcol[v+1]=col.g;wcol[v+2]=col.b;
+    }
+   }
+   posAttr.needsUpdate=true;colAttr.needsUpdate=true;
+  };
+  updateWater();
 
   if(breachMarker){
    const col=(breachMarker.utmX-scene.terrain.origin_x_utm_m)/scene.terrain.cell_size_x_m;
@@ -157,5 +225,5 @@ export default function Terrain3D({grid,result,frame=24,mode='terrain',className
  const coordLine=real&&scene
   ?<>EPSG:{scene.terrain.crs_epsg??'—'} <span>{label??'scene'}</span></>
   :grid?<>{((grid.north+grid.south)/2).toFixed(3)}° N &nbsp; {((grid.west+grid.east)/2).toFixed(3)}° E <span>{grid.name}</span></>:null;
- return <div className={'terrain-three '+className}><div ref={host} className="three-host" aria-label="Interactive 3D elevation model with simulated inundation"/>{failed&&grid&&<TerrainCanvas grid={grid} result={result} frame={frame} reset={reset}/>}<div className="scene-coordinates">{coordLine}</div><div className="scene-tools"><span><Move3D size={14}/>Drag to orbit · scroll to zoom{breachMarker&&<> · hover the red marker for breach details</>}</span><button aria-label="Reset 3D camera" onClick={()=>{engine.current?.reset();setReset(r=>r+1);}}><RotateCcw size={15}/></button></div><div className="scene-caption">{real?<>REAL TERRAIN <i/> EXAGGERATED RELIEF ×{ve?.toFixed(1)} <i/> REAL D-FLOW SURFACE <i/> NEAR-FIELD SPH: UNDER INVESTIGATION</>:<>REAL TERRAIN <i/> EXAGGERATED RELIEF <i/> SIMULATED WATER {failed&&<> <i/> SOFTWARE 3D</>}</>}</div></div>;
+ return <div className={'terrain-three '+className}><div ref={host} className="three-host" aria-label="Interactive 3D elevation model with simulated inundation"/>{failed&&grid&&<TerrainCanvas grid={grid} result={result} frame={frame} reset={reset}/>}<div className="scene-coordinates">{coordLine}</div><div className="scene-tools"><span><Move3D size={14}/>Drag to orbit · scroll to zoom{breachMarker&&<> · hover the red marker for breach details</>}</span><button aria-label="Reset 3D camera" onClick={()=>{engine.current?.reset();setReset(r=>r+1);}}><RotateCcw size={15}/></button></div><div className="scene-caption">{real?<>REAL TERRAIN <i/> EXAGGERATED RELIEF ×{ve?.toFixed(1)} <i/> {sourceLabel??<>REAL D-FLOW SURFACE <i/> NEAR-FIELD SPH: UNDER INVESTIGATION</>}</>:<>REAL TERRAIN <i/> EXAGGERATED RELIEF <i/> SIMULATED WATER {failed&&<> <i/> SOFTWARE 3D</>}</>}</div></div>;
 }

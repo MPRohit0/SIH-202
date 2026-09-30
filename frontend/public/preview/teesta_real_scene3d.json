@@ -1,0 +1,61 @@
+{
+  "contract_version": "0.3.0",
+  "source_run_id": "teesta_2023_mvp__delft3d",
+  "frame": {
+    "crs_epsg": 32645,
+    "origin_x_utm_m": 657810.0,
+    "origin_y_utm_m": 3049470.0,
+    "vertical_exaggeration": 1.5,
+    "vertical_exaggeration_applies_to": "z_axis",
+    "units": "m",
+    "axis_order": "east,north,up"
+  },
+  "terrain": {
+    "url": "/preview/teesta_real_terrain.bin",
+    "encoding": "float32_le_row_major",
+    "width": 159,
+    "height": 314,
+    "cell_size_x_m": 478.11320754716985,
+    "cell_size_y_m": 479.23566878980887,
+    "origin_x_utm_m": 608130.0,
+    "origin_y_utm_m": 3098610.0,
+    "transform": [
+      478.11320754716985,
+      0.0,
+      608130.0,
+      0.0,
+      -479.23566878980887,
+      3098610.0
+    ],
+    "crs_epsg": 32645,
+    "min_elev_m": 89.49491119384766,
+    "max_elev_m": 8406.115234375,
+    "nodata": -9999.0,
+    "origin_local_x_m": -49680.0,
+    "origin_local_y_m": 49140.0,
+    "byte_length": 199704
+  },
+  "flood_surface": {
+    "url": "/preview/teesta_real_flood_surface.bin",
+    "encoding": "float32_le_row_major",
+    "nodata": -9999.0,
+    "basis": "terrain + depth_p50 (real teesta_2023_mvp__delft3d registered run)",
+    "width": 159,
+    "height": 314,
+    "byte_length": 199704
+  },
+  "depth_raster": {
+    "url": "/preview/teesta_real_depth_p50.png",
+    "bounds_latlng": [
+      [
+        27.44414761229194,
+        88.14428925703383
+      ],
+      [
+        27.95590852711294,
+        88.70844504794988
+      ]
+    ],
+    "unit": "m"
+  }
+}

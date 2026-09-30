@@ -204,6 +204,42 @@ only site currently wired end to end. From there:
   what's real vs mocked at any given time). Set `VITE_USE_MOCKS=true` in `frontend/.env.local` to
   force the frontend's own mock layer instead of hitting the API at all.
 
+## Preview mode (design/target-state-preview branch only)
+
+`design/target-state-preview` is a separate, never-merged-to-main branch that shows what every
+frontend screen looks like once the ten open workstreams (real pipeline data, automated D-Flow
+FM/DualSPHysics, the emulator wired in, real GEE, historical validation, finished impact/loss
+numbers, and the frontend actually connected to that data) are done. It does this without any of
+that being real yet, by adding a third frontend data source next to the live API and
+`VITE_USE_MOCKS`: set `VITE_DATA_MODE=preview` and every screen reads schema-valid fixture JSON
+from `frontend/src/data/preview/*.json` instead.
+
+This is illustrative, not a forecast of real numbers, and the UI says so everywhere:
+
+- A persistent banner reads "TARGET-STATE PREVIEW — illustrative values, not model output" on
+  every screen.
+- Every map, chart and 3D view carries a diagonal "PREVIEW" watermark.
+- Every fixture's `provenance.source` (or `x_preview_provenance.source` where the schema has no
+  provenance field) is `"fixture:preview"`, and every fixture carries a `preview_illustrative`
+  caveat.
+- The few real numbers used (e.g. the frozen `teesta_pilot_s001` POI results from
+  `docs/m3_spec.md`, or the real `docs/data_sources.md` source citations on Teesta III's existing
+  dam) are labelled "frozen pilot" or cite their real `src_NNN`, and are never presented as a
+  validated live result.
+- Exports are stamped `..._PREVIEW.<ext>` in both filename and file metadata.
+
+Fixtures still have to be real contract payloads — `tests/frontend/test_preview_fixtures.py`
+validates every one of them against its `contracts/schemas/*.schema.json` with the same validator
+the backend uses on live responses (`backend/m0_api/schemas.validate`), and checks the honesty
+stamps above. A few screens need fields the current contract doesn't define yet (terrain vertical
+datum/resolution, run mesh-cell-count/disk-usage, population split by arrival band); those are
+marked `x_preview_*` as proposed contract additions, not silent contract changes — `contracts/` on
+this branch is unmodified.
+
+Components never hard-code preview data themselves; they read it through the same
+`frontend/src/data/source.ts` seam as the live API, so turning this off (or eventually pointing it
+at a real backend) is a config change, not a code change.
+
 ### Onboarding a new site
 
 1. Copy `sites/template.yaml` to `sites/<site_id>.yaml` and fill in every `{value, unit, source,

@@ -1,0 +1,15 @@
+{
+  "_comment": "design/target-state-preview: the demo engine (src/data/preview/engine/) computes results live in the browser. This manifest lists what pytest validates for schema-shape regression -- generated/*.json snapshots produced by `node frontend/scripts/dump_preview_fixtures.mjs`, plus the two static site_detail fixtures the engine's getSiteDetail() still reads for domain/centreline/dams geometry. Re-run the dump script after changing engine/ and commit the refreshed generated/*.json.",
+  "fixtures": {
+    "site_detail.teesta": {"file": "site_detail.teesta.json", "schema": "site_detail.schema.json"},
+    "site_detail.rishi_ganga": {"file": "site_detail.rishi_ganga.json", "schema": "site_detail.schema.json"},
+    "teesta.flood_query_scenario": {"file": "generated/teesta.default_snapshot.json", "key": "flood_query_scenario", "schema": "flood_query_response.schema.json"},
+    "teesta.flood_query_unknown_breach": {"file": "generated/teesta.default_snapshot.json", "key": "flood_query_unknown_breach", "schema": "flood_query_response.schema.json"},
+    "teesta.impact": {"file": "generated/teesta.default_snapshot.json", "key": "impact", "schema": "impact.schema.json"},
+    "teesta.compare": {"file": "generated/teesta.default_snapshot.json", "key": "compare", "schema": "compare.schema.json"},
+    "rishi_ganga.flood_query_scenario": {"file": "generated/rishi_ganga.default_snapshot.json", "key": "flood_query_scenario", "schema": "flood_query_response.schema.json"},
+    "rishi_ganga.flood_query_unknown_breach": {"file": "generated/rishi_ganga.default_snapshot.json", "key": "flood_query_unknown_breach", "schema": "flood_query_response.schema.json"},
+    "rishi_ganga.impact": {"file": "generated/rishi_ganga.default_snapshot.json", "key": "impact", "schema": "impact.schema.json"},
+    "rishi_ganga.compare": {"file": "generated/rishi_ganga.default_snapshot.json", "key": "compare", "schema": "compare.schema.json"}
+  }
+}

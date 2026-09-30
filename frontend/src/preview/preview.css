@@ -1,0 +1,49 @@
+/* design/target-state-preview only. Imported by src/preview/PreviewBanner.tsx,
+ * which is only ever mounted when source.isPreviewMode() is true (see
+ * frontend/src/data/source.ts). Never imported from app/globals.css or any
+ * default-mode code path, so default-mode screenshots are byte-for-byte
+ * unaffected by this file's existence.
+ *
+ * Colours are taken from STYLE_GUIDE.md §2.5 (status styles) -- no new
+ * palette is introduced. */
+
+/* Slim, in-flow strip above the app header -- NOT sticky/fixed, so it never
+ * overlays the logo. The sidebar library renders its own nav as
+ * `position:fixed` (components/ui/sidebar.tsx), which positions relative to
+ * the viewport and would sit *under* this banner (i.e. behind/overlapping
+ * it) if the banner were just a preceding sibling in normal flow -- wrapping
+ * the sidebar's app shell in .app-shell-below-banner (transform establishes
+ * a new containing block for its `position:fixed` descendants, a standard
+ * CSS mechanism) makes that fixed nav position relative to the wrapper
+ * instead, i.e. below this banner, exactly like every other in-flow
+ * descendant. */
+.preview-banner{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:#221b10;border-bottom:1px solid #4d4025;color:#deb77c;font-size:10px;font-weight:600;letter-spacing:.4px;text-align:center}
+.preview-banner svg{flex-shrink:0;width:12px;height:12px}
+.app-shell-below-banner{transform:translateZ(0)}
+
+.preview-watermark-host{position:relative}
+.preview-watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;z-index:5}
+.preview-watermark span{transform:rotate(-28deg);font-size:13vw;line-height:1;font-weight:700;letter-spacing:6px;color:#ccc8a833;white-space:nowrap;user-select:none}
+.preview-watermark-host.small .preview-watermark span{font-size:34px}
+
+/* Explicit contract confidence / data-quality states (m5_specs.md §6,
+ * docs/decisions.md site-status table). These reuse the existing Badge and
+ * s-notice colour language; they exist because the target state renders them
+ * unconditionally on every relevant preview screen, so the fixtures always
+ * exercise all four. */
+.state-chip{display:inline-flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.4px;padding:5px 8px;border-radius:4px;white-space:nowrap}
+.state-chip.state-low{color:#f28e8e;background:#42252680;border:1px solid #653c3b}
+.state-chip.state-fallback{color:#cab28e;background:#372e1d66;border:1px solid #4e422e}
+.state-chip.state-demo{color:#deb77c;background:#3e321e80;border:1px solid #615135}
+.state-chip.state-placeholder{color:#9db6c6;background:#1730408c;border:1px solid #345060}
+
+/* Compare page (Card A / Card B): three side-by-side map panels (SPH, FM,
+ * SPH-FM / predicted, true, diff), each with its own caption -- reuses
+ * .s-panel/.terrain-map/.terrain-three for the panels themselves, this only
+ * lays out the row. */
+.compare-map-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+.compare-map-row>div{display:flex;flex-direction:column;gap:6px}
+.compare-map-row .compare-map-caption{font-size:11px;color:#9db6c6;letter-spacing:.3px}
+.compare-map-row .terrain-map,.compare-map-row .terrain-three{height:260px;min-height:260px}
+@media (max-width:1100px){.compare-map-row{grid-template-columns:1fr}}
+

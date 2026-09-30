@@ -26,4 +26,4 @@
 @media(max-width:900px){.concept-compare{grid-template-columns:1fr}.architecture-flow{grid-template-columns:1fr 1fr}.architecture-flow svg{display:none}}
 @media(max-width:520px){.architecture-flow{grid-template-columns:1fr}}
 .contract-raster-map .map-world{position:absolute;inset:0}
-.contract-flood-raster{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;image-rendering:auto;mix-blend-mode:screen}
+.contract-flood-raster{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;image-rendering:auto}

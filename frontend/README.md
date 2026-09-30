@@ -53,6 +53,25 @@ inventing one.
   dependency) and is now labelled "Educational Explainer" everywhere it's named, so it
   can't be mistaken for a project SPH result.
 
+## Preview mode (design/target-state-preview branch only)
+
+Set `VITE_DATA_MODE=preview` (e.g. in `.env.local`, or `VITE_DATA_MODE=preview npm run dev`) to
+serve every `source.ts` function from the fixtures in `src/data/preview/*.json` instead of the
+live API or `VITE_USE_MOCKS` contract examples. This exists only on `design/target-state-preview`
+to demonstrate the finished UI before the real M1–M7 pipeline produces this data; the root
+`README.md` "Preview mode" section explains the honesty rules (banner, watermark, provenance
+stamp, caveat) every fixture follows, and `tests/frontend/test_preview_fixtures.py` enforces them
+plus schema validity. `src/data/preview/manifest.json` is the single source of truth mapping each
+fixture file to the contract schema it must validate against — both that test and
+`src/data/preview/index.ts` (the router `source.ts` calls into) read it.
+
+Default mode (`VITE_DATA_MODE` unset, or anything other than `'preview'`) is untouched: every
+`source.ts` function's original code path runs unchanged, so this mode adds a data source, it
+doesn't modify the existing ones. `visual/playwright.config.js` has a `preview` project (a second
+dev server on :5174 with `VITE_DATA_MODE=preview`) with its own baselines under
+`visual/tests/__screenshots__/preview/`, run with `npx playwright test --project=preview`; the
+existing `default` project and its baselines are unaffected.
+
 ## Docs
 
 | File | What it is |
