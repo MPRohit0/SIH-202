@@ -244,7 +244,7 @@ export function buildImpact(queryId: string): ImpactResponse {
       arrival_band_min: band, low_persons: round2sf(v.low, 50), high_persons: Math.max(round2sf(v.low, 50), round2sf(v.high, 50)),
     })),
     x_preview_population_by_arrival_band_note: 'Split by the same arrival-band edges used for isochrones.',
-    x_preview_critical_facilities_note: 'The dam, bridge and hospital are reported here (zone + arrival only) and excluded from population_persons and assets.buildings.',
+    x_preview_critical_facilities_note: 'The dam, bridge and hospital are listed with zone and arrival only; they are not counted in the population or building totals.',
   };
 }
 
@@ -280,7 +280,7 @@ export function buildCompare(siteId: string, scenarioType: ScenarioType, inputs:
     const sphArrival = fm.arrival_s * (1 + noise(`${seed}|a|${poi.poi_id}`, 0.05));
     probes.push({poi_id: poi.poi_id, arrival_delft3d_s: fm.arrival_s, arrival_sph_s: sphArrival, diff_s: sphArrival - fm.arrival_s});
   }
-  const raster = renderRaster(world, 'depth', c => c <= nearFieldEnd ? computeProfile(world, inputs, scenarioType, c).depth_m : 0);
+  const raster = renderRaster(world, 'depth', c => computeProfile(world, inputs, scenarioType, c).depth_m, {toChainage: nearFieldEnd});
   return {
     site_id: siteId, scenario_id: `${scenarioType}_current`,
     sph_vs_delft3d: {

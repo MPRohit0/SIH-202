@@ -109,6 +109,20 @@ export async function listScenarios(): Promise<Awaiting & {scenarios: Scenario[]
   return {status: 'awaiting', reason: 'No scenario library exists for this site yet.', scenarios: []};
 }
 
+/** Preview mode only: the demo engine's scenario library (training design,
+ * held-out and SPH comparison runs). No contract endpoint exists for this;
+ * default mode keeps listScenarios()'s empty state. */
+export type LibraryRun = preview.LibraryRun;
+export async function getScenarioLibrary(siteId: string): Promise<LibraryRun[]> {
+  return isPreviewMode() ? preview.getScenarioLibrary(siteId) : [];
+}
+
+/** Preview mode only: home-page map images and headline numbers. */
+export type PreviewLanding = preview.PreviewLanding;
+export async function getPreviewLanding(siteId: string): Promise<PreviewLanding | null> {
+  return isPreviewMode() ? preview.getPreviewLanding(siteId) : null;
+}
+
 /** Contract §5 #14 / §4.7 — GET /impact/{query_id}. */
 export async function getImpact(queryId: string): Promise<ImpactResponse> {
   if (!queryId) throw new Error('A query_id is required to load impact results.');
@@ -228,6 +242,7 @@ export async function getStyles(): Promise<Awaiting & {styles: unknown | null}> 
 /** Contract §5 #18 — GET /export/{query_id}?format=. */
 export async function exportUrl(format: 'shp' | 'kml' | 'geojson' | 'pdf', queryId: string): Promise<{url: string}> {
   if (!queryId) throw new Error('A query_id is required to export flood results.');
+  if (isPreviewMode()) return {url: URL.createObjectURL(await preview.exportQuery(format, queryId))};
   const response = await api.export(queryId, format);
   return {url: URL.createObjectURL(await response.blob())};
 }

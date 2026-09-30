@@ -1,0 +1,45 @@
+{
+  "siteSelector": {
+    "resultLoaded": "Scenario result loaded",
+    "siteConnected": "Site ready · run a flood query"
+  },
+  "floodQuery": {
+    "realMvp": "DEMO SCENARIO",
+    "emptyDetail": "Choose a site and run a flood query to see the flood map, impact and exports."
+  },
+  "onboarding": {
+    "missingInputs": "",
+    "demoTitle": "Teesta III cascade demo",
+    "demoDetail": "Open the South Lhonak GLOF → Teesta III dam cascade scenario: flood map, timeline, impact, model comparison and satellite monitoring.",
+    "validationEmptyDetail": "No validation report is available for this site yet.",
+    "libraryUnavailable": "The scenario library for this site is being prepared."
+  },
+  "onboardingJob": {
+    "start": "Start onboarding",
+    "runMetaHeading": "Run metadata",
+    "runMetaNote": "Solver run statistics for the site's reference D-Flow FM case."
+  },
+  "dataLayers": {
+    "realDepthName": "Flood outputs",
+    "realDepthDesc": "Depth, velocity, arrival time and extent layers for the current scenario, from the trained emulator.",
+    "pilotTerrainName": "Terrain / model domain",
+    "pilotTerrainDesc": "Valley terrain and far-field model domain for the site.",
+    "forcingName": "Breach forcing",
+    "forcingDesc": "Breach hydrographs for the scenario, including the Teesta III cascade trigger.",
+    "exposureName": "Population and exposure",
+    "exposureDesc": "Settlements, buildings, roads and critical facilities used for the impact estimate.",
+    "imageryName": "Satellite imagery",
+    "imageryDesc": "Pre- and post-event lake scenes, with acquisition dates shown in Monitoring.",
+    "monitoringSeriesName": "Lake-area / rainfall series",
+    "monitoringSeriesDesc": "Lake-area history from Sentinel-2 water mapping and catchment rainfall.",
+    "available": "READY",
+    "mvp": "READY",
+    "terrainHeading": "Terrain"
+  },
+  "landing": {
+    "teestaSite": "Teesta III · South Lhonak GLOF",
+    "registeredRun": "Cascade scenario",
+    "terrainAwaiting": "Open the Teesta III demo to load the flood scenario.",
+    "directRunInfo": "The South Lhonak → Teesta III cascade scenario is ready to explore."
+  }
+}

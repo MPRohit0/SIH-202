@@ -11,9 +11,12 @@ import type {
 } from '../api';
 import {getWorld, type ScenarioType} from './engine/world';
 import {computeProfile, seedForInputs, type EngineInputs} from './engine/physics';
+import {widthAt} from './engine/world';
+import {mulberry32, hashSeed} from './engine/rng';
 import {runFloodQuery, buildImpact, buildCompare, buildTimeline, depthClass, dvClass} from './engine/index';
 import {store} from './engine/store';
 import {renderScene3d} from './engine/scene3d';
+import {renderTerrainImage, renderRaster} from './engine/raster';
 
 const siteDetailTemplates: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -95,7 +98,7 @@ export async function getTerrainMeta(siteId: string): Promise<Record<string, unk
   const world = getWorld(siteId);
   return {
     vertical_datum: 'EGM2008', resolution_m: 12.5,
-    dem_layer: {url: '', label: 'DEM hillshade'}, domain_mask_layer: {url: '', label: 'Domain mask'},
+    dem_layer: {url: renderTerrainImage(world, 0).dataUrl, label: 'DEM hillshade'}, domain_mask_layer: {url: renderRaster(world, 'zone', () => 0.3).dataUrl, label: 'Domain mask'},
     dem_size_bytes: 1_260_000_000, dem_cell_count: 12_700_000, dataset: store.datasetSelections.dem,
     length_m: world.length_m,
   };
@@ -171,6 +174,16 @@ export async function getValidation(siteId: string): Promise<ValidationResponse>
     per_run: [], summary: {iou_median: 0.87, depth_rmse_wet_m: 0.31, arrival_mae_s: 145},
     baseline_linear: {iou_median: 0.68}, grade_thresholds_ref: 'docs/m5_specs.md §7',
     events: siteId === 'rishi_ganga' ? ['chamoli_2021'] : [],
+    // Real LOOCV results on the project's synthetic test world (backend/m5_emulator,
+    // project documentation §7.10) -- measured, but not a site-specific validation.
+    synthetic_loocv: {
+      world: 'synthetic_valley', model: 'gp_emulator', n_runs: 30,
+      note: 'Leave-one-out cross-validation on the 40 km synthetic test valley: the emulator is refitted 30 times, each time predicting the one run it did not see.',
+      summary: {depth_rmse_m: 0.067, arrival_rmse_s: 815, interval_coverage_wet_pct: 87.0, interval_coverage_poi_pct: 85.3},
+      baseline_linear: {depth_rmse_m: 0.139, arrival_rmse_s: 1622},
+      baseline_nearest: {depth_rmse_m: 0.243, arrival_rmse_s: 1466},
+      acceptance: {monotonic_pairs: '300 / 300', terrace_classified: '27 / 30 folds'},
+    },
   };
 }
 
@@ -219,18 +232,33 @@ export async function getObserved(siteId: string): Promise<GeeLayers> {
   const first = gee.series[0];
   const changePct = first.area_m2 ? ((latest.area_m2 - first.area_m2) / first.area_m2) * 100 : 0;
   const world = getWorld(siteId);
+  // Illustrative pre/post scenes on the flood map's own grid, with the lake drawn from the area series.
+  const preImg = renderTerrainImage(world, first.area_m2), postImg = renderTerrainImage(world, latest.area_m2);
+  const pre = {event_id: `${siteId}_pre`, phase: 'pre' as const, date: first.date, url: preImg.dataUrl, bounds_latlng: preImg.bounds_latlng};
+  const post = {event_id: `${siteId}_post`, phase: 'post' as const, date: latest.date, url: postImg.dataUrl, bounds_latlng: postImg.bounds_latlng};
   return {
     site_id: siteId, source: 'cache', fetched_at: new Date(gee.lastCheckedAt).toISOString(),
     lake_area_series: gee.series.map(p => ({date: p.date, area_m2: p.area_m2, method: 's2_water_index', cloud_pct: 8, source: 'src_072'})),
-    lake_latest: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [world.breach_lon, world.breach_lat]}, properties: {area_m2: latest.area_m2}}]},
+    lake_latest: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Polygon', coordinates: [lakeOutline(world.breach_lon, world.breach_lat, latest.area_m2)]}, properties: {area_m2: latest.area_m2, date: latest.date}}]},
     rainfall: [{date: latest.date, precip_mm: 38, dataset: 'gpm_imerg'}],
-    imagery: [
-      {event_id: `${siteId}_pre`, phase: 'pre', date: first.date, url: '', bounds_latlng: [[world.bbox_lonlat[1], world.bbox_lonlat[0]], [world.bbox_lonlat[3], world.bbox_lonlat[2]]]},
-      {event_id: `${siteId}_post`, phase: 'post', date: latest.date, url: '', bounds_latlng: [[world.bbox_lonlat[1], world.bbox_lonlat[0]], [world.bbox_lonlat[3], world.bbox_lonlat[2]]]},
-    ],
+    imagery: [pre, post],
     observed_extents: [],
     recheck: {outdated: Math.abs(changePct) >= OUTDATED_THRESHOLD_PCT, change_pct: changePct, threshold_pct: OUTDATED_THRESHOLD_PCT},
   };
+}
+
+/** Illustrative lake outline of the given area, elongated along the valley,
+ * with an irregular shoreline (deterministic, so it does not change per render). */
+function lakeOutline(lon: number, lat: number, areaM2: number): number[][] {
+  const r = Math.sqrt(Math.max(areaM2, 1) / Math.PI), mLon = 110540 * Math.cos(lat * Math.PI / 180), mLat = 110540;
+  const pts: number[][] = [];
+  const shape = (a: number) => 1 + 0.12 * Math.sin(3 * a + 0.7) + 0.07 * Math.sin(5 * a + 2.1) + 0.04 * Math.cos(9 * a);
+  for (let k = 0; k <= 64; k++) {
+    const a = (k / 64) * Math.PI * 2, rr = r * shape(a);
+    pts.push([lon + (rr * 1.45 * Math.cos(a)) / mLon, lat + (rr * 0.7 * Math.sin(a)) / mLat]);
+  }
+  pts[pts.length - 1] = pts[0];
+  return pts;
 }
 
 export async function refreshObserved(siteId: string): Promise<GeeLayers> {
@@ -256,3 +284,87 @@ export async function updateRecheckFrequency(siteId: string, frequencyDays: numb
 
 export {depthClass, dvClass};
 export {store};
+
+// --- Scenario library (screen: Scenario Library) --------------------------
+// The emulator's training design as described in docs/m5_specs.md: a 30-run
+// maximin-style Latin hypercube over (V_w, B_ave, T_f) inside each input's
+// range, plus 5 held-out check runs and 3 SPH near-field comparison runs
+// (low / mid / high volume). Every number is computed by the demo engine.
+
+export type LibraryRun = {
+  run_id: string; role: 'training' | 'holdout' | 'sph'; engine: 'D-Flow FM' | 'DualSPHysics';
+  water_volume_m3: number; breach_width_m: number; failure_time_s: number;
+  extent_km2: number; peak_depth_m: number; loocv_iou: number | null; wall_time_s: number;
+};
+
+// Same sampling as the engine's scenario response (engine/index.ts
+// buildScenarioResponse), so the library and home page match the workspace.
+function floodedAreaKm2(world: ReturnType<typeof getWorld>, inputs: EngineInputs, scenarioType: string): number {
+  const samples = 40;
+  let area = 0;
+  for (let i = 0; i <= samples; i++) {
+    const c = (i / samples) * world.length_m;
+    if (computeProfile(world, inputs, scenarioType, c).depth_m >= 0.3) area += (world.length_m / samples) * widthAt(world, c);
+  }
+  return area / 1e6;
+}
+
+export async function getScenarioLibrary(siteId: string): Promise<LibraryRun[]> {
+  const world = getWorld(siteId);
+  const byName = Object.fromEntries(world.emulatorInputs.map(r => [r.name, r]));
+  const vw = byName.water_volume_m3, bw = byName.breach_width_m, tf = byName.failure_time_s;
+  const scale = (r: typeof vw, u: number) => r.slider.mapping === 'log' ? r.low * Math.pow(r.high / r.low, u) : r.low + u * (r.high - r.low);
+  const rand = mulberry32(hashSeed(`${siteId}|library`));
+  const lhs = (n: number) => {
+    const perms = [0, 1, 2].map(() => { const p = Array.from({length: n}, (_, i) => i); for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; } return p; });
+    return Array.from({length: n}, (_, i) => perms.map(p => (p[i] + 0.5) / n));
+  };
+  const make = (role: LibraryRun['role'], idx: number, u: number[]): LibraryRun => {
+    const inputs = {water_volume_m3: scale(vw, u[0]), breach_width_m: scale(bw, u[1]), failure_time_s: scale(tf, u[2])};
+    const sph = role === 'sph';
+    return {
+      run_id: `${siteId}_${sph ? 'sph' : role === 'holdout' ? 'h' : 'r'}${String(idx + 1).padStart(2, '0')}`, role,
+      engine: sph ? 'DualSPHysics' : 'D-Flow FM', ...inputs,
+      extent_km2: floodedAreaKm2(world, inputs, world.defaultScenarioType),
+      peak_depth_m: computeProfile(world, inputs, world.defaultScenarioType, 0).depth_m,
+      loocv_iou: role === 'training' ? 0.84 + 0.1 * rand() : null,
+      wall_time_s: sph ? 900 + 600 * u[0] : 380 + 190 * u[0] + 60 * rand(),
+    };
+  };
+  return [
+    ...lhs(30).map((u, i) => make('training', i, u)),
+    ...lhs(5).map((u, i) => make('holdout', i, u)),
+    ...[0.15, 0.5, 0.85].map((v, i) => make('sph', i, [v, 0.5, 0.5])),
+  ];
+}
+
+// --- Landing page (preview mode) -----------------------------------------
+// The home page's hero map, data card and impact teaser, computed from the
+// site's default scenario so the page shows the same numbers as the workspace.
+export type PreviewLanding = {
+  name: string; terrainUrl: string; floodUrl: string; extent_km2: number; peak_depth_m: number;
+  coords: string; places: {name: string; kind: string; population: number; arrival_min: number; depth_m: number}[];
+};
+export async function getPreviewLanding(siteId: string): Promise<PreviewLanding> {
+  const world = getWorld(siteId);
+  const gee = store.geeState.get(siteId);
+  const inputs = Object.fromEntries(world.emulatorInputs.map(r => [r.name, r.default])) as EngineInputs;
+  const scenario = world.defaultScenarioType;
+  const terrain = renderTerrainImage(world, gee ? gee.series[gee.series.length - 1].area_m2 : 0);
+  const flood = renderRaster(world, 'depth', c => computeProfile(world, inputs, scenario, c).depth_m);
+  const [[s, w], [n, e]] = terrain.bounds_latlng;
+  const places = world.pois.map(p => { const pt = computeProfile(world, inputs, scenario, p.chainage_m); return {name: p.name, kind: p.kind, population: p.population ?? 0, arrival_min: pt.arrival_s / 60, depth_m: pt.depth_m}; })
+    .filter(p => p.depth_m > 0.3).sort((a, b) => a.arrival_min - b.arrival_min);
+  return {
+    name: world.name, terrainUrl: terrain.dataUrl, floodUrl: flood.dataUrl,
+    extent_km2: floodedAreaKm2(world, inputs, scenario), peak_depth_m: computeProfile(world, inputs, scenario, 0).depth_m,
+    coords: `${w.toFixed(3)}° E — ${e.toFixed(3)}° E · ${s.toFixed(3)}° N — ${n.toFixed(3)}° N`, places,
+  };
+}
+
+export async function exportQuery(format: 'shp' | 'kml' | 'geojson' | 'pdf', queryId: string): Promise<Blob> {
+  const q = store.getQuery(queryId);
+  if (!q) throw new Error(`No preview demo query ${JSON.stringify(queryId)}`);
+  const {buildExport} = await import('./engine/exports');
+  return buildExport(format, q.site_id, queryId, q.inputs, q.scenario_type);
+}

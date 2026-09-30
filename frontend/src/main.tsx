@@ -6,6 +6,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import '../app/globals.css';
+import '../src/content/applyPreviewText';
 import SentriqApp from '../app/sentriq/app';
 
 const VIEWS = ['dashboard', 'simulation', 'library', 'compare', 'lab', 'impact',
