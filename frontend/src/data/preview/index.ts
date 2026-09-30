@@ -95,7 +95,7 @@ export async function getRunMeta(): Promise<Record<string, unknown>> {
 export async function getTerrainMeta(siteId: string): Promise<Record<string, unknown>> {
   const world = getWorld(siteId);
   return {
-    vertical_datum: 'EGM2008', resolution_m: 12.5,
+    vertical_datum: 'EGM2008', resolution_m: 12.5, crs_epsg: world.crs_epsg,
     dem_layer: {url: '', label: 'DEM hillshade'}, domain_mask_layer: {url: '', label: 'Domain mask'},
     dem_size_bytes: 1_260_000_000, dem_cell_count: 12_700_000, dataset: store.datasetSelections.dem,
     length_m: world.length_m,

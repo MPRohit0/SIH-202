@@ -102,7 +102,14 @@ export default function Terrain3D({grid,result,frame=24,mode='terrain',className
    let maxWse=-Infinity;
    for(let r=r0;r<=r1n;r++){const base=r*width;for(let c=c0;c<=c1n;c++){const v=arrays.flood[base+c];if(v!==floodNodata&&v>maxWse)maxWse=v;}}
    if(!Number.isFinite(maxWse))continue;
-   const groundZ=bed(sampleRows[ri],sampleCols[ci]),depth=maxWse-groundZ;const {x:x0,y:y0}=worldXY(ri,ci),{x:x1,y:y1}=worldXY(ri+1,ci+1);const zw=(maxWse-minZ)*scaleY+Z_EPS;
+   const groundZ=bed(sampleRows[ri],sampleCols[ci]),depth=maxWse-groundZ;
+   // Same 0.3 m "wet" convention used everywhere else in the app (e.g. wetMask
+   // checks below) -- without this, a dry cell (flood_surface == bed, depth 0)
+   // still drew a shallow-water quad right on the terrain surface, so a
+   // near-field scene with a narrow wet channel rendered as a flat, uniform
+   // pale-teal sheet covering the whole terrain instead of showing dry ground.
+   if(depth<0.3)continue;
+   const {x:x0,y:y0}=worldXY(ri,ci),{x:x1,y:y1}=worldXY(ri+1,ci+1);const zw=(maxWse-minZ)*scaleY+Z_EPS;
    const corners=[[x0,y0],[x0,y1],[x1,y0],[x1,y0],[x0,y1],[x1,y1]];
    const cc=new THREE.Color(depth>20?'#279ce4':depth>3?'#3dd7e7':'#72f2d7');
    for(const [x,y] of corners){wverts.push(x,zw,y);wcolors.push(cc.r,cc.g,cc.b);}

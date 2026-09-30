@@ -47,16 +47,17 @@ export function buildGorgeTerrain(world: World, nx: number, ny: number, cellM: n
 export function packScene3d(
   nx: number, ny: number, cellM: number, bed: Float32Array, floodSurface: Float32Array,
   minElevM: number, maxElevM: number, queryId: string, floodBasis = 'terrain + synthetic solver depth grid',
+  crsEpsg = 32645,
 ): Scene3DResponse {
   const byteLength = bed.byteLength;
   return {
     contract_version: '0.3.0', query_id: queryId,
-    frame: {crs_epsg: 32645, origin_x_utm_m: 640000, origin_y_utm_m: 3079000, vertical_exaggeration: 1.5, vertical_exaggeration_applies_to: 'z_axis', units: 'm', axis_order: 'east,north,up'},
+    frame: {crs_epsg: crsEpsg, origin_x_utm_m: 640000, origin_y_utm_m: 3079000, vertical_exaggeration: 1.5, vertical_exaggeration_applies_to: 'z_axis', units: 'm', axis_order: 'east,north,up'},
     terrain: {
       url: float32ToDataUrl(bed), encoding: 'float32_le_row_major', width: nx, height: ny,
       cell_size_x_m: cellM, cell_size_y_m: cellM, origin_x_utm_m: 640000, origin_y_utm_m: 3079000,
       origin_local_x_m: 0, origin_local_y_m: 0, transform: [cellM, 0, 640000, 0, -cellM, 3079000],
-      crs_epsg: 32645, min_elev_m: minElevM, max_elev_m: maxElevM, nodata: -9999, byte_length: byteLength,
+      crs_epsg: crsEpsg, min_elev_m: minElevM, max_elev_m: maxElevM, nodata: -9999, byte_length: byteLength,
     },
     flood_surface: {url: float32ToDataUrl(floodSurface), encoding: 'float32_le_row_major', nodata: -9999, basis: floodBasis, width: nx, height: ny, byte_length: byteLength},
     comparison: {nearfield_bounds_local: [[0, 0], [nx * cellM, ny * cellM]], delft3d_surface_url: null, delft3d_surface_basis: null, sph_surfaces: []},
@@ -81,5 +82,5 @@ export function renderScene3d(world: World, scenarioType: string, inputs: Engine
       flood[idx] = bed[idx] + localDepth;
     }
   }
-  return packScene3d(nx, ny, CELL_M, bed, flood, minElevM, maxElevM, queryId, 'terrain + engine depth profile');
+  return packScene3d(nx, ny, CELL_M, bed, flood, minElevM, maxElevM, queryId, 'terrain + engine depth profile', world.crs_epsg);
 }

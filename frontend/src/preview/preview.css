@@ -7,8 +7,19 @@
  * Colours are taken from STYLE_GUIDE.md §2.5 (status styles) -- no new
  * palette is introduced. */
 
-.preview-banner{position:sticky;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:center;gap:10px;padding:9px 16px;background:#3e321e;border-bottom:1px solid #615135;color:#deb77c;font-size:11px;font-weight:600;letter-spacing:.4px;text-align:center}
-.preview-banner svg{flex-shrink:0}
+/* Slim, in-flow strip above the app header -- NOT sticky/fixed, so it never
+ * overlays the logo. The sidebar library renders its own nav as
+ * `position:fixed` (components/ui/sidebar.tsx), which positions relative to
+ * the viewport and would sit *under* this banner (i.e. behind/overlapping
+ * it) if the banner were just a preceding sibling in normal flow -- wrapping
+ * the sidebar's app shell in .app-shell-below-banner (transform establishes
+ * a new containing block for its `position:fixed` descendants, a standard
+ * CSS mechanism) makes that fixed nav position relative to the wrapper
+ * instead, i.e. below this banner, exactly like every other in-flow
+ * descendant. */
+.preview-banner{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;background:#221b10;border-bottom:1px solid #4d4025;color:#deb77c;font-size:10px;font-weight:600;letter-spacing:.4px;text-align:center}
+.preview-banner svg{flex-shrink:0;width:12px;height:12px}
+.app-shell-below-banner{transform:translateZ(0)}
 
 .preview-watermark-host{position:relative}
 .preview-watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;z-index:5}

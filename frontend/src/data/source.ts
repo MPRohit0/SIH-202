@@ -85,8 +85,12 @@ export type FloodRasterOverlay = {
 export function floodRasterOverlay(response: FloodQueryResponse | null, layerId = 'depth_p50'): FloodRasterOverlay | null {
   const refs = response?.layers.filter(layer => layer.available && layer.type === 'raster_png') ?? [];
   // The frozen contract example only contains p_inundation. Preserve that mock
-  // fixture path while real responses must provide the requested layer.
-  const ref = refs.find(layer => layer.layer_id === layerId) ?? (useMocks ? refs[0] : undefined);
+  // fixture path while real responses must provide the requested layer. Preview
+  // mode's demo engine only ever renders one layer per response too (depth_p50
+  // for a scenario query, p_inundation for an unknown_breach query) -- without
+  // this fallback, requesting the "Depth" layer pill against an unknown_breach
+  // result found no match and rendered nothing at all.
+  const ref = refs.find(layer => layer.layer_id === layerId) ?? ((useMocks || isPreviewMode()) ? refs[0] : undefined);
   if (!ref || ref.bounds_latlng.length !== 2 || ref.bounds_latlng.some(point => point.length !== 2)) return null;
   return {layerId: ref.layer_id, url: fileUrl(ref.url), boundsLatLng: ref.bounds_latlng as [[number, number], [number, number]], styleId: ref.style_id, unit: ref.unit};
 }
@@ -160,7 +164,12 @@ export async function getObserved(siteId: string): Promise<GeeLayers> {
  * served by Vite itself -- passed through unchanged rather than prefixed with
  * the backend's own baseUrl (api.fileUrl targets the backend origin). */
 export function fileUrl(path: string): string {
-  if (isPreviewMode() && (path.startsWith('/preview/') || path.startsWith('data:'))) return path;
+  // Preview mode never has a real backend to resolve a file reference against
+  // (rule 11); falling through to api.fileUrl() for anything unexpected (e.g.
+  // a preview fixture's intentionally blank '' url for imagery with no cached
+  // screenshot) resolved to the bare API origin and produced a real, repeated
+  // GET .../api/v1/ 404 against a backend that may not even be running.
+  if (isPreviewMode()) return path;
   return api.fileUrl(path);
 }
 export async function refreshObserved(siteId: string): Promise<GeeLayers> {

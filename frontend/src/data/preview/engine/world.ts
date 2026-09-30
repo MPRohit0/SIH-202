@@ -30,6 +30,10 @@ export type CascadeDam = {
 export type World = {
   site_id: string; name: string; bbox_lonlat: [number, number, number, number];
   breach_lon: number; breach_lat: number;
+  /** The site's real UTM zone (CLAUDE.md §"CRS": Teesta EPSG:32645, Rishi
+   * Ganga EPSG:32644) -- used for the scene3d frame and the Terrain panel's
+   * CRS label instead of a hardcoded/placeholder value. */
+  crs_epsg: number;
   /** Total centreline length modelled, in metres from the breach (chainage 0). */
   length_m: number;
   /** Piecewise-linear valley width by reach, narrowest (gorge) near the
@@ -54,6 +58,7 @@ export const TEESTA: World = {
   name: 'Teesta — South Lhonak GLOF to Teesta III',
   bbox_lonlat: [88.0, 27.5, 89.0, 28.2],
   breach_lon: 88.409, breach_lat: 27.888,
+  crs_epsg: 32645,
   length_m: 32000,
   // Gorge for the first ~10 km below South Lhonak, widening past Chungthang
   // toward the Sangkalang/Mangan reach.
@@ -90,6 +95,7 @@ export const RISHI_GANGA: World = {
   name: 'Rishi Ganga — Raunthi Gad landslide lake',
   bbox_lonlat: [79.6, 30.4, 79.9, 30.7],
   breach_lon: 79.72, breach_lat: 30.61,
+  crs_epsg: 32644,
   length_m: 8000,
   reaches: [
     {from_chainage_m: 0, width_m: 90},

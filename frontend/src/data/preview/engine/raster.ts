@@ -7,7 +7,10 @@ import styles from '../../../../../contracts/styles.json';
 import {computeProfile, type EngineInputs} from './physics';
 import {getWorld, widthAt, chainageToLonLat, type World} from './world';
 
-const W = 90, H = 220;
+// Higher resolution than the original 90x220 so the depth-class colour steps
+// don't turn into visibly blocky bands once the CSS layer stretches this
+// raster across a wide map panel (docs/progress.md preview 2D map fix).
+const W = 200, H = 460;
 
 function lerpColor(a: string, b: string, t: number): string {
   const pa = hexToRgb(a), pb = hexToRgb(b);
@@ -64,10 +67,17 @@ function makeCanvas(): {canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D
 }
 
 /** dist-from-centre shape factor in [0,1]: full depth in the channel,
- * tapering to 0 at the bank -- same taper used by the pre-engine generator. */
-function bankTaper(distFromCentre: number): number {
-  if (distFromCentre < 0.42) return 1;
-  if (distFromCentre < 0.5) return Math.max(0, 1 - (distFromCentre - 0.42) / 0.08);
+ * tapering to 0 at the bank. `halfWidthFrac` is this row's actual channel
+ * half-width as a fraction of the raster's across-channel span (derived from
+ * widthAt(), same per-chainage width the gorge terrain uses in scene3d.ts's
+ * buildGorgeTerrain), so the painted channel narrows through the gorge and
+ * widens downstream instead of always covering a fixed fraction of the
+ * image -- without this the raster looked like a flat, uniform band with no
+ * valley shape (docs/progress.md preview 2D map fix). */
+function bankTaper(distFromCentre: number, halfWidthFrac: number): number {
+  const plateau = halfWidthFrac * 0.82;
+  if (distFromCentre < plateau) return 1;
+  if (distFromCentre < halfWidthFrac) return Math.max(0, 1 - (distFromCentre - plateau) / Math.max(halfWidthFrac - plateau, 1e-6));
   return 0;
 }
 
@@ -99,12 +109,17 @@ export function renderRaster(
   if (typeof document === 'undefined') return {dataUrl: '', bounds_latlng: bounds};
   const {canvas, ctx} = makeCanvas();
   const img = ctx.createImageData(W, H);
+  const maxWidthM = Math.max(...world.reaches.map(r => r.width_m));
   for (let row = 0; row < H; row++) {
     const chainageM = (row / (H - 1)) * world.length_m;
+    // This row's channel half-width as a fraction of the raster's across-channel
+    // span, so the painted channel actually narrows/widens with chainage like
+    // widthAt() says it should (see bankTaper's doc comment).
+    const halfWidthFrac = Math.min(0.49, (widthAt(world, chainageM) / maxWidthM) * 0.49);
     for (let col = 0; col < W; col++) {
       const across = col / (W - 1) - 0.5;
       const dist = Math.abs(across);
-      const taper = bankTaper(dist);
+      const taper = bankTaper(dist, halfWidthFrac);
       const raw = sample(chainageM, dist) * taper;
       let color: string;
       if (kind === 'p_inundation') color = probColor(raw);
