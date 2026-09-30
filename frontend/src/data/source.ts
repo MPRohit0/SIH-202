@@ -340,3 +340,11 @@ export async function saveQueryForOffline(bundle: OfflineBundle, siteName: strin
 export async function loadSavedOfflineQuery(queryId: string): Promise<FloodQueryResponse> {
   return api.flood(queryId);
 }
+
+/** design/target-state-preview: the scenario-state calculator behind every
+ * slider/control-driven number on the Dashboard and Simulation pages (the
+ * four KPI tiles, downstream-impact arrivals, the map legend range --
+ * docs/progress.md). Preview-only; a pure function, so callers gate on
+ * isPreviewMode() themselves rather than this module doing it. */
+export {computeScenarioState} from './preview/engine/scenario_state';
+export type {ScenarioState, ScenarioStateInputs, PoiState as ScenarioPoiState, Ranged as ScenarioRanged} from './preview/engine/scenario_state';
