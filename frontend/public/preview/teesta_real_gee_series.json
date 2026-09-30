@@ -1,0 +1,328 @@
+{
+  "source_cache": "data/teesta/gee (real M7 GEE cache)",
+  "fetched_at": "2026-09-28T06:37:37Z",
+  "lake_area_series": [
+    {
+      "date": "2023-09-01",
+      "area_m2": 4348200.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2023-09-28",
+      "area_m2": 1674000.0,
+      "method": "isro_nrsc",
+      "cloud_pct": null,
+      "source": "src_072"
+    },
+    {
+      "date": "2023-10-01",
+      "area_m2": 1493200.0,
+      "method": "s2_water_index",
+      "cloud_pct": 15.7,
+      "source": null
+    },
+    {
+      "date": "2023-10-04",
+      "area_m2": 603000.0,
+      "method": "isro_nrsc",
+      "cloud_pct": null,
+      "source": "src_072"
+    },
+    {
+      "date": "2023-11-01",
+      "area_m2": 1436200.0,
+      "method": "s2_water_index",
+      "cloud_pct": 13.1,
+      "source": null
+    },
+    {
+      "date": "2023-12-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 0.3,
+      "source": null
+    },
+    {
+      "date": "2024-01-01",
+      "area_m2": 3801700.0,
+      "method": "s2_water_index",
+      "cloud_pct": 1.4,
+      "source": null
+    },
+    {
+      "date": "2024-02-01",
+      "area_m2": 1878200.0,
+      "method": "s2_water_index",
+      "cloud_pct": 13.2,
+      "source": null
+    },
+    {
+      "date": "2024-03-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 3.7,
+      "source": null
+    },
+    {
+      "date": "2024-04-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 12.0,
+      "source": null
+    },
+    {
+      "date": "2024-05-01",
+      "area_m2": 9318500.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2024-06-01",
+      "area_m2": 2146200.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2024-07-01",
+      "area_m2": 1552300.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2024-08-01",
+      "area_m2": 1573500.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2024-09-01",
+      "area_m2": 300.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2024-10-01",
+      "area_m2": 9890000.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2024-11-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 0.4,
+      "source": null
+    },
+    {
+      "date": "2024-12-01",
+      "area_m2": 1508400.0,
+      "method": "s2_water_index",
+      "cloud_pct": 0.3,
+      "source": null
+    },
+    {
+      "date": "2025-01-01",
+      "area_m2": 1975800.0,
+      "method": "s2_water_index",
+      "cloud_pct": 17.8,
+      "source": null
+    },
+    {
+      "date": "2025-02-01",
+      "area_m2": 2835900.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2025-03-01",
+      "area_m2": 8352800.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2025-04-01",
+      "area_m2": 8657000.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2025-05-01",
+      "area_m2": 10720800.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2025-06-01",
+      "area_m2": 3877500.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2025-07-01",
+      "area_m2": 100.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2025-08-01",
+      "area_m2": 1714100.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2025-09-01",
+      "area_m2": 3936500.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2025-10-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 42.3,
+      "source": null
+    },
+    {
+      "date": "2025-11-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 0.3,
+      "source": null
+    },
+    {
+      "date": "2025-12-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 0.1,
+      "source": null
+    },
+    {
+      "date": "2026-01-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 7.2,
+      "source": null
+    },
+    {
+      "date": "2026-02-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 3.4,
+      "source": null
+    },
+    {
+      "date": "2026-03-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 10.9,
+      "source": null
+    },
+    {
+      "date": "2026-04-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 27.1,
+      "source": null
+    },
+    {
+      "date": "2026-05-01",
+      "area_m2": null,
+      "method": null,
+      "cloud_pct": 50.7,
+      "source": null
+    },
+    {
+      "date": "2026-06-01",
+      "area_m2": 8669300.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2026-07-01",
+      "area_m2": 1980600.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2026-08-01",
+      "area_m2": 1592700.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    },
+    {
+      "date": "2026-09-01",
+      "area_m2": 1683500.0,
+      "method": "s1_threshold",
+      "cloud_pct": null,
+      "source": null
+    }
+  ],
+  "rainfall": [
+    {
+      "date": "2026-08-29",
+      "precip_mm": 18.878049170142784,
+      "dataset": "chirps"
+    },
+    {
+      "date": "2026-08-30",
+      "precip_mm": 25.4953704495494,
+      "dataset": "chirps"
+    },
+    {
+      "date": "2026-08-31",
+      "precip_mm": 4.500981828586024,
+      "dataset": "chirps"
+    }
+  ],
+  "imagery": [
+    {
+      "phase": "pre",
+      "date": "2023-09-26",
+      "url": "/preview/teesta_real_gee_pre.jpg",
+      "bounds_latlng": [
+        [
+          27.55880992509773,
+          88.59845686030329
+        ],
+        [
+          27.651131321457477,
+          88.69159482719647
+        ]
+      ]
+    },
+    {
+      "phase": "post",
+      "date": "2023-10-26",
+      "url": "/preview/teesta_real_gee_post.jpg",
+      "bounds_latlng": [
+        [
+          27.55880992509773,
+          88.59845686030329
+        ],
+        [
+          27.651131321457477,
+          88.69159482719647
+        ]
+      ]
+    }
+  ]
+}

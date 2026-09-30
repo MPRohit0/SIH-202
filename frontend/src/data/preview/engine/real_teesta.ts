@@ -28,3 +28,31 @@ export function fetchRealTeestaScene3dMeta(): Promise<RealScene3DMeta> {
   if (!cached) cached = fetch('/preview/teesta_real_scene3d.json').then(res => res.json());
   return cached;
 }
+
+// Real GEE monitoring assets (screen 7): a static snapshot of the real M7 GEE
+// cache already on disk for Teesta (data/teesta/gee/ -- the same cache main's
+// live backend reads), captured once
+// (frontend/scripts/gen_real_teesta_gee_preview_assets.py). Without this the
+// preview engine's GEE screen painted a single dry Point (no lake outline),
+// two empty imagery URLs and a 5-point synthetic area series instead of the
+// real lake polygon, real satellite thumbnails and the real ~3-year monthly
+// series main shows.
+export type RealGeeSeries = {
+  source_cache: string; fetched_at: string;
+  lake_area_series: Array<{date: string; area_m2: number | null; method: string | null; cloud_pct: number | null; source: string | null}>;
+  rainfall: Array<{date: string; precip_mm: number | null; dataset: string}>;
+  imagery: Array<{phase: string; date: string; url: string; bounds_latlng: number[][]}>;
+};
+
+let cachedGee: Promise<RealGeeSeries> | null = null;
+export function fetchRealTeestaGeeSeries(): Promise<RealGeeSeries> {
+  if (!cachedGee) cachedGee = fetch('/preview/teesta_real_gee_series.json').then(res => res.json());
+  return cachedGee;
+}
+
+export type RealLakeLatest = {type: 'FeatureCollection'; features: Array<{type: 'Feature'; geometry: {type: string; coordinates: unknown}; properties: Record<string, unknown>}>};
+let cachedLakeLatest: Promise<RealLakeLatest> | null = null;
+export function fetchRealTeestaLakeLatest(): Promise<RealLakeLatest> {
+  if (!cachedLakeLatest) cachedLakeLatest = fetch('/preview/teesta_real_lake_latest.geojson').then(res => res.json());
+  return cachedLakeLatest;
+}

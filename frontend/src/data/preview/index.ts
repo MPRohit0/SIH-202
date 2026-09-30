@@ -15,7 +15,7 @@ import {runFloodQuery, buildImpact, buildCompare, buildTimeline, depthClass, dvC
 import type {CompareOpts, CompareWorkbench} from './engine/compare';
 import {store} from './engine/store';
 import {renderScene3d} from './engine/scene3d';
-import {fetchRealTeestaScene3dMeta} from './engine/real_teesta';
+import {fetchRealTeestaScene3dMeta, fetchRealTeestaGeeSeries, fetchRealTeestaLakeLatest} from './engine/real_teesta';
 
 const siteDetailTemplates: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -244,7 +244,39 @@ export async function getHistoricalValidation(siteId: string, eventId: string): 
 
 const OUTDATED_THRESHOLD_PCT = 10;
 
+/** Teesta only: a static snapshot of the real M7 GEE cache (real_teesta.ts),
+ * with a fresh "recheck" point appended each time (from geeState) so the
+ * lake-area/rainfall charts still respond to Refresh satellite cache -- see
+ * that function's own doc comment for why every other site stays fully
+ * synthetic. */
+async function getObservedReal(siteId: string): Promise<GeeLayers> {
+  const [series, lakeLatest, gee] = await Promise.all([
+    fetchRealTeestaGeeSeries(), fetchRealTeestaLakeLatest(), Promise.resolve(store.geeState.get(siteId)),
+  ]);
+  const extraPoints = (gee?.series.length ?? 5) - 5; // reset() seeds 5 points; each refresh adds one more
+  const lakeAreaSeries = series.lake_area_series.slice();
+  if (extraPoints > 0 && gee) {
+    for (const p of gee.series.slice(-extraPoints)) {
+      lakeAreaSeries.push({date: p.date, area_m2: p.area_m2, method: null, cloud_pct: null, source: null});
+    }
+  }
+  const first = lakeAreaSeries.find(p => p.area_m2 != null);
+  const latest = [...lakeAreaSeries].reverse().find(p => p.area_m2 != null);
+  const changePct = first?.area_m2 && latest?.area_m2 ? ((latest.area_m2 - first.area_m2) / first.area_m2) * 100 : 0;
+  return {
+    site_id: siteId, source: 'cache',
+    fetched_at: gee ? new Date(gee.lastCheckedAt).toISOString() : series.fetched_at,
+    lake_area_series: lakeAreaSeries,
+    lake_latest: lakeLatest,
+    rainfall: series.rainfall,
+    imagery: series.imagery.map(item => ({event_id: `${siteId}_${item.phase}`, phase: item.phase, date: item.date, url: item.url, bounds_latlng: item.bounds_latlng})),
+    observed_extents: [],
+    recheck: {outdated: Math.abs(changePct) >= OUTDATED_THRESHOLD_PCT, change_pct: changePct, threshold_pct: OUTDATED_THRESHOLD_PCT},
+  } as unknown as GeeLayers;
+}
+
 export async function getObserved(siteId: string): Promise<GeeLayers> {
+  if (siteId === 'teesta') return getObservedReal(siteId);
   const gee = store.geeState.get(siteId);
   if (!gee) throw new Error(`No preview demo GEE state for site_id ${JSON.stringify(siteId)}`);
   const latest = gee.series[gee.series.length - 1];
@@ -253,7 +285,7 @@ export async function getObserved(siteId: string): Promise<GeeLayers> {
   const world = getWorld(siteId);
   return {
     site_id: siteId, source: 'cache', fetched_at: new Date(gee.lastCheckedAt).toISOString(),
-    lake_area_series: gee.series.map(p => ({date: p.date, area_m2: p.area_m2, method: 's2_water_index', cloud_pct: 8, source: 'src_072'})),
+    lake_area_series: gee.series.map(p => ({date: p.date, area_m2: p.area_m2, method: 's2_water_index', cloud_pct: 8, source: null})),
     lake_latest: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [world.breach_lon, world.breach_lat]}, properties: {area_m2: latest.area_m2}}]},
     rainfall: [{date: latest.date, precip_mm: 38, dataset: 'gpm_imerg'}],
     imagery: [
