@@ -1,4 +1,4 @@
-# SIH26 PS-26161 — GLOF / Dam-Break Decision-Support Tool
+# SIH26 — GLOF / Dam-Break Decision-Support Tool
 
 A fast, low-data flood decision-support tool for glacial lake outburst floods (GLOFs) and
 dam-break scenarios in Himalayan India. It is built for DDMA/SDMA/NDMA/CWC officials — people who
