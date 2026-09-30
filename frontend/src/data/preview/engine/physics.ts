@@ -91,7 +91,7 @@ export function computeConfidence(world: World, inputs: EngineInputs): Confidenc
     if (level === 'LOW') worst = 'LOW';
     else if (level === 'MODERATE' && worst !== 'LOW') worst = 'MODERATE';
   }
-  const reason_key = worst === 'LOW' ? `Low (C: query outside trained ${offending} range)`
+  const reason_key = worst === 'LOW' ? `Low (C: query outside trained ${(offending ?? '').replace('water_volume_m3', 'lake volume').replace('breach_width_m', 'breach width').replace('failure_time_s', 'failure time')} range)`
     : worst === 'MODERATE' ? 'Moderate (an input is near the edge of its trained range)'
     : null;
   return {level: worst, components, reason_key};

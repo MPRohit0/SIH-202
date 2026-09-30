@@ -25,19 +25,26 @@ export function renderScene3d(world: World, scenarioType: string, inputs: Engine
   const terrain = new Float32Array(NF_WIDTH * NF_HEIGHT);
   const flood = new Float32Array(NF_WIDTH * NF_HEIGHT);
   const bedTopElev = 1926, bedBottomElev = 1750;
+  // Gorge below the breach: a gently meandering channel with steep, rough
+  // valley walls. Water is only drawn where the engine's depth is > 5 cm;
+  // everywhere else the flood surface is nodata so the terrain shows through.
+  const rough = (x: number, y: number) => Math.sin(x * 0.37 + y * 0.11) * Math.cos(y * 0.23 - x * 0.07) + 0.5 * Math.sin(x * 0.9 + y * 0.6);
+  let maxElev = -Infinity;
   for (let row = 0; row < NF_HEIGHT; row++) {
     const chainageM = row * CELL_M;
     const bedElevAtChainage = bedTopElev - (bedTopElev - bedBottomElev) * (row / (NF_HEIGHT - 1));
-    const halfWidthCells = Math.min(NF_WIDTH / 2 - 2, (widthAt(world, chainageM) / CELL_M) / 2);
+    const halfWidthCells = Math.min(NF_WIDTH / 2 - 8, (widthAt(world, chainageM) / CELL_M) / 2);
+    const centre = NF_WIDTH / 2 + Math.sin(row / 11) * 7;
     const pt = computeProfile(world, inputs, scenarioType, chainageM);
     for (let col = 0; col < NF_WIDTH; col++) {
-      const distFromCentre = Math.abs(col - NF_WIDTH / 2);
-      const bankRise = Math.max(0, (distFromCentre - halfWidthCells)) * 1.4; // valley walls rise beyond the channel
-      const bed = bedElevAtChainage + bankRise;
+      const distFromCentre = Math.abs(col - centre);
+      const beyond = Math.max(0, distFromCentre - halfWidthCells);
+      const bed = bedElevAtChainage + Math.pow(beyond, 1.35) * 5 + (beyond > 0 ? rough(col, row) * 6 : 0);
       const idx = row * NF_WIDTH + col;
       terrain[idx] = bed;
-      const localDepth = distFromCentre <= halfWidthCells ? pt.depth_m : 0;
-      flood[idx] = bed + localDepth;
+      maxElev = Math.max(maxElev, bed);
+      const localDepth = distFromCentre <= halfWidthCells ? pt.depth_m * (1 - 0.35 * (distFromCentre / Math.max(halfWidthCells, 1)) ** 2) : 0;
+      flood[idx] = localDepth > 0.05 ? bed + localDepth : -9999;
     }
   }
   const byteLength = terrain.byteLength;
@@ -48,7 +55,7 @@ export function renderScene3d(world: World, scenarioType: string, inputs: Engine
       url: float32ToDataUrl(terrain), encoding: 'float32_le_row_major', width: NF_WIDTH, height: NF_HEIGHT,
       cell_size_x_m: CELL_M, cell_size_y_m: CELL_M, origin_x_utm_m: 640000, origin_y_utm_m: 3079000,
       origin_local_x_m: 0, origin_local_y_m: 0, transform: [CELL_M, 0, 640000, 0, -CELL_M, 3079000],
-      crs_epsg: 32645, min_elev_m: bedBottomElev, max_elev_m: bedTopElev, nodata: -9999, byte_length: byteLength,
+      crs_epsg: 32645, min_elev_m: bedBottomElev, max_elev_m: maxElev, nodata: -9999, byte_length: byteLength,
     },
     flood_surface: {url: float32ToDataUrl(flood), encoding: 'float32_le_row_major', nodata: -9999, basis: 'terrain + engine depth profile', width: NF_WIDTH, height: NF_HEIGHT, byte_length: byteLength},
     comparison: {nearfield_bounds_local: [[0, 0], [NF_WIDTH * CELL_M, NF_HEIGHT * CELL_M]], delft3d_surface_url: null, delft3d_surface_basis: null, sph_surfaces: []},

@@ -2878,3 +2878,14 @@ clean. Screenshot-verified via a scripted flood-query run + client-side navigati
 
 Per the task's scope (stop after each screen for review), this is screen 9; screen 10 (Flood Summary
 + timeline) is not yet built.
+
+## 2026-09-30 — Frontend demo mode (VITE_DATA_MODE=preview): every screen demo-ready
+- Branch `claude/kpi-strip-live-updates-tfkk3g` (built on `design/target-state-preview`).
+- KPI strip follows the playback slider in preview mode (`src/data/preview/kpiAtTime.ts`).
+- Demo map painted in true coordinates along the river over a shaded-relief valley; 3D near-field gorge scene; pre/post lake scenes and lake outline from the lake-area series.
+- Scenario Library shows the demo engine's 30-run LHS training design + 5 held-out + 3 SPH runs.
+- Exports work in preview: GeoJSON, KML, zipped Shapefile, PDF (`engine/exports.ts`).
+- Home page, Dashboard, Compare, Impact, Validation, Data Layers, Monitoring cleaned of raw IDs, raw JSON, base64 URLs and developer notes; units formatted (km², km, min, ₹ crore).
+- Demo-mode wording in `src/content/ui_text_preview.json`; shared caveat text rewritten in plain language (same meaning).
+- Validation LOOCV tiles in preview use the real synthetic-test-world numbers (documentation §7.10), labelled synthetic.
+- Checks: tsc, vite build, tests/frontend (22 passed). Default-mode Playwright baselines were already stale before this session (identical failures on the pre-session commit); not regenerated.

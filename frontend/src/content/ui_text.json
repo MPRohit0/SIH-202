@@ -44,7 +44,9 @@
     "overallConfidence": "Overall confidence",
     "method": {
       "gp_emulator": "GP emulator",
-      "empirical_fallback": "Empirical fallback"
+      "empirical_fallback": "Empirical fallback",
+      "sph_direct": "SPH near-field run",
+      "delft3d_direct": "D-Flow FM run"
     },
     "lowConfidence": "LOW confidence",
     "fallback": "Empirical fallback method",

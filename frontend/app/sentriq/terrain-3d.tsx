@@ -6,6 +6,7 @@ import {CSS2DRenderer,CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js
 import type {Grid,Result} from '@/lib/model';
 import type {Scene3DResponse} from '@/src/data/api';
 import type {Scene3DArrays} from '@/src/data/source';
+import {isPreviewMode} from '@/src/data/source';
 import {RotateCcw,Move3D,Mountain} from 'lucide-react';
 import TerrainCanvas from './terrain-canvas';
 
@@ -157,5 +158,5 @@ export default function Terrain3D({grid,result,frame=24,mode='terrain',className
  const coordLine=real&&scene
   ?<>EPSG:{scene.terrain.crs_epsg??'—'} <span>{label??'scene'}</span></>
   :grid?<>{((grid.north+grid.south)/2).toFixed(3)}° N &nbsp; {((grid.west+grid.east)/2).toFixed(3)}° E <span>{grid.name}</span></>:null;
- return <div className={'terrain-three '+className}><div ref={host} className="three-host" aria-label="Interactive 3D elevation model with simulated inundation"/>{failed&&grid&&<TerrainCanvas grid={grid} result={result} frame={frame} reset={reset}/>}<div className="scene-coordinates">{coordLine}</div><div className="scene-tools"><span><Move3D size={14}/>Drag to orbit · scroll to zoom{breachMarker&&<> · hover the red marker for breach details</>}</span><button aria-label="Reset 3D camera" onClick={()=>{engine.current?.reset();setReset(r=>r+1);}}><RotateCcw size={15}/></button></div><div className="scene-caption">{real?<>REAL TERRAIN <i/> EXAGGERATED RELIEF ×{ve?.toFixed(1)} <i/> {sourceLabel??<>REAL D-FLOW SURFACE <i/> NEAR-FIELD SPH: UNDER INVESTIGATION</>}</>:<>REAL TERRAIN <i/> EXAGGERATED RELIEF <i/> SIMULATED WATER {failed&&<> <i/> SOFTWARE 3D</>}</>}</div></div>;
+ return <div className={'terrain-three '+className}><div ref={host} className="three-host" aria-label="Interactive 3D elevation model with simulated inundation"/>{failed&&grid&&<TerrainCanvas grid={grid} result={result} frame={frame} reset={reset}/>}<div className="scene-coordinates">{coordLine}</div><div className="scene-tools"><span><Move3D size={14}/>Drag to orbit · scroll to zoom{breachMarker&&<> · hover the red marker for breach details</>}</span><button aria-label="Reset 3D camera" onClick={()=>{engine.current?.reset();setReset(r=>r+1);}}><RotateCcw size={15}/></button></div><div className="scene-caption">{real?(isPreviewMode()?<>NEAR-FIELD GORGE <i/> EXAGGERATED RELIEF ×{ve?.toFixed(1)} <i/> {sourceLabel??'EMULATED FLOOD SURFACE'}</>:<>REAL TERRAIN <i/> EXAGGERATED RELIEF ×{ve?.toFixed(1)} <i/> {sourceLabel??<>REAL D-FLOW SURFACE <i/> NEAR-FIELD SPH: UNDER INVESTIGATION</>}</>):<>REAL TERRAIN <i/> EXAGGERATED RELIEF <i/> SIMULATED WATER {failed&&<> <i/> SOFTWARE 3D</>}</>}</div></div>;
 }

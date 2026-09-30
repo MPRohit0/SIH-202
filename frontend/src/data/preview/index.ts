@@ -233,7 +233,7 @@ export async function getObserved(siteId: string): Promise<GeeLayers> {
   const changePct = first.area_m2 ? ((latest.area_m2 - first.area_m2) / first.area_m2) * 100 : 0;
   const world = getWorld(siteId);
   // Illustrative pre/post scenes on the flood map's own grid, with the lake drawn from the area series.
-  const preImg = renderTerrainImage(world, first.area_m2), postImg = renderTerrainImage(world, latest.area_m2);
+  const preImg = renderTerrainImage(world, first.area_m2, {toChainage: 400}), postImg = renderTerrainImage(world, latest.area_m2, {toChainage: 400});
   const pre = {event_id: `${siteId}_pre`, phase: 'pre' as const, date: first.date, url: preImg.dataUrl, bounds_latlng: preImg.bounds_latlng};
   const post = {event_id: `${siteId}_post`, phase: 'post' as const, date: latest.date, url: postImg.dataUrl, bounds_latlng: postImg.bounds_latlng};
   return {
@@ -342,7 +342,7 @@ export async function getScenarioLibrary(siteId: string): Promise<LibraryRun[]> 
 // The home page's hero map, data card and impact teaser, computed from the
 // site's default scenario so the page shows the same numbers as the workspace.
 export type PreviewLanding = {
-  name: string; terrainUrl: string; floodUrl: string; extent_km2: number; peak_depth_m: number;
+  name: string; terrainUrl: string; terrainBounds: [[number, number], [number, number]]; floodUrl: string; extent_km2: number; peak_depth_m: number;
   coords: string; places: {name: string; kind: string; population: number; arrival_min: number; depth_m: number}[];
 };
 export async function getPreviewLanding(siteId: string): Promise<PreviewLanding> {
@@ -356,7 +356,7 @@ export async function getPreviewLanding(siteId: string): Promise<PreviewLanding>
   const places = world.pois.map(p => { const pt = computeProfile(world, inputs, scenario, p.chainage_m); return {name: p.name, kind: p.kind, population: p.population ?? 0, arrival_min: pt.arrival_s / 60, depth_m: pt.depth_m}; })
     .filter(p => p.depth_m > 0.3).sort((a, b) => a.arrival_min - b.arrival_min);
   return {
-    name: world.name, terrainUrl: terrain.dataUrl, floodUrl: flood.dataUrl,
+    name: world.name, terrainUrl: terrain.dataUrl, terrainBounds: terrain.bounds_latlng, floodUrl: flood.dataUrl,
     extent_km2: floodedAreaKm2(world, inputs, scenario), peak_depth_m: computeProfile(world, inputs, scenario, 0).depth_m,
     coords: `${w.toFixed(3)}° E — ${e.toFixed(3)}° E · ${s.toFixed(3)}° N — ${n.toFixed(3)}° N`, places,
   };
