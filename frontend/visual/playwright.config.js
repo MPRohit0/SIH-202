@@ -39,6 +39,13 @@ export default defineConfig({
       url: 'http://127.0.0.1:5173',
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
+      // design/target-state-preview: preview is now the branch default
+      // (frontend/.env.development sets VITE_DATA_MODE=preview for every
+      // `npm run dev`), so the 'default' project must pin 'live' explicitly
+      // here to keep testing the live/mock seam and its existing baselines.
+      // Process env passed to a child process overrides values from .env
+      // files (Vite only falls back to .env when a var isn't already set).
+      env: {VITE_DATA_MODE: 'live'},
     },
     {
       command: 'npm run dev -- --host 127.0.0.1 --port 5174',

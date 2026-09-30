@@ -1,7 +1,7 @@
 {
   "flood_query_scenario": {
     "contract_version": "0.3.0",
-    "query_id": "q_demo_mumxd3nl_0001",
+    "query_id": "q_demo_munpwjr3_0001",
     "site_id": "teesta",
     "status": "complete",
     "method": "gp_emulator",
@@ -158,7 +158,7 @@
     },
     "flags": {
       "outside_trained_range": false,
-      "demo_mode": true,
+      "demo_mode": false,
       "library_outdated": false,
       "has_placeholders": false
     },
@@ -177,7 +177,7 @@
   },
   "flood_query_unknown_breach": {
     "contract_version": "0.3.0",
-    "query_id": "q_demo_mumxd3nm_0002",
+    "query_id": "q_demo_munpwjr7_0002",
     "site_id": "teesta",
     "status": "complete",
     "method": "gp_emulator",
@@ -334,7 +334,7 @@
     },
     "flags": {
       "outside_trained_range": false,
-      "demo_mode": true,
+      "demo_mode": false,
       "library_outdated": false,
       "has_placeholders": false
     },
@@ -353,7 +353,7 @@
   },
   "impact": {
     "contract_version": "0.3.0",
-    "query_id": "q_demo_mumxd3nm_0002",
+    "query_id": "q_demo_munpwjr7_0002",
     "site_id": "teesta",
     "population_persons": {
       "value": 1200,
@@ -628,38 +628,73 @@
     "scenario_id": "cascade_current",
     "sph_vs_delft3d": {
       "available": true,
-      "domain": "Near-field reach 0-2000 m",
-      "time_window_s": 3600,
+      "domain": "Near-field reach (NF-1): 0-900 m",
+      "time_window_s": 931,
       "metrics": {
-        "iou": 1,
-        "f1_0_3": 1,
-        "depth_rmse_wet_m": 0.08378539373810585,
-        "velocity_mae_ms": 0.09101516551150263
+        "iou": 0.7111111111111111,
+        "f1_0_3": 0.8311688311688312,
+        "tpr": 0.7111111111111111,
+        "fpr": 0,
+        "depth_rmse_wet_m": 0.2093971890973404,
+        "depth_rmsle": 0.1341521796385165,
+        "peak_depth_bias_m": 0.44721436500549316,
+        "arrival_mae_s": 156.8539660461247,
+        "velocity_mae_ms": 0.34181380179070187,
+        "threshold_m": 0.3
       },
-      "probes": [
-        {
-          "poi_id": "teesta__poi__lachen",
-          "arrival_delft3d_s": 903.1056834263063,
-          "arrival_sph_s": 894.1649371603859,
-          "diff_s": -8.940746265920438
-        }
-      ],
+      "probes": [],
       "layers": [
         {
-          "layer_id": "depth_p50",
+          "layer_id": "depth_sph",
           "type": "raster_png",
           "url": "",
           "bounds_latlng": [
             [
-              27.49282242416515,
+              27.874048230616765,
               88.40608048868128
             ],
             [
               27.89091951131872,
-              88.5388872532542
+              88.41549047906067
             ]
           ],
           "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        },
+        {
+          "layer_id": "depth_fm",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              27.874048230616765,
+              88.40608048868128
+            ],
+            [
+              27.89091951131872,
+              88.41549047906067
+            ]
+          ],
+          "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        },
+        {
+          "layer_id": "depth_diff_nearfield",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              27.874048230616765,
+              88.40608048868128
+            ],
+            [
+              27.89091951131872,
+              88.41549047906067
+            ]
+          ],
+          "style_id": "depth_diff",
           "unit": "m",
           "available": true
         }
@@ -671,21 +706,97 @@
     },
     "emulator_vs_physics": {
       "available": true,
-      "held_out_run_id": "teesta__demo__holdout",
+      "held_out_run_id": "HO-1",
       "metrics": {
-        "iou": 0.9,
-        "depth_rmse_wet_m": 0.12,
-        "arrival_mae_s": 90
+        "depth_rmse_wet_m": 0.03513448767422497,
+        "f1_0_3": 0.9943502824858758,
+        "arrival_rmse_s": 8.95889557695393,
+        "coverage_90": 0.9766666666666667,
+        "confidence": {
+          "level": "HIGH",
+          "components": {
+            "validation_skill": "GOOD",
+            "query_coverage": "INSIDE",
+            "spread": "NARROW"
+          },
+          "reason_key": "High (S: LOOCV skill F1=1.00, arrival RMSE 5% of mean arrival)"
+        }
       },
-      "layers": []
+      "layers": [
+        {
+          "layer_id": "depth_pred",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              27.874048230616765,
+              88.40608048868128
+            ],
+            [
+              27.89091951131872,
+              88.41549047906067
+            ]
+          ],
+          "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        },
+        {
+          "layer_id": "depth_true",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              27.874048230616765,
+              88.40608048868128
+            ],
+            [
+              27.89091951131872,
+              88.41549047906067
+            ]
+          ],
+          "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        },
+        {
+          "layer_id": "depth_diff_emulator",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              27.874048230616765,
+              88.40608048868128
+            ],
+            [
+              27.89091951131872,
+              88.41549047906067
+            ]
+          ],
+          "style_id": "depth_diff",
+          "unit": "m",
+          "available": true
+        }
+      ]
     },
     "gp_vs_linear": {
-      "iou_median_gp": 0.9,
-      "iou_median_linear": 0.72,
-      "arrival_mae_s_gp": 90,
-      "arrival_mae_s_linear": 340
+      "iou_median_gp": 1,
+      "iou_median_linear": 0.9137931034482759,
+      "arrival_mae_s_gp": 12.680407570798444,
+      "arrival_mae_s_linear": 69.74224163939144
     },
     "when_to_use_key": "compare_when_to_use",
-    "caveats": []
+    "caveats": [
+      {
+        "id": "preview_simulated",
+        "severity": "info",
+        "text_key": "preview_simulated"
+      },
+      {
+        "id": "arrival_proxy",
+        "severity": "info",
+        "text_key": "arrival_proxy"
+      }
+    ]
   }
 }

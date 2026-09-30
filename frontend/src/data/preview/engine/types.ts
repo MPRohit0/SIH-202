@@ -64,10 +64,15 @@ export type ImpactResponse = {
   x_preview_population_by_arrival_band_note?: string;
   x_preview_critical_facilities_note?: string;
 };
+// Both metrics objects are free-form in the contract (compare.schema.json:
+// `{"type":"object"}`, no additionalProperties restriction), so every level
+// may carry extra keys beyond the ones named here -- the engine's
+// buildCompareResponse (engine/compare.ts) adds several (tpr, fpr, coverage_90,
+// confidence, threshold_m, ...) on top of the original fixture-era fields.
 export type CompareResponse = {
   site_id: string; scenario_id: string;
-  sph_vs_delft3d: {available: boolean; domain: string; time_window_s: number; metrics: {iou?: number; f1_0_3?: number; depth_rmse_wet_m?: number; velocity_mae_ms?: number}; probes: Array<{poi_id: string; arrival_delft3d_s: number; arrival_sph_s: number; diff_s: number}>; layers: FloodQueryResponse['layers']; run_ids: string[]};
-  emulator_vs_physics: {available: boolean; held_out_run_id: string | null; metrics: {iou?: number; depth_rmse_wet_m?: number; arrival_mae_s?: number}; layers: FloodQueryResponse['layers']};
+  sph_vs_delft3d: {available: boolean; domain: string; time_window_s: number; metrics: Record<string, unknown>; probes: Array<{poi_id: string; arrival_delft3d_s: number; arrival_sph_s: number; diff_s: number}>; layers: FloodQueryResponse['layers']; run_ids: string[]};
+  emulator_vs_physics: {available: boolean; held_out_run_id: string | null; metrics: Record<string, unknown>; layers: FloodQueryResponse['layers']};
   gp_vs_linear: {iou_median_gp?: number; iou_median_linear?: number; arrival_mae_s_gp?: number; arrival_mae_s_linear?: number}; when_to_use_key: string;
   caveats: Array<{id: string; severity: 'info' | 'warning' | 'critical'; text_key: string}>;
 };

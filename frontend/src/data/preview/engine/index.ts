@@ -8,6 +8,7 @@ import {getWorld, widthAt, type ScenarioType, type World} from './world';
 import {computeProfile, computeConfidence, computeEnsemble, pWetAndMedianAt, seedForInputs, type EngineInputs} from './physics';
 import {renderRaster} from './raster';
 import {store} from './store';
+import {buildCompareResponse, buildCompareWorkbench, type CompareOpts, type CompareWorkbench} from './compare';
 
 function est(value: number | null, low: number | null, high: number | null, unit: string | null,
   opts: {kind?: Estimate['kind']; interval?: Estimate['interval']; confidence?: Estimate['confidence']; basis?: string} = {}): Estimate {
@@ -255,53 +256,21 @@ function round2sf(value: number, floor: number): number {
   return Math.round(value / magnitude) * magnitude;
 }
 
-/** SPH vs Delft3D comparison, derived from the SAME engine run with a small
- * deterministic perturbation for the "near-field" SPH side -- close
- * agreement, believable small differences, never a coin-flip. */
-export function buildCompare(siteId: string, scenarioType: ScenarioType, inputs: EngineInputs): CompareResponse {
-  const world = getWorld(siteId);
-  const nearFieldEnd = Math.min(world.length_m, world.pois.find(p => p.kind === 'village')?.chainage_m ?? 3000);
-  const samples = 30;
-  let iouNum = 0, iouDen = 0, sumSqDepthDiff = 0, sumAbsVelDiff = 0, wetCount = 0;
-  const probes: CompareResponse['sph_vs_delft3d']['probes'] = [];
-  const seed = seedForInputs(siteId, scenarioType, 'compare', inputs);
-  const noise = (key: string, mag: number) => (((hashCode(key) % 1000) / 1000) - 0.5) * 2 * mag;
-  for (let i = 0; i <= samples; i++) {
-    const c = (i / samples) * nearFieldEnd;
-    const fm = computeProfile(world, inputs, scenarioType, c);
-    const sphDepth = fm.depth_m * (1 + noise(`${seed}|d|${i}`, 0.08));
-    const sphVel = fm.velocity_ms * (1 + noise(`${seed}|v|${i}`, 0.1));
-    const fmWet = fm.depth_m >= 0.3, sphWet = sphDepth >= 0.3;
-    if (fmWet || sphWet) { iouDen += 1; if (fmWet && sphWet) iouNum += 1; }
-    if (fmWet && sphWet) { sumSqDepthDiff += (fm.depth_m - sphDepth) ** 2; sumAbsVelDiff += Math.abs(fm.velocity_ms - sphVel); wetCount += 1; }
-  }
-  for (const poi of world.pois.filter(p => p.chainage_m <= nearFieldEnd)) {
-    const fm = computeProfile(world, inputs, scenarioType, poi.chainage_m);
-    const sphArrival = fm.arrival_s * (1 + noise(`${seed}|a|${poi.poi_id}`, 0.05));
-    probes.push({poi_id: poi.poi_id, arrival_delft3d_s: fm.arrival_s, arrival_sph_s: sphArrival, diff_s: sphArrival - fm.arrival_s});
-  }
-  const raster = renderRaster(world, 'depth', c => c <= nearFieldEnd ? computeProfile(world, inputs, scenarioType, c).depth_m : 0);
-  return {
-    site_id: siteId, scenario_id: `${scenarioType}_current`,
-    sph_vs_delft3d: {
-      available: true, domain: `Near-field reach 0-${Math.round(nearFieldEnd)} m`, time_window_s: 3600,
-      metrics: {iou: iouDen ? iouNum / iouDen : 1, f1_0_3: iouDen ? (2 * iouNum) / (iouDen + iouNum) : 1,
-        depth_rmse_wet_m: wetCount ? Math.sqrt(sumSqDepthDiff / wetCount) : 0, velocity_mae_ms: wetCount ? sumAbsVelDiff / wetCount : 0},
-      probes, layers: [{layer_id: 'depth_p50', type: 'raster_png', url: raster.dataUrl, bounds_latlng: raster.bounds_latlng, style_id: 'depth_p50', unit: 'm', available: true}],
-      run_ids: [`${siteId}__demo__delft3d`, `${siteId}__demo__sph`],
-    },
-    emulator_vs_physics: {available: true, held_out_run_id: `${siteId}__demo__holdout`,
-      metrics: {iou: 0.9, depth_rmse_wet_m: 0.12, arrival_mae_s: 90}, layers: []},
-    gp_vs_linear: {iou_median_gp: 0.9, iou_median_linear: 0.72, arrival_mae_s_gp: 90, arrival_mae_s_linear: 340},
-    when_to_use_key: 'compare_when_to_use',
-    caveats: [],
-  };
+/** SPH vs D-Flow FM comparison, real 2D grids computed by engine/compare.ts:
+ * two synthetic "solvers" evaluated over a domain grid, plus a LOOCV +
+ * held-out-run emulator-vs-physics harness (m5_specs.md §6/§8). See
+ * compare.ts's module doc for what is invented and why. */
+export function buildCompare(siteId: string, scenarioType: ScenarioType, inputs: EngineInputs, opts?: CompareOpts): CompareResponse {
+  return buildCompareResponse(siteId, scenarioType, inputs, opts);
 }
 
-function hashCode(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
+/** Preview-only accessor for the raw grids/scenes/POI pairs behind buildCompare
+ * (Float32Arrays, Scene3DResponse objects, the run dropdown list) -- the
+ * CompareResponse above only carries what compare.schema.json can hold
+ * (PNG layer URLs, scalar metrics), not the data CompareView needs to drive
+ * TerrainMap/Terrain3D directly. Same pattern as getScenarioPair(). */
+export function getCompareWorkbench(siteId: string, scenarioType: ScenarioType, inputs: EngineInputs, opts?: CompareOpts): CompareWorkbench {
+  return buildCompareWorkbench(siteId, scenarioType, inputs, opts);
 }
 
 /** A plausible hydrograph shape: rises linearly to the peak at failure_time_s,

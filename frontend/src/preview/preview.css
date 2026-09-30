@@ -25,3 +25,14 @@
 .state-chip.state-fallback{color:#cab28e;background:#372e1d66;border:1px solid #4e422e}
 .state-chip.state-demo{color:#deb77c;background:#3e321e80;border:1px solid #615135}
 .state-chip.state-placeholder{color:#9db6c6;background:#1730408c;border:1px solid #345060}
+
+/* Compare page (Card A / Card B): three side-by-side map panels (SPH, FM,
+ * SPH-FM / predicted, true, diff), each with its own caption -- reuses
+ * .s-panel/.terrain-map/.terrain-three for the panels themselves, this only
+ * lays out the row. */
+.compare-map-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+.compare-map-row>div{display:flex;flex-direction:column;gap:6px}
+.compare-map-row .compare-map-caption{font-size:11px;color:#9db6c6;letter-spacing:.3px}
+.compare-map-row .terrain-map,.compare-map-row .terrain-three{height:260px;min-height:260px}
+@media (max-width:1100px){.compare-map-row{grid-template-columns:1fr}}
+

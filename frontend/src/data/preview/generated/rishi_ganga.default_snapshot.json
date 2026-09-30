@@ -1,7 +1,7 @@
 {
   "flood_query_scenario": {
     "contract_version": "0.3.0",
-    "query_id": "q_demo_mumxd3o6_0003",
+    "query_id": "q_demo_munpwjt7_0003",
     "site_id": "rishi_ganga",
     "status": "complete",
     "method": "gp_emulator",
@@ -158,7 +158,7 @@
     },
     "flags": {
       "outside_trained_range": false,
-      "demo_mode": true,
+      "demo_mode": false,
       "library_outdated": false,
       "has_placeholders": false
     },
@@ -177,7 +177,7 @@
   },
   "flood_query_unknown_breach": {
     "contract_version": "0.3.0",
-    "query_id": "q_demo_mumxd3o6_0004",
+    "query_id": "q_demo_munpwjt7_0004",
     "site_id": "rishi_ganga",
     "status": "complete",
     "method": "gp_emulator",
@@ -334,7 +334,7 @@
     },
     "flags": {
       "outside_trained_range": false,
-      "demo_mode": true,
+      "demo_mode": false,
       "library_outdated": false,
       "has_placeholders": false
     },
@@ -353,7 +353,7 @@
   },
   "impact": {
     "contract_version": "0.3.0",
-    "query_id": "q_demo_mumxd3o6_0004",
+    "query_id": "q_demo_munpwjt7_0004",
     "site_id": "rishi_ganga",
     "population_persons": {
       "value": 58,
@@ -486,38 +486,73 @@
     "scenario_id": "river_blockage_current",
     "sph_vs_delft3d": {
       "available": true,
-      "domain": "Near-field reach 0-3000 m",
-      "time_window_s": 3600,
+      "domain": "Near-field reach (NF-1): 0-900 m",
+      "time_window_s": 1277,
       "metrics": {
-        "iou": 0.967741935483871,
-        "f1_0_3": 0.9836065573770492,
-        "depth_rmse_wet_m": 0.029491537835036122,
-        "velocity_mae_ms": 0.07294400709937972
+        "iou": 0.8727272727272727,
+        "f1_0_3": 0.9320388349514563,
+        "tpr": 0.8727272727272727,
+        "fpr": 0,
+        "depth_rmse_wet_m": 0.047560580185534,
+        "depth_rmsle": 0.03676963282648213,
+        "peak_depth_bias_m": 0.16442489624023438,
+        "arrival_mae_s": 48.85143601894379,
+        "velocity_mae_ms": 0.23639723249765854,
+        "threshold_m": 0.3
       },
-      "probes": [
-        {
-          "poi_id": "rishi_ganga__poi__raini",
-          "arrival_delft3d_s": 3331.5751247657013,
-          "arrival_sph_s": 3438.8518437831567,
-          "diff_s": 107.27671901745543
-        }
-      ],
+      "probes": [],
       "layers": [
         {
-          "layer_id": "depth_p50",
+          "layer_id": "depth_sph",
           "type": "raster_png",
           "url": "",
           "bounds_latlng": [
             [
-              30.522678349318667,
+              30.599139887780204,
               79.71883219547252
             ],
             [
               30.611167804527486,
-              79.80732165068133
+              79.73086011221979
             ]
           ],
           "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        },
+        {
+          "layer_id": "depth_fm",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              30.599139887780204,
+              79.71883219547252
+            ],
+            [
+              30.611167804527486,
+              79.73086011221979
+            ]
+          ],
+          "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        },
+        {
+          "layer_id": "depth_diff_nearfield",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              30.599139887780204,
+              79.71883219547252
+            ],
+            [
+              30.611167804527486,
+              79.73086011221979
+            ]
+          ],
+          "style_id": "depth_diff",
           "unit": "m",
           "available": true
         }
@@ -529,21 +564,97 @@
     },
     "emulator_vs_physics": {
       "available": true,
-      "held_out_run_id": "rishi_ganga__demo__holdout",
+      "held_out_run_id": "HO-1",
       "metrics": {
-        "iou": 0.9,
-        "depth_rmse_wet_m": 0.12,
-        "arrival_mae_s": 90
+        "depth_rmse_wet_m": 0.021721405746532568,
+        "f1_0_3": 0.9523809523809523,
+        "arrival_rmse_s": 9.670002933692652,
+        "coverage_90": 0.85,
+        "confidence": {
+          "level": "HIGH",
+          "components": {
+            "validation_skill": "GOOD",
+            "query_coverage": "INSIDE",
+            "spread": "NARROW"
+          },
+          "reason_key": "High (S: LOOCV skill F1=0.97, arrival RMSE 5% of mean arrival)"
+        }
       },
-      "layers": []
+      "layers": [
+        {
+          "layer_id": "depth_pred",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              30.599139887780204,
+              79.71883219547252
+            ],
+            [
+              30.611167804527486,
+              79.73086011221979
+            ]
+          ],
+          "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        },
+        {
+          "layer_id": "depth_true",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              30.599139887780204,
+              79.71883219547252
+            ],
+            [
+              30.611167804527486,
+              79.73086011221979
+            ]
+          ],
+          "style_id": "depth_p50",
+          "unit": "m",
+          "available": true
+        },
+        {
+          "layer_id": "depth_diff_emulator",
+          "type": "raster_png",
+          "url": "",
+          "bounds_latlng": [
+            [
+              30.599139887780204,
+              79.71883219547252
+            ],
+            [
+              30.611167804527486,
+              79.73086011221979
+            ]
+          ],
+          "style_id": "depth_diff",
+          "unit": "m",
+          "available": true
+        }
+      ]
     },
     "gp_vs_linear": {
-      "iou_median_gp": 0.9,
-      "iou_median_linear": 0.72,
-      "arrival_mae_s_gp": 90,
-      "arrival_mae_s_linear": 340
+      "iou_median_gp": 0.94,
+      "iou_median_linear": 0.7857142857142857,
+      "arrival_mae_s_gp": 18.62436517109974,
+      "arrival_mae_s_linear": 102.43400844104858
     },
     "when_to_use_key": "compare_when_to_use",
-    "caveats": []
+    "caveats": [
+      {
+        "id": "preview_simulated",
+        "severity": "info",
+        "text_key": "preview_simulated"
+      },
+      {
+        "id": "arrival_proxy",
+        "severity": "info",
+        "text_key": "arrival_proxy"
+      }
+    ]
   }
 }

@@ -30,6 +30,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# design/target-state-preview: these two set VITE_DATA_MODE=preview as the
+# branch default (npm run dev / npm run build) and are meant to be committed.
+!.env.development
+!.env.production
 
 # vercel
 .vercel

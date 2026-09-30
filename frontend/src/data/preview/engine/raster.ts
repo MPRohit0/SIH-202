@@ -35,6 +35,15 @@ function depthColor(depthM: number): string {
   return colors[colors.length - 1];
 }
 
+/** contracts/styles.json depth_diff: diverging blue-white-red, range_m [-2, 2]
+ * (SPH minus FM, or predicted minus true). Values outside the range clamp. */
+function diffColor(v: number): string {
+  const [lo, hi] = styles.depth_diff.range_m as [number, number];
+  const colors = styles.depth_diff.colors as string[]; // [negative, mid, positive]
+  const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+  return t < 0.5 ? lerpColor(colors[0], colors[1], t / 0.5) : lerpColor(colors[1], colors[2], (t - 0.5) / 0.5);
+}
+
 function probColor(p: number): string {
   const stops = styles.p_inundation.stops as [number, string][];
   if (p < stops[0][0]) return 'rgba(0,0,0,0)';
@@ -132,4 +141,26 @@ export function renderDepthRaster(world: World, scenarioType: string, inputs: En
 
 export function renderRasterForSite(siteId: string, kind: RasterKind, sample: (chainageM: number, distFrac: number) => number) {
   return renderRaster(getWorld(siteId), kind, sample);
+}
+
+/** Paints an already-computed per-cell grid (row-major, nx*ny) with no
+ * chainage/world lookup of its own -- used by the Compare page's synthetic
+ * SPH/FM/prediction grids (engine/compare.ts). Returns '' with no DOM
+ * (the Node-side fixture dump script), same convention as renderRaster. */
+export function renderGrid(values: Float32Array, nx: number, ny: number, styleId: 'depth_p50' | 'depth_diff'): string {
+  if (typeof document === 'undefined') return '';
+  const {canvas, ctx} = makeCanvas();
+  canvas.width = nx; canvas.height = ny;
+  const img = ctx.createImageData(nx, ny);
+  for (let row = 0; row < ny; row++) {
+    for (let col = 0; col < nx; col++) {
+      const v = values[row * nx + col];
+      const color = styleId === 'depth_diff' ? diffColor(v) : depthColor(v);
+      const idx = (row * nx + col) * 4;
+      const [r, g, b, a] = parseColor(color);
+      img.data[idx] = r; img.data[idx + 1] = g; img.data[idx + 2] = b; img.data[idx + 3] = a;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas.toDataURL('image/png');
 }

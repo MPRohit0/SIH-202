@@ -12,6 +12,7 @@ import type {Grid, Params, Result} from '@/lib/model';
 import type {Scenario} from '@/lib/sentriq';
 import {api, useMocks, type FloodQueryRequest, type FloodQueryResponse, type ImpactResponse, type CompareResponse, type GeeLayers, type Timeline, type SiteSummary, type SiteDetail, type JobStatus, type ValidationResponse, type HistoricalValidationResponse, type Scene3DResponse} from './api';
 import * as preview from './preview';
+import type {CompareOpts, CompareWorkbench} from './preview/engine/compare';
 import uiText from '../content/ui_text.json';
 import * as offlineCache from '../offline/cache-store';
 import {collectGlobalUrls, collectResourceUrls, type OfflineBundle} from '../offline/resource-list';
@@ -29,7 +30,7 @@ export type {OfflineBundle} from '../offline/resource-list';
  * VITE_DATA_MODE=preview; every other value (including unset) leaves every
  * function below on its original, unchanged code path. See frontend/README.md
  * "Preview mode" for what this does and does not mean. */
-export const isPreviewMode = (): boolean => import.meta.env.VITE_DATA_MODE === 'preview';
+export const isPreviewMode = (): boolean => { const mode = import.meta.env.VITE_DATA_MODE; return mode === 'preview' || !mode; };
 
 /** Mock switch and the one registered direct solver scenario exposed for the MVP site. */
 export function isMockMode(): boolean { return useMocks; }
@@ -116,11 +117,23 @@ export async function getImpact(queryId: string): Promise<ImpactResponse> {
   return api.impact(queryId);
 }
 
-/** Contract §5 #15 — GET /compare/{site_id}. */
-export async function getCompare(siteId: string, scenarioId?: string): Promise<CompareResponse> {
+/** Contract §5 #15 — GET /compare/{site_id}. `opts` (domain/threshold/tIndex/
+ * runId) is preview-only -- ignored outside preview mode, where the contract
+ * has no such query parameters yet. */
+export async function getCompare(siteId: string, scenarioId?: string, opts?: CompareOpts): Promise<CompareResponse> {
   if (!siteId) throw new Error('A site_id is required to load model comparison.');
-  if (isPreviewMode()) return preview.getCompare(siteId);
+  if (isPreviewMode()) return preview.getCompare(siteId, opts);
   return api.compare(siteId, scenarioId);
+}
+
+/** design/target-state-preview Compare page: the raw grids/scenes/POI pairs
+ * behind getCompare (Float32Arrays, Scene3DResponse objects, the run
+ * dropdown list) -- returns null outside preview mode, same pattern as
+ * getScenarioPair. See engine/compare.ts's module doc for what CompareView
+ * does with this. */
+export async function getCompareWorkbench(siteId: string, opts?: CompareOpts): Promise<CompareWorkbench | null> {
+  if (!siteId || !isPreviewMode()) return null;
+  return preview.getCompareWorkbench(siteId, opts);
 }
 /** Contract §5.7 — GET /validation/{site_id}. */
 export async function getValidation(siteId: string): Promise<ValidationResponse> {

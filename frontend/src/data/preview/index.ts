@@ -11,7 +11,8 @@ import type {
 } from '../api';
 import {getWorld, type ScenarioType} from './engine/world';
 import {computeProfile, seedForInputs, type EngineInputs} from './engine/physics';
-import {runFloodQuery, buildImpact, buildCompare, buildTimeline, depthClass, dvClass} from './engine/index';
+import {runFloodQuery, buildImpact, buildCompare, buildTimeline, depthClass, dvClass, getCompareWorkbench as engineGetCompareWorkbench} from './engine/index';
+import type {CompareOpts, CompareWorkbench} from './engine/compare';
 import {store} from './engine/store';
 import {renderScene3d} from './engine/scene3d';
 
@@ -157,12 +158,24 @@ export async function getTimeline(queryId: string) {
   return buildTimeline(queryId);
 }
 
-export async function getCompare(siteId: string): Promise<CompareResponse> {
+function compareContext(siteId: string): {scenarioType: ScenarioType; inputs: EngineInputs} {
   const world = getWorld(siteId);
   const lastQueryId = store.recentQueryIds.find(id => store.getQuery(id)?.site_id === siteId);
   const stored = lastQueryId ? store.getQuery(lastQueryId) : undefined;
   const inputs: EngineInputs = stored?.inputs ?? Object.fromEntries(world.emulatorInputs.map(r => [r.name, r.default])) as unknown as EngineInputs;
-  return buildCompare(siteId, stored?.scenario_type ?? world.defaultScenarioType, inputs);
+  return {scenarioType: stored?.scenario_type ?? world.defaultScenarioType, inputs};
+}
+
+export async function getCompare(siteId: string, opts?: CompareOpts): Promise<CompareResponse> {
+  const {scenarioType, inputs} = compareContext(siteId);
+  return buildCompare(siteId, scenarioType, inputs, opts);
+}
+
+/** Preview-only: the raw grids/scenes behind getCompare (design/target-state-preview,
+ * Compare page). See source.getCompareWorkbench for the seam contract. */
+export async function getCompareWorkbench(siteId: string, opts?: CompareOpts): Promise<CompareWorkbench> {
+  const {scenarioType, inputs} = compareContext(siteId);
+  return engineGetCompareWorkbench(siteId, scenarioType, inputs, opts);
 }
 
 export async function getValidation(siteId: string): Promise<ValidationResponse> {
