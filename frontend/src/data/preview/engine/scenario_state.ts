@@ -62,7 +62,11 @@ function smoothstep(x: number): number {
   return c * c * (3 - 2 * c);
 }
 
-function timeFactor(tMin: number, arrivalMin: number, durationMin: number): number {
+/** Exported so the 3D terrain's flood animation (app/sentriq/terrain-3d.tsx)
+ * reads the identical rise/recede curve the KPI tiles and POI arrivals use --
+ * "the 2D map, the 3D view and the KPI tiles all read the same engine frame
+ * for the same t" (docs/progress.md). */
+export function timeFactor(tMin: number, arrivalMin: number, durationMin: number): number {
   if (!Number.isFinite(arrivalMin) || tMin < arrivalMin) return 0;
   const riseMin = Math.max(5, durationMin * RISE_FRAC_OF_DURATION);
   const rise = smoothstep((tMin - arrivalMin) / riseMin);
@@ -77,12 +81,16 @@ function ranged(value: number, spreadFrac: number, unit: string): Ranged {
   return {value, low: Math.min(lo, hi), high: Math.max(lo, hi), unit};
 }
 
-export function computeScenarioState(inputs: ScenarioStateInputs): ScenarioState {
-  const world = getWorld(inputs.site);
-  const severity = Math.max(0, Math.min(100, inputs.severity));
-  const durationMin = Math.max(10, inputs.duration_min);
-  const manningN = Math.max(inputs.manning_n, 0.005);
+type ControlInputs = Omit<ScenarioStateInputs, 'site' | 't_min'>;
 
+/** The single driving-magnitude number every depth/discharge figure in this
+ * module scales from. Factored out (from what used to be inline in
+ * computeScenarioState) so the 3D flood animation can derive a plain
+ * multiplier against it (severityMultiplier(), below) without duplicating
+ * the formula -- "same engine, same numbers" for the KPI tiles and the 3D
+ * view alike. */
+export function computePeak0(inputs: ControlInputs): number {
+  const severity = Math.max(0, Math.min(100, inputs.severity));
   // Fold head/volume/severity into one effective driving volume: keeps every
   // control individually monotonic without inventing a second, unrelated
   // "head" state on top of engine/physics.ts's volume-driven model.
@@ -90,21 +98,49 @@ export function computeScenarioState(inputs: ScenarioStateInputs): ScenarioState
   const headFactor = Math.sqrt(Math.max(inputs.water_head_m, 1) / REF_HEAD_M);
   const effectiveVolumeM3 = Math.max(inputs.volume_cap_mcm, 0.1) * 1e6 * severityFrac;
   const formationS = Math.max(inputs.formation_min, 1) * 60;
-
-  const peak0 = PEAK_DEPTH_SCALE * Math.cbrt(effectiveVolumeM3 / 1.0e7)
+  return PEAK_DEPTH_SCALE * Math.cbrt(effectiveVolumeM3 / 1.0e7)
     * Math.sqrt(Math.max(inputs.breach_width_m, 1) / 120.0)
     * Math.pow(3600.0 / Math.max(formationS, 60), 0.25)
     * headFactor;
+}
 
-  // Manning's n: a rougher channel slows the flow (V ~ 1/n shape) and ponds
-  // it a little deeper for the same discharge.
+const DEFAULT_CONTROLS: ControlInputs = {
+  severity: 50, water_head_m: REF_HEAD_M, breach_width_m: 120,
+  formation_min: REF_FORMATION_MIN, duration_min: 60, manning_n: REF_MANNING_N, volume_cap_mcm: 100,
+};
+
+/** Dimensionless, 1.0 at Params.defaults (lib/model.ts) -- the 3D flood
+ * animation multiplies the real Teesta peak-depth field by this instead of
+ * recomputing a synthetic peak of its own, so at the on-load default
+ * controls the 3D water sits exactly at the real depth, and it scales up/
+ * down in the same direction and proportion as the KPI tiles' max_depth_m
+ * when severity/head/width/volume/formation/Manning's n change. */
+export function severityMultiplier(inputs: ControlInputs): number {
+  const reference = computePeak0(DEFAULT_CONTROLS);
+  return reference > 0 ? computePeak0(inputs) / reference : 1;
+}
+
+/** Minutes for the flood front to cross the whole modelled reach -- see its
+ * use in computeScenarioState below. Exported so the 3D animation's
+ * distance-from-breach front timing matches the KPI/POI arrival model
+ * exactly (same formation/Manning's-n delay, same reference minutes). */
+export function domainTraversalMinutes(inputs: Pick<ControlInputs, 'formation_min' | 'manning_n'>): number {
+  const manningN = Math.max(inputs.manning_n, 0.005);
+  const formationDelayFactor = inputs.formation_min / REF_FORMATION_MIN;
+  const manningDelayFactor = manningN / REF_MANNING_N;
+  return DOMAIN_TRAVERSAL_MIN_AT_REF * formationDelayFactor * manningDelayFactor;
+}
+
+export function computeScenarioState(inputs: ScenarioStateInputs): ScenarioState {
+  const world = getWorld(inputs.site);
+  const durationMin = Math.max(10, inputs.duration_min);
+  const manningN = Math.max(inputs.manning_n, 0.005);
+  const peak0 = computePeak0(inputs);
   const manningVelocityFactor = Math.pow(REF_MANNING_N / manningN, 0.5);
   const manningDepthFactor = Math.pow(manningN / REF_MANNING_N, 0.15);
 
   // Arrival-timing model (see DOMAIN_TRAVERSAL_MIN_AT_REF's comment above).
-  const formationDelayFactor = inputs.formation_min / REF_FORMATION_MIN;
-  const manningDelayFactor = manningN / REF_MANNING_N;
-  const domainTraversalMin = DOMAIN_TRAVERSAL_MIN_AT_REF * formationDelayFactor * manningDelayFactor;
+  const domainTraversalMin = domainTraversalMinutes(inputs);
   function arrivalMinAt(chainageM: number): number {
     return (Math.max(chainageM, 0) / world.length_m) * domainTraversalMin;
   }

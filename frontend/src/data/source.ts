@@ -346,5 +346,5 @@ export async function loadSavedOfflineQuery(queryId: string): Promise<FloodQuery
  * four KPI tiles, downstream-impact arrivals, the map legend range --
  * docs/progress.md). Preview-only; a pure function, so callers gate on
  * isPreviewMode() themselves rather than this module doing it. */
-export {computeScenarioState} from './preview/engine/scenario_state';
+export {computeScenarioState, severityMultiplier as scenarioSeverityMultiplier, domainTraversalMinutes as scenarioDomainTraversalMinutes, timeFactor as scenarioTimeFactor} from './preview/engine/scenario_state';
 export type {ScenarioState, ScenarioStateInputs, PoiState as ScenarioPoiState, Ranged as ScenarioRanged} from './preview/engine/scenario_state';
