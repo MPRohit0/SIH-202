@@ -15,6 +15,7 @@ import {runFloodQuery, buildImpact, buildCompare, buildTimeline, depthClass, dvC
 import type {CompareOpts, CompareWorkbench} from './engine/compare';
 import {store} from './engine/store';
 import {renderScene3d} from './engine/scene3d';
+import {fetchRealTeestaScene3dMeta} from './engine/real_teesta';
 
 const siteDetailTemplates: Record<string, SiteDetail> = {
   teesta: siteDetailTeesta as unknown as SiteDetail,
@@ -138,8 +139,26 @@ export async function getScene3d(queryId: string): Promise<Scene3DResponse> {
   const stored = store.getQuery(queryId);
   if (!stored) throw new Error(`No preview demo query cached for query_id ${JSON.stringify(queryId)}`);
   let scene = scene3dCache.get(queryId);
-  if (!scene) { scene = renderScene3d(getWorld(stored.site_id), stored.scenario_type, stored.inputs, queryId); scene3dCache.set(queryId, scene); }
+  if (!scene) {
+    // Teesta's 3D terrain is the real registered D-Flow FM run's terrain +
+    // flood surface (real_teesta.ts), not the synthetic gorge model every
+    // other site/scenario uses.
+    scene = stored.site_id === 'teesta' ? await buildRealTeestaScene3d(queryId)
+      : renderScene3d(getWorld(stored.site_id), stored.scenario_type, stored.inputs, queryId);
+    scene3dCache.set(queryId, scene);
+  }
   return structuredClone(scene);
+}
+
+async function buildRealTeestaScene3d(queryId: string): Promise<Scene3DResponse> {
+  const meta = await fetchRealTeestaScene3dMeta();
+  const byteLength = meta.terrain.byte_length;
+  return {
+    contract_version: meta.contract_version, query_id: queryId,
+    frame: meta.frame, terrain: meta.terrain, flood_surface: meta.flood_surface,
+    comparison: {nearfield_bounds_local: [[0, 0], [0, 0]], delft3d_surface_url: null, delft3d_surface_basis: null, sph_surfaces: []},
+    payload_bytes: byteLength * 2, max_payload_mb: 20,
+  };
 }
 
 export async function getScene3dArrays(scene: Scene3DResponse): Promise<{terrain: Float32Array; flood: Float32Array}> {

@@ -9,6 +9,7 @@ import {computeProfile, computeConfidence, computeEnsemble, pWetAndMedianAt, see
 import {renderRaster} from './raster';
 import {store} from './store';
 import {buildCompareResponse, buildCompareWorkbench, type CompareOpts, type CompareWorkbench} from './compare';
+import {REAL_TEESTA_DEPTH_RASTER} from './real_teesta';
 
 function est(value: number | null, low: number | null, high: number | null, unit: string | null,
   opts: {kind?: Estimate['kind']; interval?: Estimate['interval']; confidence?: Estimate['confidence']; basis?: string} = {}): Estimate {
@@ -80,7 +81,13 @@ function buildScenarioResponse(world: World, queryId: string, scenarioType: Scen
   const firstWetPoi = world.pois.map(p => ({p, pt: computeProfile(world, inputs, scenarioType, p.chainage_m)}))
     .filter(x => x.pt.depth_m >= 0.3).sort((a, b) => a.pt.arrival_s - b.pt.arrival_s)[0];
 
-  const raster = renderRaster(world, 'depth', c => computeProfile(world, inputs, scenarioType, c).depth_m);
+  // Teesta scenario mode shows the real registered D-Flow FM depth raster
+  // (see real_teesta.ts) instead of the synthetic gorge-channel paint every
+  // other site/mode uses -- the numeric summary above is still the engine's
+  // own computed profile, unaffected by which raster is displayed.
+  const raster = world.site_id === 'teesta'
+    ? {dataUrl: REAL_TEESTA_DEPTH_RASTER.url, bounds_latlng: REAL_TEESTA_DEPTH_RASTER.bounds_latlng}
+    : renderRaster(world, 'depth', c => computeProfile(world, inputs, scenarioType, c).depth_m);
 
   return {
     contract_version: '0.3.0', query_id: queryId, site_id: world.site_id,
